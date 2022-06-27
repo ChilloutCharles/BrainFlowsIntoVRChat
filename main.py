@@ -2,7 +2,6 @@ import argparse
 import time
 import enum
 import numpy as np
-import scipy.stats as st
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels
 from brainflow.data_filter import DataFilter, DetrendOperations
