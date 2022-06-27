@@ -112,6 +112,7 @@ def main():
     ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
 
     board.prepare_session()
+    board.config_board('p61')
 
     ### EEG Streaming Params ###
     window_size = 2
@@ -161,6 +162,7 @@ def main():
 
             ### START PPG SECTION ###
             if (ppg_channels):
+                print(data[ppg_channels])
                 heart_data = data[ppg_channels[0]]
                 peaks = find_peaks(heart_data, np.greater)
                 print(len(peaks) / window_size)
