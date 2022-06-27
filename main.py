@@ -7,6 +7,7 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels
 from brainflow.data_filter import DataFilter, DetrendOperations
 
 from pythonosc.udp_client import SimpleUDPClient
+from scipy.signal import find_peaks
 
 
 class BAND_POWERS(enum.IntEnum):
@@ -108,6 +109,7 @@ def main():
     eeg_channels = tryFunc(BoardShim.get_eeg_channels, master_board_id)
     sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
     battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
+    ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
 
     board.prepare_session()
 
@@ -128,6 +130,7 @@ def main():
             data = board.get_current_board_data(num_points)
             battery_level = None if not battery_channel else data[battery_channel][-1]
 
+            ### START EEG SECTION ###
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
             for eeg_channel in eeg_channels:
@@ -154,6 +157,13 @@ def main():
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Focus: {:.3f}\tRelax: {:.3f}".format(
                 current_focus, current_relax))
+            ### END EEG SECTION ###
+
+            ### START PPG SECTION ###
+            if (ppg_channels):
+                heart_data = data[ppg_channels[0]]
+                peaks = find_peaks(heart_data, np.greater)
+                print(len(peaks) / window_size)
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
             osc_client.send_message(OSC_Path.Focus, current_focus)
