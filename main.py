@@ -20,6 +20,7 @@ class BAND_POWERS(enum.IntEnum):
 class OSC_Path:
     Relax = '/avatar/parameters/osc_relax_avg'
     Focus = '/avatar/parameters/osc_focus_avg'
+    Battery = '/avatar/parameters/osc_battery_lvl'
 
 
 def tanh_normalize(data, scale, offset):
@@ -31,12 +32,19 @@ def smooth(current_value, target_value, weight):
     return current_value
 
 
+def tryFunc(func, val):
+    try:
+        return func(val)
+    except:
+        return None
+
+
 def main():
     BoardShim.enable_board_logger()
     DataFilter.enable_data_logger()
 
     ### Uncomment this to see debug messages ###
-    BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
@@ -97,8 +105,10 @@ def main():
     ### EEG board setup ###
     board = BoardShim(args.board_id, params)
     master_board_id = board.get_board_id()
-    eeg_channels = BoardShim.get_eeg_channels(master_board_id)
-    sampling_rate = BoardShim.get_sampling_rate(master_board_id)
+    eeg_channels = tryFunc(BoardShim.get_eeg_channels, master_board_id)
+    sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
+    battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
+
     board.prepare_session()
 
     ### EEG Streaming Params ###
@@ -116,6 +126,7 @@ def main():
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Getting Board Data")
             data = board.get_current_board_data(num_points)
+            battery_level = None if not battery_channel else data[battery_channel][-1]
 
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
@@ -147,6 +158,8 @@ def main():
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
             osc_client.send_message(OSC_Path.Focus, current_focus)
             osc_client.send_message(OSC_Path.Relax, current_relax)
+            if battery_level:
+                osc_client.send_message(OSC_Path.Battery, battery_level)
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
             time.sleep(update_speed)
