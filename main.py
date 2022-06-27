@@ -36,7 +36,7 @@ def main():
     DataFilter.enable_data_logger()
 
     ### Uncomment this to see debug messages ###
-    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+    BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
@@ -82,15 +82,17 @@ def main():
     osc_client = SimpleUDPClient(ip, send_port)
 
     ### EEG Band Calculation Params ###
+    current_focus = 0
+    current_relax = 0
+    current_value = np.array([current_focus, current_relax])
+
     # normalize ratios between -1 and 1.
     # Ratios are centered around 1.0. Tune scale to taste
-    offset = -1
-    relax_scale = 1.3
-    focus_scale = 1.3
+    normalize_offset = -1
+    normalize_scale = 1.3
 
-    ### Smoothing params ###
-    relax_weight = 0.05
-    focus_weight = 0.05
+    # Smoothing params
+    smoothing_weight = 0.05
 
     ### EEG board setup ###
     board = BoardShim(args.board_id, params)
@@ -103,8 +105,6 @@ def main():
     window_size = 2
     update_speed = (250 - 3) * 0.001  # 4Hz update rate for VRChat OSC
     num_points = window_size * sampling_rate
-    current_focus = 0
-    current_relax = 0
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -113,8 +113,12 @@ def main():
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Main Loop Started')
         while True:
-            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sampling")
+            BoardShim.log_message(
+                LogLevels.LEVEL_DEBUG.value, "Getting Board Data")
             data = board.get_current_board_data(num_points)
+
+            BoardShim.log_message(
+                LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
             for eeg_channel in eeg_channels:
                 DataFilter.detrend(data[eeg_channel],
                                    DetrendOperations.LINEAR)
@@ -122,16 +126,20 @@ def main():
                 data, eeg_channels, sampling_rate, True)
             feature_vector, _ = bands
 
-            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Calculating")
-            target_focus = feature_vector[BAND_POWERS.Beta] / \
-                feature_vector[BAND_POWERS.Theta]
-            target_focus = tanh_normalize(target_focus, focus_scale, offset)
-            current_focus = smooth(current_focus, target_focus, focus_weight)
+            BoardShim.log_message(
+                LogLevels.LEVEL_DEBUG.value, "Calculating Metrics")
+            numerator = np.array(
+                [feature_vector[BAND_POWERS.Beta], feature_vector[BAND_POWERS.Alpha]])
+            denominator = np.array(
+                [feature_vector[BAND_POWERS.Theta], feature_vector[BAND_POWERS.Theta]])
+            target_value = np.divide(numerator, denominator)
+            target_value = tanh_normalize(
+                target_value, normalize_scale, normalize_offset)
+            current_value = smooth(
+                current_value, target_value, smoothing_weight)
 
-            target_relax = feature_vector[BAND_POWERS.Alpha] / \
-                feature_vector[BAND_POWERS.Theta]
-            target_relax = tanh_normalize(target_relax, relax_scale, offset)
-            current_relax = smooth(current_relax, target_relax, relax_weight)
+            current_focus = current_value[0]
+            current_relax = current_value[1]
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Focus: {:.3f}\tRelax: {:.3f}".format(
                 current_focus, current_relax))
