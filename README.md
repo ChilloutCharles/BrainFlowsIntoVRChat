@@ -17,5 +17,12 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 3. Look up your device's id: [supported biosensors](https://BrainFlow.readthedocs.io/en/stable/SupportedBoards.html)
 4. Run the script `main.py` with your device id. The command for running with a [Muse 2 headband](https://choosemuse.com/muse-2/) would be: `python .\main.py --board-id 38`
 
+**OSC Avatar Parameters**
+
+Avatar parameters being sent are floats that range from -1.0 to 1.0. Negative and Positive values correspond to low and high focus/relaxation. Update your avatar paramaters as needed to influnece animations and the like. Have fun!
+
+- `/avatar/parameters/osc_relax_avg`
+- `/avatar/parameters/osc_focus_avg`
+
 ## License
 [MIT](http://opensource.org/licenses/MIT).
