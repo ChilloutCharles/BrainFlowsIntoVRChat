@@ -3,10 +3,11 @@ import time
 import enum
 import numpy as np
 
-from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels
+from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
 from brainflow.data_filter import DataFilter, DetrendOperations
 
 from pythonosc.udp_client import SimpleUDPClient
+from scipy.signal import find_peaks
 
 
 class BAND_POWERS(enum.IntEnum):
@@ -21,6 +22,8 @@ class OSC_Path:
     Relax = '/avatar/parameters/osc_relax_avg'
     Focus = '/avatar/parameters/osc_focus_avg'
     Battery = '/avatar/parameters/osc_battery_lvl'
+    HeartBps = '/avatar/parameters/osc_heart_bps'
+    HeartBpm = '/avatar/parameters/osc_heart_bpm'
 
 
 def tanh_normalize(data, scale, offset):
@@ -108,26 +111,33 @@ def main():
     eeg_channels = tryFunc(BoardShim.get_eeg_channels, master_board_id)
     sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
     battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
-
+    ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
     board.prepare_session()
 
+    ### Device specific commands ###
+    if master_board_id == BoardIds.MUSE_2_BOARD or master_board_id == BoardIds.MUSE_S_BOARD:
+        board.config_board('p50')
+
     ### EEG Streaming Params ###
-    window_size = 2
+    eeg_window_size = 2
+    heart_window_size = 10
     update_speed = (250 - 3) * 0.001  # 4Hz update rate for VRChat OSC
-    num_points = window_size * sampling_rate
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
-        board.start_stream(num_points, args.streamer_params)
+        board.start_stream(heart_window_size *
+                           sampling_rate, args.streamer_params)
         time.sleep(5)
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Main Loop Started')
         while True:
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Getting Board Data")
-            data = board.get_current_board_data(num_points)
+            data = board.get_current_board_data(
+                eeg_window_size * sampling_rate)
             battery_level = None if not battery_channel else data[battery_channel][-1]
 
+            ### START EEG SECTION ###
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
             for eeg_channel in eeg_channels:
@@ -154,12 +164,31 @@ def main():
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Focus: {:.3f}\tRelax: {:.3f}".format(
                 current_focus, current_relax))
+            ### END EEG SECTION ###
+
+            ### START PPG SECTION ###
+            if ppg_channels:
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "Calculating BPM")
+                data = board.get_current_board_data(
+                    heart_window_size * sampling_rate)
+                ir_data_channel = ppg_channels[1]
+                ir_data = data[ir_data_channel]
+                peaks, _ = find_peaks(ir_data)
+                heart_bps = len(peaks) / sampling_rate
+                heart_bpm = int(heart_bps * 60 + 0.5)
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
+            ### END PPG SECTION ###
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
             osc_client.send_message(OSC_Path.Focus, current_focus)
             osc_client.send_message(OSC_Path.Relax, current_relax)
             if battery_level:
                 osc_client.send_message(OSC_Path.Battery, battery_level)
+            if ppg_channels:
+                osc_client.send_message(OSC_Path.HeartBps, heart_bps)
+                osc_client.send_message(OSC_Path.HeartBpm, heart_bpm)
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
             time.sleep(update_speed)
