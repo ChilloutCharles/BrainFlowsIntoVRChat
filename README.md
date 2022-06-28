@@ -26,6 +26,8 @@ Avatar parameters being sent are floats that range from -1.0 to 1.0. Negative an
 
 Also added are optional paramaters that appear based on whether or not your headband supports it.
 - `/avatar/parameters/osc_battery_lvl` (int [0-100])
+- `/avatar/parameters/osc_heart_bps` (float)
+- `/avatar/parameters/osc_heart_bpm` (int)
 
 ## License
 [MIT](http://opensource.org/licenses/MIT).
