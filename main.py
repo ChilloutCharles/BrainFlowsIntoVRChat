@@ -47,7 +47,7 @@ def main():
     DataFilter.enable_data_logger()
 
     ### Uncomment this to see debug messages ###
-    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+    BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
@@ -120,13 +120,12 @@ def main():
 
     ### EEG Streaming Params ###
     eeg_window_size = 2
-    heart_window_size = 10
+    heart_window_size = 5
     update_speed = (250 - 3) * 0.001  # 4Hz update rate for VRChat OSC
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
-        board.start_stream(heart_window_size *
-                           sampling_rate, args.streamer_params)
+        board.start_stream(450000, args.streamer_params)
         time.sleep(5)
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Main Loop Started')
@@ -175,7 +174,8 @@ def main():
                 ir_data_channel = ppg_channels[1]
                 ir_data = data[ir_data_channel]
                 peaks, _ = find_peaks(ir_data)
-                heart_bps = len(peaks) / sampling_rate
+                # divide by magic number 5, not sure why this works
+                heart_bps = len(ir_data) / len(peaks) / 5
                 heart_bpm = int(heart_bps * 60 + 0.5)
                 BoardShim.log_message(
                     LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
