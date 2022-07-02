@@ -104,6 +104,7 @@ def main():
 
     # Smoothing params
     smoothing_weight = 0.05
+    detrend_eeg = True
 
     ### EEG board setup ###
     board = BoardShim(args.board_id, params)
@@ -139,9 +140,10 @@ def main():
             ### START EEG SECTION ###
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
-            for eeg_channel in eeg_channels:
-                DataFilter.detrend(data[eeg_channel],
-                                   DetrendOperations.LINEAR)
+            if detrend_eeg:
+                for eeg_channel in eeg_channels:
+                    DataFilter.detrend(data[eeg_channel],
+                                       DetrendOperations.LINEAR)
             bands = DataFilter.get_avg_band_powers(
                 data, eeg_channels, sampling_rate, True)
             feature_vector, _ = bands
