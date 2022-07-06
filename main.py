@@ -176,8 +176,8 @@ def main():
                 ir_data_channel = ppg_channels[1]
                 ir_data = data[ir_data_channel]
                 peaks, _ = find_peaks(ir_data)
-                # divide by magic number 5, not sure why this works
-                heart_bps = len(ir_data) / len(peaks) / 5
+                # divide by magic number 4, not sure why this works
+                heart_bps = len(ir_data) / len(peaks) / 4
                 heart_bpm = int(heart_bps * 60 + 0.5)
                 BoardShim.log_message(
                     LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
