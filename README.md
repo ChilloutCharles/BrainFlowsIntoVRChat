@@ -29,5 +29,8 @@ Also added are optional paramaters that appear based on whether or not your head
 - `/avatar/parameters/osc_heart_bps` (float)
 - `/avatar/parameters/osc_heart_bpm` (int)
 
+## Thanks
+Thanks to [@Mitzi_DelverVRC](https://twitter.com/Mitzi_DelverVRC) for help with PPG work
+
 ## License
 [MIT](http://opensource.org/licenses/MIT).
