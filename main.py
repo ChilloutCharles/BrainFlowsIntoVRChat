@@ -1,15 +1,17 @@
 import argparse
 import time
 import enum
+import math
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
-from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes
+from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, AggOperations
 
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
 
 from pprint import pprint
+import matplotlib.pyplot as plt
 
 
 class BAND_POWERS(enum.IntEnum):
@@ -184,21 +186,33 @@ def main():
                 time_data = data[time_channel]
                 ir_data_channel = ppg_channels[1]
                 ir_data = data[ir_data_channel]
+                raw_data = ir_data.copy()
 
-                cutoff = 1.5
+                cutoff = 2
                 order = 2
                 ripple = 0
                 DataFilter.perform_lowpass(
                     ir_data, sampling_rate, cutoff, order, FilterTypes.BUTTERWORTH.value, ripple)
+                # DataFilter.perform_rolling_filter(
+                #     ir_data, int(sampling_rate * haert_min_dist), AggOperations.MEAN.value)
 
                 peaks, _ = find_peaks(
                     ir_data, distance=sampling_rate * haert_min_dist)
+                peaks = peaks[1:-1]
 
-                if len(peaks):
-                    heart_bps = 1 / np.mean(np.diff(time_data[peaks]))
+                # plt.clf()
+                # plt.plot(raw_data, label="raw")
+                # plt.plot(ir_data, label="smooth", markevery=peaks, marker='o')
+                # plt.legend(loc='lower center')
+                # plt.show()
+
+                heart_bps = 1 / np.mean(np.diff(time_data[peaks]))
+                if not math.isnan(heart_bps):
                     heart_bpm = int(heart_bps * 60 + 0.5)
                     BoardShim.log_message(
                         LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
+                else:
+                    heart_bps = None
 
             ### END PPG SECTION ###
 
