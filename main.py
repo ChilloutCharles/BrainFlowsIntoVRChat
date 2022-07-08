@@ -4,10 +4,12 @@ import enum
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
-from brainflow.data_filter import DataFilter, DetrendOperations
+from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes
 
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
+
+from pprint import pprint
 
 
 class BAND_POWERS(enum.IntEnum):
@@ -47,7 +49,7 @@ def main():
     DataFilter.enable_data_logger()
 
     ### Uncomment this to see debug messages ###
-    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+    BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
@@ -113,7 +115,10 @@ def main():
     sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
     battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
     ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
+    time_channel = tryFunc(BoardShim.get_timestamp_channel, master_board_id)
     board.prepare_session()
+
+    pprint(BoardShim.get_board_descr(master_board_id))
 
     ### Device specific commands ###
     if master_board_id == BoardIds.MUSE_2_BOARD or master_board_id == BoardIds.MUSE_S_BOARD:
@@ -121,8 +126,11 @@ def main():
 
     ### EEG Streaming Params ###
     eeg_window_size = 2
-    heart_window_size = 5
     update_speed = (250 - 3) * 0.001  # 4Hz update rate for VRChat OSC
+
+    ### PPG Params ###
+    heart_window_size = 5
+    haert_min_dist = 0.35
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -168,19 +176,30 @@ def main():
             ### END EEG SECTION ###
 
             ### START PPG SECTION ###
-            if ppg_channels:
+            if ppg_channels and time_channel:
                 BoardShim.log_message(
                     LogLevels.LEVEL_DEBUG.value, "Calculating BPM")
                 data = board.get_current_board_data(
                     heart_window_size * sampling_rate)
+                time_data = data[time_channel]
                 ir_data_channel = ppg_channels[1]
                 ir_data = data[ir_data_channel]
-                peaks, _ = find_peaks(ir_data)
-                # divide by magic number 4, not sure why this works
-                heart_bps = len(ir_data) / len(peaks) / 4
-                heart_bpm = int(heart_bps * 60 + 0.5)
-                BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
+
+                cutoff = 1.5
+                order = 2
+                ripple = 0
+                DataFilter.perform_lowpass(
+                    ir_data, sampling_rate, cutoff, order, FilterTypes.BUTTERWORTH.value, ripple)
+
+                peaks, _ = find_peaks(
+                    ir_data, distance=sampling_rate * haert_min_dist)
+
+                if len(peaks):
+                    heart_bps = 1 / np.mean(np.diff(time_data[peaks]))
+                    heart_bpm = int(heart_bps * 60 + 0.5)
+                    BoardShim.log_message(
+                        LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
+
             ### END PPG SECTION ###
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
@@ -188,7 +207,7 @@ def main():
             osc_client.send_message(OSC_Path.Relax, current_relax)
             if battery_level:
                 osc_client.send_message(OSC_Path.Battery, battery_level)
-            if ppg_channels:
+            if ppg_channels and heart_bps:
                 osc_client.send_message(OSC_Path.HeartBps, heart_bps)
                 osc_client.send_message(OSC_Path.HeartBpm, heart_bpm)
 
