@@ -132,7 +132,7 @@ def main():
 
     ### PPG Params ###
     heart_window_size = 5
-    haert_min_dist = 0.35
+    heart_min_dist = 0.35
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -197,7 +197,7 @@ def main():
                 #     ir_data, int(sampling_rate * haert_min_dist), AggOperations.MEAN.value)
 
                 peaks, _ = find_peaks(
-                    ir_data, distance=sampling_rate * haert_min_dist)
+                    ir_data, distance=sampling_rate * heart_min_dist)
                 peaks = peaks[1:-1]
 
                 # plt.clf()
