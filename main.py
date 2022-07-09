@@ -51,7 +51,7 @@ def main():
     DataFilter.enable_data_logger()
 
     ### Uncomment this to see debug messages ###
-    BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
@@ -131,8 +131,11 @@ def main():
     update_speed = (250 - 3) * 0.001  # 4Hz update rate for VRChat OSC
 
     ### PPG Params ###
-    heart_window_size = 5
+    heart_window_size = 10
     heart_min_dist = 0.35
+    heart_lowpass_cutoff = 2
+    heart_lowpass_order = 2
+    heart_lowpass_ripple = 0
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -180,32 +183,29 @@ def main():
             ### START PPG SECTION ###
             if ppg_channels and time_channel:
                 BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "Calculating BPM")
+                    LogLevels.LEVEL_DEBUG.value, "Get PPG Data")
                 data = board.get_current_board_data(
                     heart_window_size * sampling_rate)
                 time_data = data[time_channel]
                 ir_data_channel = ppg_channels[1]
-                ir_data = data[ir_data_channel]
-                raw_data = ir_data.copy()
+                ambient_channel = ppg_channels[0]
 
-                cutoff = 2
-                order = 2
-                ripple = 0
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "Clean PPG Signals")
+                ir_data = data[ir_data_channel] - data[ambient_channel]
+                ambient_filter = list(map(lambda sample: sample > 0, ir_data))
+                ir_data = ir_data[ambient_filter]
                 DataFilter.perform_lowpass(
-                    ir_data, sampling_rate, cutoff, order, FilterTypes.BUTTERWORTH.value, ripple)
-                # DataFilter.perform_rolling_filter(
-                #     ir_data, int(sampling_rate * haert_min_dist), AggOperations.MEAN.value)
+                    ir_data, sampling_rate, heart_lowpass_cutoff, heart_lowpass_order, FilterTypes.BUTTERWORTH.value, heart_lowpass_ripple)
 
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "Find PPG Peaks")
                 peaks, _ = find_peaks(
                     ir_data, distance=sampling_rate * heart_min_dist)
                 peaks = peaks[1:-1]
 
-                # plt.clf()
-                # plt.plot(raw_data, label="raw")
-                # plt.plot(ir_data, label="smooth", markevery=peaks, marker='o')
-                # plt.legend(loc='lower center')
-                # plt.show()
-
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "Calculate Heart Rate")
                 heart_bps = 1 / np.mean(np.diff(time_data[peaks]))
                 if not math.isnan(heart_bps):
                     heart_bpm = int(heart_bps * 60 + 0.5)
@@ -213,7 +213,6 @@ def main():
                         LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
                 else:
                     heart_bps = None
-
             ### END PPG SECTION ###
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
