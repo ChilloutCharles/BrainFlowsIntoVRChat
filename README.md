@@ -24,6 +24,10 @@ Avatar parameters being sent are floats that range from -1.0 to 1.0. Negative an
 - `/avatar/parameters/osc_relax_avg`
 - `/avatar/parameters/osc_focus_avg`
 
+A boolean paramater is sent to monitor the connection status of the headband
+
+- `/avatar/parameters/osc_is_connected`
+
 Also added are optional paramaters that appear based on whether or not your headband supports it.
 - `/avatar/parameters/osc_battery_lvl` (int [0-100])
 - `/avatar/parameters/osc_heart_bps` (float)

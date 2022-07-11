@@ -25,6 +25,7 @@ class OSC_Path:
     Battery = '/avatar/parameters/osc_battery_lvl'
     HeartBps = '/avatar/parameters/osc_heart_bps'
     HeartBpm = '/avatar/parameters/osc_heart_bpm'
+    ConnectionStatus = '/avatar/parameters/osc_is_connected'
 
 
 def tanh_normalize(data, scale, offset):
@@ -132,11 +133,13 @@ def main():
     ### Streaming Params ###
     update_speed = 1 / 4  # 4Hz update rate for VRChat OSC
     ring_buffer_size = max(eeg_window_size, heart_window_size) * sampling_rate
+    startup_time = 5
+    board_timeout = 5
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
         board.start_stream(ring_buffer_size, args.streamer_params)
-        time.sleep(5)
+        time.sleep(startup_time)
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Main Loop Started')
         while True:
@@ -144,6 +147,13 @@ def main():
                 LogLevels.LEVEL_DEBUG.value, "Getting Board Data")
             data = board.get_current_board_data(
                 eeg_window_size * sampling_rate)
+
+            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Timeout Check")
+            time_data = data[time_channel]
+            last_sample_time = time_data[-1]
+            current_time = time.time()
+            if current_time - last_sample_time > board_timeout:
+                raise TimeoutError("Biosensor board timed out")
 
             battery_level = None if not battery_channel else data[battery_channel][-1]
             if battery_level:
@@ -218,6 +228,7 @@ def main():
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
             osc_client.send_message(OSC_Path.Focus, current_focus)
             osc_client.send_message(OSC_Path.Relax, current_relax)
+            osc_client.send_message(OSC_Path.ConnectionStatus, True)
             if battery_level:
                 osc_client.send_message(OSC_Path.Battery, battery_level)
             if ppg_channels and heart_bps:
@@ -229,6 +240,10 @@ def main():
 
     except KeyboardInterrupt:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
+    except TimeoutError:
+        BoardShim.log_message(LogLevels.LEVEL_INFO.value,
+                              'Biosensor board timed out')
+        osc_client.send_message(OSC_Path.ConnectionStatus, False)
     finally:
         ### Cleanup ###
         board.stop_stream()
