@@ -51,7 +51,7 @@ def main():
     DataFilter.enable_data_logger()
 
     ### Uncomment this to see debug messages ###
-    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+    BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
@@ -124,7 +124,7 @@ def main():
 
     ### Device specific commands ###
     if master_board_id == BoardIds.MUSE_2_BOARD or master_board_id == BoardIds.MUSE_S_BOARD:
-        board.config_board('p50')
+        board.config_board('p52')
 
     ### EEG Streaming Params ###
     eeg_window_size = 2
@@ -148,7 +148,11 @@ def main():
                 LogLevels.LEVEL_DEBUG.value, "Getting Board Data")
             data = board.get_current_board_data(
                 eeg_window_size * sampling_rate)
+
             battery_level = None if not battery_channel else data[battery_channel][-1]
+            if battery_level:
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "Battery: {}".format(battery_level))
 
             ### START EEG SECTION ###
             BoardShim.log_message(
