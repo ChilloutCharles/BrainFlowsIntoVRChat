@@ -1,13 +1,17 @@
 import argparse
 import time
 import enum
+import math
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
-from brainflow.data_filter import DataFilter, DetrendOperations
+from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, AggOperations
 
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
+
+from pprint import pprint
+import matplotlib.pyplot as plt
 
 
 class BAND_POWERS(enum.IntEnum):
@@ -113,7 +117,10 @@ def main():
     sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
     battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
     ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
+    time_channel = tryFunc(BoardShim.get_timestamp_channel, master_board_id)
     board.prepare_session()
+
+    pprint(BoardShim.get_board_descr(master_board_id))
 
     ### Device specific commands ###
     if master_board_id == BoardIds.MUSE_2_BOARD or master_board_id == BoardIds.MUSE_S_BOARD:
@@ -121,8 +128,14 @@ def main():
 
     ### EEG Streaming Params ###
     eeg_window_size = 2
-    heart_window_size = 5
     update_speed = (250 - 3) * 0.001  # 4Hz update rate for VRChat OSC
+
+    ### PPG Params ###
+    heart_window_size = 10
+    heart_min_dist = 0.35
+    heart_lowpass_cutoff = 2
+    heart_lowpass_order = 2
+    heart_lowpass_ripple = 0
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -168,19 +181,38 @@ def main():
             ### END EEG SECTION ###
 
             ### START PPG SECTION ###
-            if ppg_channels:
+            if ppg_channels and time_channel:
                 BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "Calculating BPM")
+                    LogLevels.LEVEL_DEBUG.value, "Get PPG Data")
                 data = board.get_current_board_data(
                     heart_window_size * sampling_rate)
+                time_data = data[time_channel]
                 ir_data_channel = ppg_channels[1]
-                ir_data = data[ir_data_channel]
-                peaks, _ = find_peaks(ir_data)
-                # divide by magic number 4, not sure why this works
-                heart_bps = len(ir_data) / len(peaks) / 4
-                heart_bpm = int(heart_bps * 60 + 0.5)
+                ambient_channel = ppg_channels[0]
+
                 BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
+                    LogLevels.LEVEL_DEBUG.value, "Clean PPG Signals")
+                ir_data = data[ir_data_channel] - data[ambient_channel]
+                ambient_filter = list(map(lambda sample: sample > 0, ir_data))
+                ir_data = ir_data[ambient_filter]
+                DataFilter.perform_lowpass(
+                    ir_data, sampling_rate, heart_lowpass_cutoff, heart_lowpass_order, FilterTypes.BUTTERWORTH.value, heart_lowpass_ripple)
+
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "Find PPG Peaks")
+                peaks, _ = find_peaks(
+                    ir_data, distance=sampling_rate * heart_min_dist)
+                peaks = peaks[1:-1]
+
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "Calculate Heart Rate")
+                heart_bps = 1 / np.mean(np.diff(time_data[peaks]))
+                if not math.isnan(heart_bps):
+                    heart_bpm = int(heart_bps * 60 + 0.5)
+                    BoardShim.log_message(
+                        LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
+                else:
+                    heart_bps = None
             ### END PPG SECTION ###
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
@@ -188,7 +220,7 @@ def main():
             osc_client.send_message(OSC_Path.Relax, current_relax)
             if battery_level:
                 osc_client.send_message(OSC_Path.Battery, battery_level)
-            if ppg_channels:
+            if ppg_channels and heart_bps:
                 osc_client.send_message(OSC_Path.HeartBps, heart_bps)
                 osc_client.send_message(OSC_Path.HeartBpm, heart_bpm)
 
