@@ -5,13 +5,10 @@ import math
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
-from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, AggOperations
+from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes
 
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
-
-from pprint import pprint
-import matplotlib.pyplot as plt
 
 
 class BAND_POWERS(enum.IntEnum):
@@ -96,10 +93,25 @@ def main():
     send_port = 9000
     osc_client = SimpleUDPClient(ip, send_port)
 
+    ### Biosensor board setup ###
+    board = BoardShim(args.board_id, params)
+    master_board_id = board.get_board_id()
+    eeg_channels = tryFunc(BoardShim.get_eeg_channels, master_board_id)
+    sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
+    battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
+    ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
+    time_channel = tryFunc(BoardShim.get_timestamp_channel, master_board_id)
+    board.prepare_session()
+
+    ### Biosensor device specific commands ###
+    if master_board_id == BoardIds.MUSE_2_BOARD or master_board_id == BoardIds.MUSE_S_BOARD:
+        board.config_board('p52')
+
     ### EEG Band Calculation Params ###
     current_focus = 0
     current_relax = 0
     current_value = np.array([current_focus, current_relax])
+    eeg_window_size = 2
 
     # normalize ratios between -1 and 1.
     # Ratios are centered around 1.0. Tune scale to taste
@@ -110,26 +122,6 @@ def main():
     smoothing_weight = 0.05
     detrend_eeg = True
 
-    ### EEG board setup ###
-    board = BoardShim(args.board_id, params)
-    master_board_id = board.get_board_id()
-    eeg_channels = tryFunc(BoardShim.get_eeg_channels, master_board_id)
-    sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
-    battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
-    ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
-    time_channel = tryFunc(BoardShim.get_timestamp_channel, master_board_id)
-    board.prepare_session()
-
-    pprint(BoardShim.get_board_descr(master_board_id))
-
-    ### Device specific commands ###
-    if master_board_id == BoardIds.MUSE_2_BOARD or master_board_id == BoardIds.MUSE_S_BOARD:
-        board.config_board('p52')
-
-    ### EEG Streaming Params ###
-    eeg_window_size = 2
-    update_speed = (250 - 3) * 0.001  # 4Hz update rate for VRChat OSC
-
     ### PPG Params ###
     heart_window_size = 10
     heart_min_dist = 0.35
@@ -137,9 +129,13 @@ def main():
     heart_lowpass_order = 2
     heart_lowpass_ripple = 0
 
+    ### Streaming Params ###
+    update_speed = 1 / 4  # 4Hz update rate for VRChat OSC
+    ring_buffer_size = max(eeg_window_size, heart_window_size) * sampling_rate
+
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
-        board.start_stream(450000, args.streamer_params)
+        board.start_stream(ring_buffer_size, args.streamer_params)
         time.sleep(5)
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Main Loop Started')
