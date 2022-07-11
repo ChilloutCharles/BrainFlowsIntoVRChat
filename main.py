@@ -243,8 +243,8 @@ def main():
     except TimeoutError:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value,
                               'Biosensor board timed out')
-        osc_client.send_message(OSC_Path.ConnectionStatus, False)
     finally:
+        osc_client.send_message(OSC_Path.ConnectionStatus, False)
         ### Cleanup ###
         board.stop_stream()
         board.release_session()
