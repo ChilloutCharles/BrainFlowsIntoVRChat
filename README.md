@@ -12,10 +12,9 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 
 **Instructions**
 
-1. Follow the [BrainFlow Installation Instructions for Python](https://BrainFlow.readthedocs.io/en/stable/BuildBrainFlow.html#python)
-2. Install [python-osc](https://pypi.org/project/python-osc/)
-3. Look up your device's id: [supported biosensors](https://BrainFlow.readthedocs.io/en/stable/SupportedBoards.html)
-4. Run the script `main.py` with your device id. The command for running with a [Muse 2 headband](https://choosemuse.com/muse-2/) would be: `python .\main.py --board-id 38`
+1. Install required libraries with this command: `pip install -r requirements.txt`
+2. Look up your device's id: [supported biosensors](https://BrainFlow.readthedocs.io/en/stable/SupportedBoards.html)
+3. Run the script `main.py` with your device id. The command for running with a [Muse 2 headband](https://choosemuse.com/muse-2/) would be: `python .\main.py --board-id 38`
 
 **OSC Avatar Parameters**
 
