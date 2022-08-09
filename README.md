@@ -7,6 +7,7 @@ This is a BrainFlow implementation of my [bci-workshop fork](https://github.com/
 The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is device agnostic, allowing this implementation of my workshop fork to work for all [supported biosensors](https://BrainFlow.readthedocs.io/en/stable/SupportedBoards.html) (including the muse headbands). No extra software needed!
 
 **Demos** 
+- [Brain Controlled Ears: Five Months Later [VRChat]](https://www.youtube.com/watch?v=kPPTT3ogEgg)
 - [VRCHAT OSC MAGIC! (Last 30 seconds)](https://twitter.com/kentrl_z/status/1497020472046800897)
 - [Old version of Brain Controlled Ears](https://www.youtube.com/watch?v=WjWc51xNgKg)
 
