@@ -1,4 +1,5 @@
 import argparse
+from cmath import pi
 import time
 import enum
 import math
@@ -19,13 +20,16 @@ class BAND_POWERS(enum.IntEnum):
     Delta = 0
 
 
+OSC_BASE_PATH = '/avatar/parameters/'
+
+
 class OSC_Path:
-    Relax = '/avatar/parameters/osc_relax_avg'
-    Focus = '/avatar/parameters/osc_focus_avg'
-    Battery = '/avatar/parameters/osc_battery_lvl'
-    HeartBps = '/avatar/parameters/osc_heart_bps'
-    HeartBpm = '/avatar/parameters/osc_heart_bpm'
-    ConnectionStatus = '/avatar/parameters/osc_is_connected'
+    Relax = OSC_BASE_PATH + 'osc_relax_avg'
+    Focus = OSC_BASE_PATH + 'osc_focus_avg'
+    Battery = OSC_BASE_PATH + 'osc_battery_lvl'
+    HeartBps = OSC_BASE_PATH + 'osc_heart_bps'
+    HeartBpm = OSC_BASE_PATH + 'osc_heart_bpm'
+    ConnectionStatus = OSC_BASE_PATH + 'osc_is_connected'
 
 
 def tanh_normalize(data, scale, offset):
@@ -188,6 +192,10 @@ def main():
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Focus: {:.3f}\tRelax: {:.3f}".format(
                 current_focus, current_relax))
+
+            normalized_feature_vector = tanh_normalize(
+                feature_vector, 12, -0.5) / math.pi + 0.5
+
             ### END EEG SECTION ###
 
             ### START PPG SECTION ###
@@ -234,6 +242,11 @@ def main():
             if ppg_channels and heart_bps:
                 osc_client.send_message(OSC_Path.HeartBps, heart_bps)
                 osc_client.send_message(OSC_Path.HeartBpm, heart_bpm)
+
+            for band_power in BAND_POWERS:
+                osc_path = OSC_BASE_PATH + "osc_band_power_" + band_power.name.lower()
+                band_value = feature_vector[band_power.value]
+                osc_client.send_message(osc_path, band_value)
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
             time.sleep(update_speed)
