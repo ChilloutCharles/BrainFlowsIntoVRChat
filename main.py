@@ -6,7 +6,7 @@ import math
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
-from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes
+from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, NoiseTypes
 
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
@@ -167,10 +167,16 @@ def main():
             ### START EEG SECTION ###
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
-            if detrend_eeg:
-                for eeg_channel in eeg_channels:
+            # Clean Signals
+            for eeg_channel in eeg_channels:
+                DataFilter.remove_environmental_noise(data[eeg_channel],
+                                                      BoardShim.get_sampling_rate(
+                                                          master_board_id),
+                                                      NoiseTypes.FIFTY_AND_SIXTY.value)
+                if detrend_eeg:
                     DataFilter.detrend(data[eeg_channel],
                                        DetrendOperations.LINEAR)
+
             bands = DataFilter.get_avg_band_powers(
                 data, eeg_channels, sampling_rate, True)
             feature_vector, _ = bands
