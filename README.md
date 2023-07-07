@@ -31,8 +31,6 @@ A boolean paramater is sent to monitor the connection status of the headband
 
 Added are optional paramaters that appear based on whether or not your headband supports it.
 - `/avatar/parameters/osc_battery_lvl` (int [0-100])
-- `/avatar/parameters/osc_heart_bps` (float)
-- `/avatar/parameters/osc_heart_bpm` (int)
 
 I've also added the alpha, beta, theta, delta, and gamma band power numbers. You can access them via this path:
 - `/avatar/paramaters/osc_band_power_(brainwave name)` (float [0-1]) (without the parenthesis)

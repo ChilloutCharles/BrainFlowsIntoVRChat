@@ -127,16 +127,9 @@ def main():
     smoothing_weight = 0.05
     detrend_eeg = True
 
-    ### PPG Params ###
-    heart_window_size = 10
-    heart_min_dist = 0.35
-    heart_lowpass_cutoff = 2
-    heart_lowpass_order = 2
-    heart_lowpass_ripple = 0
-
     ### Streaming Params ###
     update_speed = 1 / 4  # 4Hz update rate for VRChat OSC
-    ring_buffer_size = max(eeg_window_size, heart_window_size) * sampling_rate
+    ring_buffer_size = eeg_window_size * sampling_rate
     startup_time = 5
     board_timeout = 5
 
@@ -199,55 +192,13 @@ def main():
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Focus: {:.3f}\tRelax: {:.3f}".format(
                 current_focus, current_relax))
 
-            normalized_feature_vector = tanh_normalize(
-                feature_vector, 12, -0.5) / math.pi + 0.5
-
             ### END EEG SECTION ###
-
-            ### START PPG SECTION ###
-            if ppg_channels and time_channel:
-                BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "Get PPG Data")
-                data = board.get_current_board_data(
-                    heart_window_size * sampling_rate)
-                time_data = data[time_channel]
-                ir_data_channel = ppg_channels[1]
-                ambient_channel = ppg_channels[0]
-
-                BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "Clean PPG Signals")
-                ir_data = data[ir_data_channel] - data[ambient_channel]
-                ambient_filter = list(map(lambda sample: sample > 0, ir_data))
-                ir_data = ir_data[ambient_filter]
-                DataFilter.perform_lowpass(
-                    ir_data, sampling_rate, heart_lowpass_cutoff, heart_lowpass_order, FilterTypes.BUTTERWORTH.value, heart_lowpass_ripple)
-
-                BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "Find PPG Peaks")
-                peaks, _ = find_peaks(
-                    ir_data, distance=sampling_rate * heart_min_dist)
-                peaks = peaks[1:-1]
-
-                BoardShim.log_message(
-                    LogLevels.LEVEL_DEBUG.value, "Calculate Heart Rate")
-                heart_bps = 1 / np.mean(np.diff(time_data[peaks]))
-                if not math.isnan(heart_bps):
-                    heart_bpm = int(heart_bps * 60 + 0.5)
-                    BoardShim.log_message(
-                        LogLevels.LEVEL_DEBUG.value, "BPS: {:.3f}\tBPM: {}".format(heart_bps, heart_bpm))
-                else:
-                    heart_bps = None
-            ### END PPG SECTION ###
-
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
             osc_client.send_message(OSC_Path.Focus, current_focus)
             osc_client.send_message(OSC_Path.Relax, current_relax)
             osc_client.send_message(OSC_Path.ConnectionStatus, True)
             if battery_level:
                 osc_client.send_message(OSC_Path.Battery, battery_level)
-            if ppg_channels and heart_bps:
-                osc_client.send_message(OSC_Path.HeartBps, heart_bps)
-                osc_client.send_message(OSC_Path.HeartBpm, heart_bpm)
 
             for band_power in BAND_POWERS:
                 osc_path = OSC_BASE_PATH + "osc_band_power_" + band_power.name.lower()
