@@ -20,10 +20,14 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 
 **OSC Avatar Parameters**
 
-Avatar parameters being sent are floats that range from -1.0 to 1.0. Negative and Positive values correspond to low and high focus/relaxation. Update your avatar paramaters as needed to influnece animations and the like. Have fun!
+Avatar parameters being sent are floats that range from -1.0 to 1.0. Negative and Positive values correspond to low and high focus/relaxation. Update your avatar paramaters as needed to influnece animations and the like. Parameters are also seperated by left and right sides of the brain. Have fun!
 
-- `/avatar/parameters/osc_relax_avg`
+- `/avatar/parameters/osc_focus_left`
+- `/avatar/parameters/osc_relax_left`
+- `/avatar/parameters/osc_focus_right`
+- `/avatar/parameters/osc_relax_right`
 - `/avatar/parameters/osc_focus_avg`
+- `/avatar/parameters/osc_relax_avg`
 
 A boolean paramater is sent to monitor the connection status of the headband
 

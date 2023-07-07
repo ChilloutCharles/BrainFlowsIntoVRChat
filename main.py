@@ -2,7 +2,7 @@ import argparse
 from cmath import pi
 import time
 import enum
-import math
+import re
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
@@ -24,11 +24,13 @@ OSC_BASE_PATH = '/avatar/parameters/'
 
 
 class OSC_Path:
-    Relax = OSC_BASE_PATH + 'osc_relax_avg'
-    Focus = OSC_BASE_PATH + 'osc_focus_avg'
+    RelaxAvg = OSC_BASE_PATH + 'osc_relax_avg'
+    RelaxLeft = OSC_BASE_PATH + 'osc_relax_left'
+    RelaxRight = OSC_BASE_PATH + 'osc_relax_right'
+    FocusAvg = OSC_BASE_PATH + 'osc_focus_avg'
+    FocusLeft = OSC_BASE_PATH + 'osc_focus_left'
+    FocusRight = OSC_BASE_PATH + 'osc_focus_right'
     Battery = OSC_BASE_PATH + 'osc_battery_lvl'
-    HeartBps = OSC_BASE_PATH + 'osc_heart_bps'
-    HeartBpm = OSC_BASE_PATH + 'osc_heart_bpm'
     ConnectionStatus = OSC_BASE_PATH + 'osc_is_connected'
 
 
@@ -102,20 +104,18 @@ def main():
     board = BoardShim(args.board_id, params)
     master_board_id = board.get_board_id()
     eeg_channels = tryFunc(BoardShim.get_eeg_channels, master_board_id)
+    eeg_names = tryFunc(BoardShim.get_eeg_names, master_board_id)
     sampling_rate = tryFunc(BoardShim.get_sampling_rate, master_board_id)
     battery_channel = tryFunc(BoardShim.get_battery_channel, master_board_id)
-    ppg_channels = tryFunc(BoardShim.get_ppg_channels, master_board_id)
     time_channel = tryFunc(BoardShim.get_timestamp_channel, master_board_id)
     board.prepare_session()
 
-    ### Biosensor device specific commands ###
-    if master_board_id == BoardIds.MUSE_2_BOARD or master_board_id == BoardIds.MUSE_S_BOARD:
-        board.config_board('p52')
+    ### Board info ###
+    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, str(
+        BoardShim.get_board_descr(master_board_id)))
 
     ### EEG Band Calculation Params ###
-    current_focus = 0
-    current_relax = 0
-    current_value = np.array([current_focus, current_relax])
+    current_value = np.zeros(6)
     eeg_window_size = 2
 
     # normalize ratios between -1 and 1.
@@ -132,6 +132,19 @@ def main():
     ring_buffer_size = eeg_window_size * sampling_rate
     startup_time = 5
     board_timeout = 5
+
+    ### Sort left and right eeg channels for left-right brain anaylsis ###
+    idx_name_pairs = zip(eeg_channels, eeg_names)
+
+    def right_check(tup):
+        (eeg_chan, eeg_name) = tup
+        eeg_num = int(''.join(re.findall(r'\d+', eeg_name)))
+        return (eeg_chan, eeg_num % 2 == 0)
+    idx_isright_pairs = list(map(right_check, idx_name_pairs))
+    right_chans = [eeg_chan for (eeg_chan, isright)
+                   in idx_isright_pairs if isright]
+    left_chans = [eeg_chan for (eeg_chan, isright)
+                  in idx_isright_pairs if not isright]
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -170,39 +183,74 @@ def main():
                     DataFilter.detrend(data[eeg_channel],
                                        DetrendOperations.LINEAR)
 
-            bands = DataFilter.get_avg_band_powers(
-                data, eeg_channels, sampling_rate, True)
-            feature_vector, _ = bands
+            left_ftv, _ = DataFilter.get_avg_band_powers(
+                data, left_chans, sampling_rate, True)
+            right_ftv, _ = DataFilter.get_avg_band_powers(
+                data, right_chans, sampling_rate, True)
 
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Calculating Metrics")
-            numerator = np.array(
-                [feature_vector[BAND_POWERS.Beta], feature_vector[BAND_POWERS.Alpha]])
-            denominator = np.array(
-                [feature_vector[BAND_POWERS.Theta], feature_vector[BAND_POWERS.Theta]])
+            alpha_avg = \
+                0.5 * left_ftv[BAND_POWERS.Alpha] + \
+                0.5 * right_ftv[BAND_POWERS.Alpha]
+            beta_avg = \
+                0.5 * left_ftv[BAND_POWERS.Beta] + \
+                0.5 * right_ftv[BAND_POWERS.Beta]
+            theta_avg = \
+                0.5 * left_ftv[BAND_POWERS.Theta] + \
+                0.5 * right_ftv[BAND_POWERS.Theta]
+
+            numerator = np.array([
+                left_ftv[BAND_POWERS.Beta],
+                left_ftv[BAND_POWERS.Alpha],
+                right_ftv[BAND_POWERS.Beta],
+                right_ftv[BAND_POWERS.Alpha],
+                beta_avg,
+                alpha_avg,
+            ])
+            denominator = np.array([
+                left_ftv[BAND_POWERS.Theta],
+                left_ftv[BAND_POWERS.Theta],
+                right_ftv[BAND_POWERS.Theta],
+                right_ftv[BAND_POWERS.Theta],
+                theta_avg,
+                theta_avg,
+            ])
+            paths = [
+                OSC_Path.FocusLeft,
+                OSC_Path.RelaxLeft,
+                OSC_Path.FocusRight,
+                OSC_Path.RelaxRight,
+                OSC_Path.FocusAvg,
+                OSC_Path.RelaxAvg
+            ]
+
             target_value = np.divide(numerator, denominator)
             target_value = tanh_normalize(
                 target_value, normalize_scale, normalize_offset)
             current_value = smooth(
                 current_value, target_value, smoothing_weight)
 
-            current_focus = current_value[0]
-            current_relax = current_value[1]
-
-            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Focus: {:.3f}\tRelax: {:.3f}".format(
-                current_focus, current_relax))
+            path_value_pairs = list(zip(paths, current_value))
+            for (osc_path, osc_value) in path_value_pairs:
+                BoardShim.log_message(
+                    LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(osc_path, osc_value))
 
             ### END EEG SECTION ###
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
-            osc_client.send_message(OSC_Path.Focus, current_focus)
-            osc_client.send_message(OSC_Path.Relax, current_relax)
             osc_client.send_message(OSC_Path.ConnectionStatus, True)
+
+            for (osc_path, osc_value) in path_value_pairs:
+                osc_client.send_message(osc_path, osc_value)
+
             if battery_level:
                 osc_client.send_message(OSC_Path.Battery, battery_level)
 
             for band_power in BAND_POWERS:
                 osc_path = OSC_BASE_PATH + "osc_band_power_" + band_power.name.lower()
-                band_value = feature_vector[band_power.value]
+                band_value = \
+                    0.5 * left_ftv[band_power.value] + \
+                    0.5 * right_ftv[band_power.value]
                 osc_client.send_message(osc_path, band_value)
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
