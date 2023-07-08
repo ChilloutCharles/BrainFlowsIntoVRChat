@@ -5,7 +5,7 @@ import enum
 import re
 import numpy as np
 
-from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
+from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds, BrainFlowPresets
 from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, NoiseTypes
 
 from pythonosc.udp_client import SimpleUDPClient
@@ -32,6 +32,9 @@ class OSC_Path:
     FocusRight = OSC_BASE_PATH + 'osc_focus_right'
     Battery = OSC_BASE_PATH + 'osc_battery_lvl'
     ConnectionStatus = OSC_BASE_PATH + 'osc_is_connected'
+    HeartBps = OSC_BASE_PATH + 'osc_heart_bps'
+    HeartBpm = OSC_BASE_PATH + 'osc_heart_bpm'
+    OxygenPercent = OSC_BASE_PATH + 'osc_oxygen_percent'
 
 
 def tanh_normalize(data, scale, offset):
@@ -117,6 +120,8 @@ def main():
     ### EEG Band Calculation Params ###
     current_value = np.zeros(6)
     eeg_window_size = 2
+    ppg_window_size = 10
+    max_window_size = max(eeg_window_size, ppg_window_size)
 
     # normalize ratios between -1 and 1.
     # Ratios are centered around 1.0. Tune scale to taste
@@ -129,8 +134,8 @@ def main():
 
     ### Streaming Params ###
     update_speed = 1 / 4  # 4Hz update rate for VRChat OSC
-    ring_buffer_size = eeg_window_size * sampling_rate
-    startup_time = 5
+    ring_buffer_size = max_window_size * sampling_rate
+    startup_time = 10
     board_timeout = 5
 
     ### Sort left and right eeg channels for left-right brain anaylsis ###
@@ -145,6 +150,12 @@ def main():
                    in idx_isright_pairs if isright]
     left_chans = [eeg_chan for (eeg_chan, isright)
                   in idx_isright_pairs if not isright]
+
+    ### Muse 2/S heartbeat support ###
+    is_ppg = False
+    if master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD):
+        board.config_board('p52')
+        is_ppg = True
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -237,6 +248,34 @@ def main():
                     LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(osc_path, osc_value))
 
             ### END EEG SECTION ###
+
+            ### START PPG SECTION ###
+            if is_ppg:
+                data = board.get_current_board_data(
+                    ppg_window_size * sampling_rate)
+                ppg_channels = BoardShim.get_ppg_channels(
+                    BoardIds.MUSE_2_BOARD,  BrainFlowPresets.ANCILLARY_PRESET)
+                ppg_sampling_rate = BoardShim.get_sampling_rate(
+                    BoardIds.MUSE_2_BOARD, BrainFlowPresets.ANCILLARY_PRESET)
+                ppg_ir = data[ppg_channels[1]]
+                ppg_red = data[ppg_channels[0]]
+                oxygen_level = DataFilter.get_oxygen_level(
+                    ppg_ir, ppg_red, ppg_sampling_rate) * 0.01
+                heart_rate = DataFilter.get_heart_rate(
+                    ppg_ir, ppg_red, ppg_sampling_rate, 2048)
+                heart_bpm = int(heart_rate + 0.5)
+                heart_bps = heart_rate / 60.0
+
+                BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(
+                    OSC_Path.HeartBpm, heart_bpm))
+                BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(
+                    OSC_Path.HeartBps, heart_bps))
+                BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(
+                    OSC_Path.OxygenPercent, oxygen_level))
+
+            ### END PPG SECTION ###
+
+            ### OSC SECTION ###
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
             osc_client.send_message(OSC_Path.ConnectionStatus, True)
 
@@ -252,6 +291,11 @@ def main():
                     0.5 * left_ftv[band_power.value] + \
                     0.5 * right_ftv[band_power.value]
                 osc_client.send_message(osc_path, band_value)
+
+            if is_ppg:
+                osc_client.send_message(OSC_Path.HeartBpm, heart_bpm)
+                osc_client.send_message(OSC_Path.HeartBps, heart_bps)
+                osc_client.send_message(OSC_Path.OxygenPercent, oxygen_level)
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
             time.sleep(update_speed)
