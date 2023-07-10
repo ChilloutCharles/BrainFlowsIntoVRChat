@@ -6,7 +6,7 @@ import re
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds, BrainFlowPresets
-from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, NoiseTypes
+from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, NoiseTypes, WaveletTypes
 
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
@@ -120,8 +120,8 @@ def main():
     ### EEG Band Calculation Params ###
     current_value = np.zeros(6)
     eeg_window_size = 2
-    ppg_window_size = 10
-    max_window_size = max(eeg_window_size, ppg_window_size)
+    ppg_window_size = eeg_window_size
+    max_window_size = 2
 
     # normalize ratios between -1 and 1.
     # Ratios are centered around 1.0. Tune scale to taste
@@ -131,12 +131,6 @@ def main():
     # Smoothing params
     smoothing_weight = 0.05
     detrend_eeg = True
-
-    ### Streaming Params ###
-    update_speed = 1 / 4  # 4Hz update rate for VRChat OSC
-    ring_buffer_size = max_window_size * sampling_rate
-    startup_time = 10
-    board_timeout = 5
 
     ### Sort left and right eeg channels for left-right brain anaylsis ###
     idx_name_pairs = zip(eeg_channels, eeg_names)
@@ -155,7 +149,19 @@ def main():
     is_ppg = False
     if master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD):
         board.config_board('p52')
+        ppg_channels = BoardShim.get_ppg_channels(
+            master_board_id, BrainFlowPresets.ANCILLARY_PRESET)
+        ppg_sampling_rate = BoardShim.get_sampling_rate(
+            master_board_id, BrainFlowPresets.ANCILLARY_PRESET)
+        ppg_window_size = int(1024 / ppg_sampling_rate) + 2
+        max_window_size = max(eeg_window_size, ppg_window_size)
         is_ppg = True
+
+    ### Streaming Params ###
+    update_speed = 1 / 4  # 4Hz update rate for VRChat OSC
+    ring_buffer_size = max_window_size * sampling_rate
+    startup_time = max_window_size
+    board_timeout = 5
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
@@ -242,7 +248,15 @@ def main():
             current_value = smooth(
                 current_value, target_value, smoothing_weight)
 
-            path_value_pairs = list(zip(paths, current_value))
+            def map_band_power_tups(band_power):
+                band_value = \
+                    0.5 * left_ftv[band_power.value] + \
+                    0.5 * right_ftv[band_power.value]
+                osc_path = OSC_BASE_PATH + "osc_band_power_" + band_power.name.lower()
+                return (osc_path, band_value)
+            path_value_pairs = \
+                list(zip(paths, current_value)) + \
+                list(map(map_band_power_tups, BAND_POWERS))
             for (osc_path, osc_value) in path_value_pairs:
                 BoardShim.log_message(
                     LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(osc_path, osc_value))
@@ -251,18 +265,18 @@ def main():
 
             ### START PPG SECTION ###
             if is_ppg:
-                data = board.get_current_board_data(
-                    ppg_window_size * sampling_rate)
-                ppg_channels = BoardShim.get_ppg_channels(
-                    BoardIds.MUSE_2_BOARD,  BrainFlowPresets.ANCILLARY_PRESET)
-                ppg_sampling_rate = BoardShim.get_sampling_rate(
-                    BoardIds.MUSE_2_BOARD, BrainFlowPresets.ANCILLARY_PRESET)
-                ppg_ir = data[ppg_channels[1]]
-                ppg_red = data[ppg_channels[0]]
+                ppg_data = board.get_current_board_data(
+                    ppg_window_size * ppg_sampling_rate, BrainFlowPresets.ANCILLARY_PRESET)
+                ir_chan = ppg_channels[1]
+                red_chan = ppg_channels[0]
+
                 oxygen_level = DataFilter.get_oxygen_level(
-                    ppg_ir, ppg_red, ppg_sampling_rate) * 0.01
+                    ppg_data[ir_chan], ppg_data[red_chan], ppg_sampling_rate) * 0.01
+
+                ### Brainflow Heart Example ###
+                ### https://github.com/brainflow-dev/brainflow/blob/master/python_package/examples/tests/muse_ppg.py ###
                 heart_rate = DataFilter.get_heart_rate(
-                    ppg_ir, ppg_red, ppg_sampling_rate, 2048)
+                    ppg_data[ir_chan], ppg_data[red_chan], ppg_sampling_rate, 1024)
                 heart_bpm = int(heart_rate + 0.5)
                 heart_bps = heart_rate / 60.0
 
@@ -272,7 +286,6 @@ def main():
                     OSC_Path.HeartBps, heart_bps))
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(
                     OSC_Path.OxygenPercent, oxygen_level))
-
             ### END PPG SECTION ###
 
             ### OSC SECTION ###
@@ -285,17 +298,11 @@ def main():
             if battery_level:
                 osc_client.send_message(OSC_Path.Battery, battery_level)
 
-            for band_power in BAND_POWERS:
-                osc_path = OSC_BASE_PATH + "osc_band_power_" + band_power.name.lower()
-                band_value = \
-                    0.5 * left_ftv[band_power.value] + \
-                    0.5 * right_ftv[band_power.value]
-                osc_client.send_message(osc_path, band_value)
-
             if is_ppg:
                 osc_client.send_message(OSC_Path.HeartBpm, heart_bpm)
                 osc_client.send_message(OSC_Path.HeartBps, heart_bps)
                 osc_client.send_message(OSC_Path.OxygenPercent, oxygen_level)
+            ### OSC SECTION ###
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
             time.sleep(update_speed)
