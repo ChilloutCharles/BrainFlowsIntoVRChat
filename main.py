@@ -121,7 +121,10 @@ def main():
     current_value = np.zeros(6)
     eeg_window_size = 2
     ppg_window_size = eeg_window_size
-    max_window_size = 2
+    eeg_sample_size = eeg_window_size * sampling_rate
+
+    ### Global Sample Size ###
+    max_sample_size = eeg_sample_size
 
     # normalize ratios between -1 and 1.
     # Ratios are centered around 1.0. Tune scale to taste
@@ -130,7 +133,6 @@ def main():
 
     # Smoothing params
     smoothing_weight = 0.05
-    detrend_eeg = True
 
     ### Sort left and right eeg channels for left-right brain anaylsis ###
     idx_name_pairs = zip(eeg_channels, eeg_names)
@@ -153,27 +155,26 @@ def main():
             master_board_id, BrainFlowPresets.ANCILLARY_PRESET)
         ppg_sampling_rate = BoardShim.get_sampling_rate(
             master_board_id, BrainFlowPresets.ANCILLARY_PRESET)
-        ppg_window_size = int(1024 / ppg_sampling_rate) + 2
-        max_window_size = max(eeg_window_size, ppg_window_size)
+        ppg_window_size = int(1024 / ppg_sampling_rate) + 1
+        ppg_sample_size = ppg_window_size * ppg_sampling_rate
+        max_sample_size = max(ppg_sample_size, eeg_sample_size)
         is_ppg = True
 
     ### Streaming Params ###
     update_speed = 1 / 4  # 4Hz update rate for VRChat OSC
-    ring_buffer_size = max_window_size * sampling_rate
-    startup_time = max_window_size
+    startup_time = max(eeg_window_size, ppg_window_size)
     board_timeout = 5
 
     try:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing')
-        board.start_stream(ring_buffer_size, args.streamer_params)
+        board.start_stream(max_sample_size, args.streamer_params)
         time.sleep(startup_time)
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Main Loop Started')
         while True:
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Getting Board Data")
-            data = board.get_current_board_data(
-                eeg_window_size * sampling_rate)
+            data = board.get_current_board_data(max_sample_size)
 
             BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Timeout Check")
             time_data = data[time_channel]
@@ -189,21 +190,25 @@ def main():
 
             ### START EEG SECTION ###
             BoardShim.log_message(
-                LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
-            # Clean Signals
-            for eeg_channel in eeg_channels:
-                DataFilter.remove_environmental_noise(data[eeg_channel],
+                LogLevels.LEVEL_DEBUG.value, "Extract and get latest {} eeg samples".format(eeg_sample_size))
+            left_data = data[left_chans][-eeg_sample_size:]
+            right_data = data[right_chans][-eeg_sample_size:]
+
+            BoardShim.log_message(
+                LogLevels.LEVEL_DEBUG.value, "Clean eeg samples")
+            for eeg_row in left_data + right_data:
+                DataFilter.remove_environmental_noise(eeg_row,
                                                       BoardShim.get_sampling_rate(
                                                           master_board_id),
                                                       NoiseTypes.FIFTY_AND_SIXTY.value)
-                if detrend_eeg:
-                    DataFilter.detrend(data[eeg_channel],
-                                       DetrendOperations.LINEAR)
+                DataFilter.detrend(eeg_row, DetrendOperations.LINEAR)
 
+            BoardShim.log_message(
+                LogLevels.LEVEL_DEBUG.value, "Calculating Power Bands")
             left_ftv, _ = DataFilter.get_avg_band_powers(
-                data, left_chans, sampling_rate, True)
+                left_data, list(range(len(left_data))), sampling_rate, True)
             right_ftv, _ = DataFilter.get_avg_band_powers(
-                data, right_chans, sampling_rate, True)
+                right_data, list(range(len(right_data))), sampling_rate, True)
 
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Calculating Metrics")
@@ -266,17 +271,18 @@ def main():
             ### START PPG SECTION ###
             if is_ppg:
                 ppg_data = board.get_current_board_data(
-                    ppg_window_size * ppg_sampling_rate, BrainFlowPresets.ANCILLARY_PRESET)
-                ir_chan = ppg_channels[1]
-                red_chan = ppg_channels[0]
+                    max_sample_size, BrainFlowPresets.ANCILLARY_PRESET)
+                ppg_ir = ppg_data[ppg_channels[1]][-ppg_sample_size:]
+                ppg_red = ppg_data[ppg_channels[0]][-ppg_sample_size:]
+                print(ppg_red.shape)
 
                 oxygen_level = DataFilter.get_oxygen_level(
-                    ppg_data[ir_chan], ppg_data[red_chan], ppg_sampling_rate) * 0.01
+                    ppg_ir, ppg_red, ppg_sampling_rate) * 0.01
 
                 ### Brainflow Heart Example ###
                 ### https://github.com/brainflow-dev/brainflow/blob/master/python_package/examples/tests/muse_ppg.py ###
                 heart_rate = DataFilter.get_heart_rate(
-                    ppg_data[ir_chan], ppg_data[red_chan], ppg_sampling_rate, 1024)
+                    ppg_ir, ppg_red, ppg_sampling_rate, 1024)
                 heart_bpm = int(heart_rate + 0.5)
                 heart_bps = heart_rate / 60.0
 
