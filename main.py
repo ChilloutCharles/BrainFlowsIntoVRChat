@@ -6,7 +6,7 @@ import re
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds, BrainFlowPresets
-from brainflow.data_filter import DataFilter, DetrendOperations, FilterTypes, NoiseTypes, WaveletTypes
+from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes
 
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
@@ -158,6 +158,7 @@ def main():
         ppg_window_size = int(1024 / ppg_sampling_rate) + 1
         ppg_sample_size = ppg_window_size * ppg_sampling_rate
         max_sample_size = max(ppg_sample_size, eeg_sample_size)
+        heart_bps = 80 / 60
         is_ppg = True
 
     ### Streaming Params ###
@@ -282,8 +283,9 @@ def main():
                 ### https://github.com/brainflow-dev/brainflow/blob/master/python_package/examples/tests/muse_ppg.py ###
                 heart_rate = DataFilter.get_heart_rate(
                     ppg_ir, ppg_red, ppg_sampling_rate, 1024)
-                heart_bpm = int(heart_rate + 0.5)
-                heart_bps = heart_rate / 60.0
+                target_bps = heart_rate / 60
+                heart_bps = smooth(heart_bps, target_bps, smoothing_weight)
+                heart_bpm = int(heart_bps * 60 + 0.5)
 
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(
                     OSC_Path.HeartBpm, heart_bpm))
