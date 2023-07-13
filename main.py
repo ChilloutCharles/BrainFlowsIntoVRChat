@@ -274,7 +274,6 @@ def main():
                     max_sample_size, BrainFlowPresets.ANCILLARY_PRESET)
                 ppg_ir = ppg_data[ppg_channels[1]][-ppg_sample_size:]
                 ppg_red = ppg_data[ppg_channels[0]][-ppg_sample_size:]
-                print(ppg_red.shape)
 
                 oxygen_level = DataFilter.get_oxygen_level(
                     ppg_ir, ppg_red, ppg_sampling_rate) * 0.01
