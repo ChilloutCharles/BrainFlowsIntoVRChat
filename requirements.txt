@@ -1,4 +1,4 @@
-brainflow==5.6.3
-numpy==1.23.1
-python_osc==1.8.0
-scipy==1.8.0
+brainflow>=5.6.3
+numpy>=1.23.1
+python_osc>=1.8.0
+scipy>=1.8.0
