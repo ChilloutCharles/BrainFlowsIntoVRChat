@@ -193,7 +193,9 @@ def main():
             BoardShim.log_message(
                 LogLevels.LEVEL_DEBUG.value, "Extract and get latest {} eeg samples".format(eeg_sample_size))
 
-            def getlastn(arr): return arr[-eeg_sample_size:]
+            def getlastn(arr):
+                idx = min(len(arr), eeg_sample_size)
+                return arr[-idx:]
             left_data = np.array(list(map(getlastn, data[left_chans])))
             right_data = np.array(list(map(getlastn, data[right_chans])))
 
@@ -276,10 +278,11 @@ def main():
                 ppg_data = board.get_current_board_data(
                     max_sample_size, BrainFlowPresets.ANCILLARY_PRESET)
 
-                def get_ppg_n(arr): return arr[-ppg_sample_size:]
-                ppg_ir = np.array(
-                    list(map(get_ppg_n, ppg_data[ppg_channels[1]])))
-                ppg_red = np.array(list(map(get_ppg_n, [ppg_channels[0]])))
+                def get_ppg_n(arr):
+                    idx = min(len(arr), ppg_sample_size)
+                    return arr[-idx:]
+                ppg_ir = np.array(get_ppg_n(ppg_data[ppg_channels[1]]))
+                ppg_red = np.array(get_ppg_n(ppg_data[ppg_channels[0]]))
 
                 oxygen_level = DataFilter.get_oxygen_level(
                     ppg_ir, ppg_red, ppg_sampling_rate) * 0.01
