@@ -11,6 +11,8 @@ from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.signal import find_peaks
 
+import utils
+
 
 class BAND_POWERS(enum.IntEnum):
     Gamma = 4
@@ -35,15 +37,7 @@ class OSC_Path:
     HeartBps = OSC_BASE_PATH + 'osc_heart_bps'
     HeartBpm = OSC_BASE_PATH + 'osc_heart_bpm'
     OxygenPercent = OSC_BASE_PATH + 'osc_oxygen_percent'
-
-
-def tanh_normalize(data, scale, offset):
-    return np.tanh(scale * (data + offset))
-
-
-def smooth(current_value, target_value, weight):
-    current_value = (1.0 - weight) * current_value + weight * target_value
-    return current_value
+    HueShift = OSC_BASE_PATH + 'osc_hueshift'
 
 
 def tryFunc(func, val):
@@ -227,6 +221,14 @@ def main():
                 0.5 * left_ftv[BAND_POWERS.Theta] + \
                 0.5 * right_ftv[BAND_POWERS.Theta]
 
+            paths = [
+                OSC_Path.FocusLeft,
+                OSC_Path.RelaxLeft,
+                OSC_Path.FocusRight,
+                OSC_Path.RelaxRight,
+                OSC_Path.FocusAvg,
+                OSC_Path.RelaxAvg
+            ]
             numerator = np.array([
                 left_ftv[BAND_POWERS.Beta],
                 left_ftv[BAND_POWERS.Alpha],
@@ -243,20 +245,15 @@ def main():
                 theta_avg,
                 theta_avg,
             ])
-            paths = [
-                OSC_Path.FocusLeft,
-                OSC_Path.RelaxLeft,
-                OSC_Path.FocusRight,
-                OSC_Path.RelaxRight,
-                OSC_Path.FocusAvg,
-                OSC_Path.RelaxAvg
-            ]
 
             target_value = np.divide(numerator, denominator)
-            target_value = tanh_normalize(
+            target_value = utils.tanh_normalize(
                 target_value, normalize_scale, normalize_offset)
-            current_value = smooth(
+            current_value = utils.smooth(
                 current_value, target_value, smoothing_weight)
+
+            hue_shift = utils.remap_cantor_pair(
+                current_value[-2], current_value[-1])
 
             def map_band_power_tups(band_power):
                 band_value = \
@@ -264,9 +261,11 @@ def main():
                     0.5 * right_ftv[band_power.value]
                 osc_path = OSC_BASE_PATH + "osc_band_power_" + band_power.name.lower()
                 return (osc_path, band_value)
+
             path_value_pairs = \
                 list(zip(paths, current_value)) + \
-                list(map(map_band_power_tups, BAND_POWERS))
+                list(map(map_band_power_tups, BAND_POWERS)) + \
+                [(OSC_Path.HueShift, hue_shift)]
             for (osc_path, osc_value) in path_value_pairs:
                 BoardShim.log_message(
                     LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(osc_path, osc_value))
@@ -292,7 +291,8 @@ def main():
                 heart_rate = DataFilter.get_heart_rate(
                     ppg_ir, ppg_red, ppg_sampling_rate, 1024)
                 target_bps = heart_rate / 60
-                heart_bps = smooth(heart_bps, target_bps, smoothing_weight)
+                heart_bps = utils.smooth(
+                    heart_bps, target_bps, smoothing_weight)
                 heart_bpm = int(heart_bps * 60 + 0.5)
 
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(
