@@ -34,6 +34,10 @@ Avatar parameters being sent are floats that range from -1.0 to 1.0. Negative an
 - `/avatar/parameters/osc_focus_avg`
 - `/avatar/parameters/osc_relax_avg`
 
+NEW: For easier startup, I've added a hue shift parameter based on the focus and relax values. This parameter will range from 0.0 to 1.0.
+
+- `/avatar/parameters/osc_hueshift`
+
 A boolean paramater is sent to monitor the connection status of the headband
 
 - `/avatar/parameters/osc_is_connected`
