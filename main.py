@@ -37,7 +37,7 @@ class OSC_Path:
     HeartBps = OSC_BASE_PATH + 'osc_heart_bps'
     HeartBpm = OSC_BASE_PATH + 'osc_heart_bpm'
     OxygenPercent = OSC_BASE_PATH + 'osc_oxygen_percent'
-    HueShift = OSC_BASE_PATH + 'osc_hueshift'
+    HueShift = OSC_BASE_PATH + 'HueShift'
 
 
 def tryFunc(func, val):

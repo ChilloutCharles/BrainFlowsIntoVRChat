@@ -24,4 +24,5 @@ def remap_cantor_pair(x, y):
     return remapped_value
 
 
-print(remap_cantor_pair(0.573, -0.549))
+if __name__ == "__main__":
+    print(remap_cantor_pair(0.573, -0.549))
