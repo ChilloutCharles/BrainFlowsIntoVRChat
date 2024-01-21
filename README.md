@@ -43,6 +43,7 @@ Added are optional paramaters that appear based on whether or not your headband 
 - `osc_battery_lvl` (int [0-100])
 - `osc_heart_bpm` (int[0-255])
 - `osc_oxygen_percent` (float[0.0-1.0])
+- `osc_respiration_bpm` (int[0-255])
 
 I've also added the alpha, beta, theta, delta, and gamma band power ratios between left, right sides of the head as well as overall. You can access them via this path:
 - `osc_band_power_(head_location)_(brainwave name)` (float [0-1]) (without the parenthesis)
