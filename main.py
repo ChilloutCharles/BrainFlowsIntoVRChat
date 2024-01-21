@@ -9,7 +9,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from constants import OSC_Path, OSC_BASE_PATH
 
-from logic.timeout import Timeout
+from logic.telemetry import Telemetry
 from logic.focus_relax import Focus_Relax
 from logic.heartrate import HeartRate
 
@@ -81,7 +81,7 @@ def main():
 
     ### Logic Modules ###
     logics = [
-        Timeout(board, window_seconds),
+        Telemetry(board, window_seconds),
         Focus_Relax(board, window_seconds)
     ]
 
