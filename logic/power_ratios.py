@@ -7,7 +7,7 @@ from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, Agg
 import re
 
 class Power_Ratios(Base_Logic):
-    def __init__(self, board, window_seconds = 2):
+    def __init__(self, board, window_seconds=2, filter_period=1):
         super().__init__(board)
         
         board_id = board.get_board_id()
@@ -17,6 +17,7 @@ class Power_Ratios(Base_Logic):
 
         self.window_seconds = window_seconds
         self.max_sample_size = self.sampling_rate * window_seconds
+        self.filter_period=filter_period
 
         # sort left and right channels
         eeg_nums = map(lambda eeg_name: int(''.join(re.findall(r'\d+', eeg_name))), eeg_names)
@@ -31,7 +32,7 @@ class Power_Ratios(Base_Logic):
         # denoise and smooth data
         for eeg_chan in self.eeg_channels:
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-            DataFilter.perform_rolling_filter(data[eeg_chan], 3, AggOperations.MEDIAN.value)
+            DataFilter.perform_rolling_filter(data[eeg_chan], self.filter_period, AggOperations.MEDIAN.value)
             DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
         
         # calculate band features for left, right, and overall

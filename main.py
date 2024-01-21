@@ -82,7 +82,7 @@ def main():
     ### Logic Modules ###
     logics = [
         Telemetry(board, window_seconds),
-        Focus_Relax(board, window_seconds)
+        Focus_Relax(board, window_seconds, filter_period=1)
     ]
 
     ### Muse 2/S heartbeat support ###
