@@ -3,7 +3,6 @@ from logic.base_logic import Base_Logic
 from brainflow.board_shim import BoardShim, BrainFlowPresets
 from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterTypes, DetrendOperations, WindowOperations
 
-import copy
 import numpy as np
 
 class HeartRate(Base_Logic):
@@ -22,6 +21,9 @@ class HeartRate(Base_Logic):
         self.fft_size = fft_size
 
     def estimate_respiration(self, resp_signal):
+        # do not modify data
+        resp_signal = np.copy(resp_signal)
+
         # Possible min and max respiration in hz
         lowcut = 0.1
         highcut = 0.5
@@ -44,7 +46,10 @@ class HeartRate(Base_Logic):
         return peak_freq * 60
 
     def estimate_heart_rate(self, hr_ir, hr_red):
-        # Possible min and max respiration in hz
+        # do not modify data
+        hr_ir, hr_red = np.copy(hr_ir), np.copy(hr_red)
+
+        # Possible min and max heart rate in hz
         lowcut = 0.1
         highcut = 4.25
 
@@ -77,11 +82,11 @@ class HeartRate(Base_Logic):
         oxygen_level = DataFilter.get_oxygen_level(ppg_ir, ppg_red, self.ppg_sampling_rate) * 0.01
 
         # calculate heartrate
-        heart_bps, heart_bpm = self.estimate_heart_rate(copy.deepcopy(ppg_ir), copy.deepcopy(ppg_red))
+        heart_bps, heart_bpm = self.estimate_heart_rate(ppg_ir, ppg_red)
 
         # calculate respiration
-        resp_ir = self.estimate_respiration(copy.deepcopy(ppg_ir))
-        resp_red = self.estimate_respiration(copy.deepcopy(ppg_red))
+        resp_ir = self.estimate_respiration(ppg_ir)
+        resp_red = self.estimate_respiration(ppg_red)
         resp_avg = int(np.mean((resp_ir, resp_red)) + 0.5)
         
         # format as dictionary
