@@ -7,6 +7,7 @@ This is a BrainFlow implementation of my [bci-workshop fork](https://github.com/
 The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is device agnostic, allowing this implementation of my workshop fork to work for all [supported biosensors](https://BrainFlow.readthedocs.io/en/stable/SupportedBoards.html) (including the muse headbands). No extra software needed!
 
 **Demos** 
+- [Rantis's Brain Controlled Ears](https://twitter.com/RantiMess/status/1746704510972580061)
 - [Brain Controlled Ears: Five Months Later [VRChat]](https://www.youtube.com/watch?v=kPPTT3ogEgg)
 - [VRCHAT OSC MAGIC! (Last 30 seconds)](https://twitter.com/kentrl_z/status/1497020472046800897)
 - [Old version of Brain Controlled Ears](https://www.youtube.com/watch?v=WjWc51xNgKg)
@@ -27,28 +28,30 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 
 Avatar parameters being sent are floats that range from -1.0 to 1.0. Negative and Positive values correspond to low and high focus/relaxation. Update your avatar paramaters as needed to influnece animations and the like. Parameters are also seperated by left and right sides of the brain. Have fun!
 
-- `/avatar/parameters/osc_focus_left`
-- `/avatar/parameters/osc_relax_left`
-- `/avatar/parameters/osc_focus_right`
-- `/avatar/parameters/osc_relax_right`
-- `/avatar/parameters/osc_focus_avg`
-- `/avatar/parameters/osc_relax_avg`
+- `osc_focus_left`
+- `osc_relax_left`
+- `osc_focus_right`
+- `osc_relax_right`
+- `osc_focus_avg`
+- `osc_relax_avg`
 
-NEW: For easier startup, I've added a hue shift parameter based on the focus and relax values. This parameter will range from 0.0 to 1.0.
+For easier startup, I've added a hue shift parameter based on the focus and relax values. This parameter will range from 0.0 to 1.0.
 
-- `/avatar/parameters/HueShift`
-
-A boolean paramater is sent to monitor the connection status of the headband
-
-- `/avatar/parameters/osc_is_connected`
+- `HueShift`
 
 Added are optional paramaters that appear based on whether or not your headband supports it.
-- `/avatar/parameters/osc_battery_lvl` (int [0-100])
-- `/avatar/parameters/osc_heart_bpm` (int[0-255])
-- `/avatar/parameters/osc_oxygen_percent` (float[0.0-1.0])
+- `osc_battery_lvl` (int [0-100])
+- `osc_heart_bpm` (int[0-255])
+- `osc_oxygen_percent` (float[0.0-1.0])
+- `osc_respiration_bpm` (int[0-255])
 
-I've also added the alpha, beta, theta, delta, and gamma band power numbers. You can access them via this path:
-- `/avatar/paramaters/osc_band_power_(brainwave name)` (float [0-1]) (without the parenthesis)
+I've also added the alpha, beta, theta, delta, and gamma band power ratios between left, right sides of the head as well as overall. You can access them via this path:
+- `osc_band_power_(head_location)_(brainwave name)` (float [0-1]) (without the parenthesis)
+
+For debug, a boolean paramater is sent to monitor the connection status of the headband as well as a time difference parameter to show the difference between last sample time and current time in seconds.
+
+- `osc_is_connected` (boolean)
+- `osc_time_diff` (float)
 
 ## Thanks
 Thanks to [@Mitzi_DelverVRC](https://twitter.com/Mitzi_DelverVRC) and [AartHark](https://github.com/AartHauk) for help with PPG signal work
@@ -63,6 +66,11 @@ Thanks to [@wordweaver1001](https://twitter.com/wordweaver1001) for intial user 
   2. Search up 'device manager' on the start menu
   3. Find an entry for a bluetooth radio, right click on it and disable it
   4. Plug the new bluetooth dongle back in
+
+- Muse Headband connects just fine but times out after a few seconds. Solution: Reset the headband
+  1. Turn off the headband
+  2. Press and hold the power button until it turns on. Keep pressing until the light changes.
+  3. Reconnect.
 
 ## License
 [MIT](http://opensource.org/licenses/MIT).

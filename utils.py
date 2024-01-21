@@ -10,19 +10,5 @@ def smooth(current_value, target_value, weight):
     return current_value
 
 
-def cantor_pair(x, y):
-    return 0.5 * (x + y) * (x + y + 1) + y
-
-
-def remap_cantor_pair(x, y):
-    # Calculate the Cantor Pairing value.
-    cantor_value = cantor_pair(x, y)
-
-    # Remap the Cantor value from the range [-1, 1] to [0, 1].
-    remapped_value = (cantor_value + 1) / 2
-
-    return remapped_value
-
-
-if __name__ == "__main__":
-    print(remap_cantor_pair(0.573, -0.549))
+def map2dto1d(x, y, n):
+    return x * n + y
