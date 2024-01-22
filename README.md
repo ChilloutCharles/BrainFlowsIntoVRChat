@@ -15,7 +15,7 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 **Instructions**
 
 1. Download this project to a folder and remember its folder path
-2. Install [Python 3.11.5]([https://www.python.org](https://www.python.org/downloads/release/python-3115/))
+2. Install [Python 3.11.5](https://www.python.org/downloads/release/python-3115/)
 3. Open the command prompt by typing searching cmd at the start menu
 4. Navigate to the project's path within the command prompt. 
    - example: `cd "C:\Users\<YOUR USERNAME HERE>\Documents\GitHub\BrainFlowsIntoVRChat"` 
