@@ -52,6 +52,13 @@ def main():
                         required=True)
     parser.add_argument('--file', type=str, help='file',
                         required=False, default='')
+    
+    # custom command line arguments
+    parser.add_argument('--window-seconds', type=int,
+                        help='data window in seconds into the past to do calculations on', required=False, default=5)
+    parser.add_argument('--refresh-rate', type=int,
+                        help='refresh rate for the main loop to run at', required=False, default=60)
+    
     args = parser.parse_args()
 
     params = BrainFlowInputParams()
@@ -76,8 +83,8 @@ def main():
     master_board_id = board.get_board_id()
 
     ### Streaming Params ###
-    refresh_rate_hz = 60
-    window_seconds = 5
+    refresh_rate_hz = args.refresh_rate
+    window_seconds = args.window_seconds
     startup_time = window_seconds
 
     ### Logic Modules ###
