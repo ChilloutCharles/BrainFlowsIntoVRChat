@@ -76,6 +76,7 @@ def main():
     master_board_id = board.get_board_id()
 
     ### Streaming Params ###
+    refresh_rate_hz = 60
     window_seconds = 5
     startup_time = window_seconds
 
@@ -100,7 +101,11 @@ def main():
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Main Loop Started')
         while True:
+            # get execution start time for time delay
+            start_time = time.time()
+            
             # Execute all logic
+            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Execute all Logic")
             data_dicts = list(map(lambda logic: logic.get_data_dict(), logics))
             full_dict = dict(ChainMap(*data_dicts))
 
@@ -110,6 +115,13 @@ def main():
             for osc_name in full_dict:
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(osc_name, full_dict[osc_name]))
                 osc_client.send_message(OSC_BASE_PATH + osc_name, full_dict[osc_name])
+            
+            # sleep based on refresh_rate
+            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
+            execution_time = time.time() - start_time
+            sleep_time = 1.0 / refresh_rate_hz - execution_time
+            sleep_time = sleep_time if sleep_time > 0 else 0
+            time.sleep(sleep_time)
 
     except KeyboardInterrupt:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
