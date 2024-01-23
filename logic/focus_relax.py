@@ -5,8 +5,8 @@ from constants import BAND_POWERS
 from utils import tanh_normalize, map2dto1d
 
 class Focus_Relax(Power_Ratios):
-    def __init__(self, board, window_seconds=2, normalize_scale=1.1, filter_period=1):
-        super().__init__(board, window_seconds=window_seconds, filter_period=filter_period)
+    def __init__(self, board, window_seconds=2, normalize_scale=1.1, ema_decay=0.025):
+        super().__init__(board, window_seconds=window_seconds, ema_decay=ema_decay)
         self.bands = [BAND_POWERS.Alpha, BAND_POWERS.Beta, BAND_POWERS.Theta]
         self.band_names = list(map(lambda b: b.name.lower(), self.bands))
         self.locations = ["left", "right", "avg"]

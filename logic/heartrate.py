@@ -4,9 +4,10 @@ from brainflow.board_shim import BoardShim, BrainFlowPresets
 from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterTypes, DetrendOperations, WindowOperations
 
 import numpy as np
+import utils
 
 class HeartRate(Base_Logic):
-    def __init__(self, board, fft_size=1024):
+    def __init__(self, board, fft_size=1024, ema_decay=0.025):
         super().__init__(board)
 
         board_id = board.get_board_id()
@@ -19,6 +20,10 @@ class HeartRate(Base_Logic):
         self.window_seconds = int(fft_size / self.ppg_sampling_rate) + 1
         self.max_sample_size = self.ppg_sampling_rate * self.window_seconds
         self.fft_size = fft_size
+
+        # ema smoothing variables
+        self.current_values = None
+        self.ema_decay = ema_decay
 
     def estimate_respiration(self, resp_signal):
         # do not modify data
@@ -66,7 +71,7 @@ class HeartRate(Base_Logic):
         heart_bpm = DataFilter.get_heart_rate(hr_ir, hr_red, self.ppg_sampling_rate, self.fft_size)
         heart_bps = heart_bpm / 60
 
-        return heart_bps, int(heart_bpm + 0.5)
+        return heart_bps, heart_bpm
 
     def get_data_dict(self):
         # get current data from board
@@ -87,12 +92,20 @@ class HeartRate(Base_Logic):
         # calculate respiration
         resp_ir = self.estimate_respiration(ppg_ir)
         resp_red = self.estimate_respiration(ppg_red)
-        resp_avg = int(np.mean((resp_ir, resp_red)) + 0.5)
+        resp_avg = np.mean((resp_ir, resp_red))
+
+        osc_param_names = ["osc_oxygen_percent", "osc_heart_bps", "osc_heart_bpm", "osc_respiration_bpm"]
+        target_values = np.array([oxygen_level, heart_bps, heart_bpm, resp_avg])
+
+        # smooth using exponential moving average
+        if not isinstance(self.current_values, np.ndarray):
+            self.current_values = target_values
+        else:
+            self.current_values = utils.smooth(self.current_values, target_values, self.ema_decay)
         
-        # format as dictionary
-        return {
-            "osc_oxygen_percent" : oxygen_level,
-            "osc_heart_bps" : heart_bps,
-            "osc_heart_bpm" : heart_bpm,
-            "osc_respiration_bpm" : resp_avg
-        }
+        # format as dict and round bpm values
+        ret_dict = {k:v for k,v in zip(osc_param_names, self.current_values.tolist())}
+        ret_dict["osc_heart_bpm"] = int(ret_dict["osc_heart_bpm"] + 0.5)
+        ret_dict["osc_respiration_bpm"] = int(ret_dict["osc_respiration_bpm"] + 0.5)
+
+        return ret_dict

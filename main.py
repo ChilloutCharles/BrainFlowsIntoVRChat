@@ -58,6 +58,8 @@ def main():
                         help='data window in seconds into the past to do calculations on', required=False, default=5)
     parser.add_argument('--refresh-rate', type=int,
                         help='refresh rate for the main loop to run at', required=False, default=60)
+    parser.add_argument('--ema-decay', type=float,
+                        help='exponential moving average constant to smooth outputs', required=False, default=0.025)
     
     args = parser.parse_args()
 
@@ -85,12 +87,13 @@ def main():
     ### Streaming Params ###
     refresh_rate_hz = args.refresh_rate
     window_seconds = args.window_seconds
+    ema_decay = args.ema_decay
     startup_time = window_seconds
 
     ### Logic Modules ###
     logics = [
         Telemetry(board, window_seconds),
-        Focus_Relax(board, window_seconds, filter_period=1)
+        Focus_Relax(board, window_seconds, ema_decay=ema_decay)
     ]
 
     ### Muse 2/S heartbeat support ###
