@@ -59,7 +59,7 @@ def main():
     parser.add_argument('--refresh-rate', type=int,
                         help='refresh rate for the main loop to run at', required=False, default=60)
     parser.add_argument('--ema-decay', type=float,
-                        help='exponential moving average constant to smooth outputs', required=False, default=0.025)
+                        help='exponential moving average constant to smooth outputs', required=False, default=1)
     
     args = parser.parse_args()
 
@@ -87,7 +87,7 @@ def main():
     ### Streaming Params ###
     refresh_rate_hz = args.refresh_rate
     window_seconds = args.window_seconds
-    ema_decay = args.ema_decay
+    ema_decay = args.ema_decay / args.refresh_rate
     startup_time = window_seconds
 
     ### Logic Modules ###
