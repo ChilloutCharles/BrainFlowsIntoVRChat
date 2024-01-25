@@ -115,7 +115,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
         board.start_stream(streamer_params=args.streamer_params)
         time.sleep(startup_time)
-        BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Init Complete')
+        BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Tracking Started')
 
         return board, logics, refresh_rate_hz
 
