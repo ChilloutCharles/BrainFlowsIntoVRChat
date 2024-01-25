@@ -45,7 +45,7 @@ Added are optional paramaters that appear based on whether or not your headband 
 - `osc_oxygen_percent` (float[0.0-1.0])
 - `osc_respiration_bpm` (int[0-255])
 
-I've also added the alpha, beta, theta, delta, and gamma band power ratios between left, right sides of the head as well as overall. You can access them via this path:
+I've also added the alpha, beta, theta, delta, and gamma band power ratios between left, right sides of the head as well as avg. You can access them via this path:
 - `osc_band_power_(head_location)_(brainwave name)` (float [0-1]) (without the parenthesis)
 
 For debug, a boolean paramater is sent to monitor the connection status of the headband as well as a time difference parameter to show the difference between last sample time and current time in seconds.
