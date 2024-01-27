@@ -107,7 +107,7 @@ def main():
         ### Muse 2/S heartbeat support ###
         if master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD):
             board.config_board('p52')
-            heart_rate_logic = HeartRate(board)
+            heart_rate_logic = HeartRate(board, 2048, ema_decay)
             heart_window_seconds = heart_rate_logic.window_seconds
             startup_time = max(startup_time, heart_window_seconds)
             logics.append(heart_rate_logic)

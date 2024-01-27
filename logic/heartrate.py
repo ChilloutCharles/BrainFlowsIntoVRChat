@@ -25,19 +25,21 @@ class HeartRate(Base_Logic):
         self.current_values = None
         self.ema_decay = ema_decay
 
-    def estimate_respiration(self, resp_signal):
+    def estimate_respiration(self, resp_signal, ppg_ambient):
         # do not modify data
-        resp_signal = np.copy(resp_signal)
+        resp_signal, resp_ambient = np.copy(resp_signal), np.copy(ppg_ambient)
 
         # Possible min and max respiration in hz
         lowcut = 0.1
         highcut = 0.5
 
         # Detrend the signal to remove linear trends
-        DataFilter.detrend(resp_signal, DetrendOperations.LINEAR.value)
+        # DataFilter.detrend(resp_signal, DetrendOperations.LINEAR.value)
 
         # filter down to possible respiration rates
         DataFilter.perform_bandpass(resp_signal, self.ppg_sampling_rate, lowcut, highcut, 3, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
+        DataFilter.perform_bandpass(resp_ambient, self.ppg_sampling_rate, lowcut, highcut, 3, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
+        resp_signal -= resp_ambient
 
         # Perform FFT
         fft_data = DataFilter.perform_fft(resp_signal, WindowOperations.NO_WINDOW.value)
@@ -50,21 +52,24 @@ class HeartRate(Base_Logic):
         # Return breathing rate in BPM
         return peak_freq * 60
 
-    def estimate_heart_rate(self, hr_ir, hr_red):
+    def estimate_heart_rate(self, hr_ir, hr_red, ppg_ambient):
         # do not modify data
-        hr_ir, hr_red = np.copy(hr_ir), np.copy(hr_red)
+        hr_ir, hr_red, hr_ambient = np.copy(hr_ir), np.copy(hr_red), np.copy(ppg_ambient)
 
         # Possible min and max heart rate in hz
         lowcut = 0.1
         highcut = 4.25
 
         # Detrend the signal to remove linear trends
-        DataFilter.detrend(hr_ir, DetrendOperations.LINEAR.value)
-        DataFilter.detrend(hr_red, DetrendOperations.LINEAR.value)
+        # DataFilter.detrend(hr_ir, DetrendOperations.LINEAR.value)
+        # DataFilter.detrend(hr_red, DetrendOperations.LINEAR.value)
 
         # filter down to possible heart rates
         DataFilter.perform_bandpass(hr_ir, self.ppg_sampling_rate, lowcut, highcut, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
         DataFilter.perform_bandpass(hr_red, self.ppg_sampling_rate, lowcut, highcut, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
+        DataFilter.perform_bandpass(hr_ambient, self.ppg_sampling_rate, lowcut, highcut, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
+        hr_ir -= hr_ambient
+        hr_red -= hr_ambient
 
         ### Brainflow Heart Example ###
         ### https://github.com/brainflow-dev/brainflow/blob/master/python_package/examples/tests/muse_ppg.py ###
@@ -80,18 +85,18 @@ class HeartRate(Base_Logic):
         
         # get ambient, ir, red channels, and clean the channels with ambient
         ppg_ambient = ppg_data[self.ppg_channels[2]]
-        ppg_ir = ppg_data[self.ppg_channels[1]] - ppg_ambient
-        ppg_red = ppg_data[self.ppg_channels[0]] - ppg_ambient
+        ppg_ir = ppg_data[self.ppg_channels[1]]
+        ppg_red = ppg_data[self.ppg_channels[0]]
 
         # calculate oxygen level
         oxygen_level = DataFilter.get_oxygen_level(ppg_ir, ppg_red, self.ppg_sampling_rate) * 0.01
 
         # calculate heartrate
-        heart_bps, heart_bpm = self.estimate_heart_rate(ppg_ir, ppg_red)
+        heart_bps, heart_bpm = self.estimate_heart_rate(ppg_ir, ppg_red, ppg_ambient)
 
         # calculate respiration
-        resp_ir = self.estimate_respiration(ppg_ir)
-        resp_red = self.estimate_respiration(ppg_red)
+        resp_ir = self.estimate_respiration(ppg_ir, ppg_ambient)
+        resp_red = self.estimate_respiration(ppg_red, ppg_ambient)
         resp_avg = np.mean((resp_ir, resp_red))
 
         osc_param_names = ["osc_oxygen_percent", "osc_heart_bps", "osc_heart_bpm", "osc_respiration_bpm"]
