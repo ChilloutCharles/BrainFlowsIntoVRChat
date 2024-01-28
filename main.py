@@ -11,6 +11,7 @@ from logic.neuro_feedback import Neuro_Feedback
 from logic.respiration import Respiration
 
 from reporters.osc_reporter import OSC_Reporter
+from reporters.deprecated_osc_reporter import Old_OSC_Reporter
 
 import pprint
 
@@ -70,6 +71,10 @@ def main():
     parser.add_argument('--osc-port', type=int,
                         help='port the osc listener', required=False, default=9000)
     
+    # choose which reporter to use
+    parser.add_argument("--use-new-reporter", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to enable use of new osc reporter')
+    
     args = parser.parse_args()
 
     params = BrainFlowInputParams()
@@ -84,11 +89,12 @@ def main():
     params.file = args.file
 
     ### OSC Setup ###
+    use_new_reporter = args.use_new_reporter
     ip = args.osc_ip_address
     send_port = args.osc_port
-    osc_reporter = OSC_Reporter(ip, send_port)
+    osc_reporter = OSC_Reporter(ip, send_port) if use_new_reporter else Old_OSC_Reporter(ip, send_port)
     
-    # seperate out telemetry name for exeption paths
+    # seperate out telemetry name for exception paths
     telemetry_name = 'device'
 
     def BoardInit(args):
