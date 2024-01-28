@@ -73,8 +73,8 @@ def main():
                         help='port the osc listener', required=False, default=9000)
     
     # choose which reporter to use
-    parser.add_argument("--use-new-reporter", type=bool, action=argparse.BooleanOptionalAction, 
-                        help='add this argument to enable use of new osc reporter')
+    parser.add_argument("--use-old-reporter", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to use the old osc reporter')
     
     args = parser.parse_args()
 
@@ -90,10 +90,10 @@ def main():
     params.file = args.file
 
     ### OSC Setup ###
-    use_new_reporter = args.use_new_reporter
+    use_old_reporter = args.use_old_reporter
     ip = args.osc_ip_address
     send_port = args.osc_port
-    osc_reporter = OSC_Reporter(ip, send_port) if use_new_reporter else Old_OSC_Reporter(ip, send_port)
+    osc_reporter = Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)
     
     # seperate out telemetry name for exception paths
     telemetry_name = 'device'
