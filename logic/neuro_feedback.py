@@ -1,5 +1,3 @@
-from collections import ChainMap
-
 from logic.power_ratios import Power_Ratios
 from constants import BAND_POWERS
 from utils import tanh_normalize, map2dto1d
@@ -30,9 +28,6 @@ class Neuro_Feedback(Power_Ratios):
                 'focus' : focus,
                 'relax' : relax
             }
-
-            if location is "avg":
-                score_dict["HueShift"] = map2dto1d(focus + 1, relax + 1, 2) / 8
             
             ret_dict[location] = score_dict
 

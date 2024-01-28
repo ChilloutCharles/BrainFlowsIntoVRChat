@@ -9,6 +9,7 @@ from logic.telemetry import Telemetry
 from logic.power_ratios import Power_Ratios
 from logic.neuro_feedback import Neuro_Feedback
 from logic.respiration import Respiration
+from logic.addons import Addons
 
 from reporters.osc_reporter import OSC_Reporter
 from reporters.deprecated_osc_reporter import Old_OSC_Reporter
@@ -113,7 +114,8 @@ def main():
         logics = [
             Telemetry(board, logic_name=telemetry_name, window_seconds=window_seconds),
             Power_Ratios(board, window_seconds=window_seconds, ema_decay=ema_decay),
-            Neuro_Feedback(board, window_seconds=window_seconds, ema_decay=ema_decay)
+            Neuro_Feedback(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            Addons(board, window_seconds=window_seconds, ema_decay=ema_decay)
         ]
 
         ### Muse 2/S heartbeat support ###

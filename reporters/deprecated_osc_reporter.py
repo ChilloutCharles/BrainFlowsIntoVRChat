@@ -25,10 +25,14 @@ class Old_OSC_Reporter(Base_Reporter):
             'device' : self.flatten_telemetry,
             'respiration' : self.flatten_respiration,
             'neurofeedback' : self.flatten_neurofeedback,
-            'power_ratios' : self.flatten_power_ratios
+            'power_ratios' : self.flatten_power_ratios,
+            'addons': self.flatten_addons
         }
         list_of_pairs = [func(data_dict[k]) for k, func in func_dict.items() if k in data_dict]
         return sum(list_of_pairs, [])
+
+    def flatten_addons(self, data_dict):
+        return [("HueShift", data_dict["HueShift"])]
 
     def flatten_telemetry(self, data_dict):
         pairs = [ ("osc_" + k, v) for k, v in data_dict.items()]
