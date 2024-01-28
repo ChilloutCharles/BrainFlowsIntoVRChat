@@ -4,8 +4,8 @@ from brainflow.board_shim import BoardShim
 import time
 
 class Telemetry(Base_Logic):
-    def __init__(self, board, window_seconds=2, board_timeout=5):
-        super().__init__(board)
+    def __init__(self, board, logic_name="device", window_seconds=2, board_timeout=5):
+        super().__init__(board, logic_name)
         
         board_id = board.get_board_id()
         self.time_channel = BoardShim.get_timestamp_channel(board_id)
@@ -32,10 +32,10 @@ class Telemetry(Base_Logic):
 
         if time_diff > self.board_timeout:
             raise TimeoutError("Biosensor board timed out")
-        ret_dict["osc_time_diff"] = time_diff
+        ret_dict["time_diff"] = time_diff
 
         # battery channel (if available)
         if self.battery_channel:
-            ret_dict["osc_battery_lvl"] = data[self.battery_channel][-1]
+            ret_dict["battery_lvl"] = data[self.battery_channel][-1]
         
         return ret_dict

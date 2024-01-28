@@ -6,9 +6,9 @@ from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterT
 import numpy as np
 import utils
 
-class HeartRate(Base_Logic):
-    def __init__(self, board, fft_size=1024, ema_decay=0.025):
-        super().__init__(board)
+class Respiration(Base_Logic):
+    def __init__(self, board, logic_name='respiration', fft_size=1024, ema_decay=0.025):
+        super().__init__(board, logic_name)
 
         board_id = board.get_board_id()
         
@@ -50,7 +50,7 @@ class HeartRate(Base_Logic):
         peak_freq = fft_freq[idx][np.argmax(np.abs(fft_data[idx]))]
 
         # Return breathing rate in BPM
-        return peak_freq * 60
+        return peak_freq
 
     def estimate_heart_rate(self, hr_ir, hr_red, ppg_ambient):
         # do not modify data
@@ -59,10 +59,6 @@ class HeartRate(Base_Logic):
         # Possible min and max heart rate in hz
         lowcut = 0.1
         highcut = 4.25
-
-        # Detrend the signal to remove linear trends
-        # DataFilter.detrend(hr_ir, DetrendOperations.LINEAR.value)
-        # DataFilter.detrend(hr_red, DetrendOperations.LINEAR.value)
 
         # filter down to possible heart rates
         DataFilter.perform_bandpass(hr_ir, self.ppg_sampling_rate, lowcut, highcut, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
@@ -74,9 +70,7 @@ class HeartRate(Base_Logic):
         ### Brainflow Heart Example ###
         ### https://github.com/brainflow-dev/brainflow/blob/master/python_package/examples/tests/muse_ppg.py ###
         heart_bpm = DataFilter.get_heart_rate(hr_ir, hr_red, self.ppg_sampling_rate, self.fft_size)
-        heart_bps = heart_bpm / 60
-
-        return heart_bps, heart_bpm
+        return heart_bpm
 
     def get_data_dict(self):
         # get current data from board
@@ -92,25 +86,32 @@ class HeartRate(Base_Logic):
         oxygen_level = DataFilter.get_oxygen_level(ppg_ir, ppg_red, self.ppg_sampling_rate) * 0.01
 
         # calculate heartrate
-        heart_bps, heart_bpm = self.estimate_heart_rate(ppg_ir, ppg_red, ppg_ambient)
+        heart_bpm = self.estimate_heart_rate(ppg_ir, ppg_red, ppg_ambient)
 
         # calculate respiration
         resp_ir = self.estimate_respiration(ppg_ir, ppg_ambient)
         resp_red = self.estimate_respiration(ppg_red, ppg_ambient)
         resp_avg = np.mean((resp_ir, resp_red))
 
-        osc_param_names = ["osc_oxygen_percent", "osc_heart_bps", "osc_heart_bpm", "osc_respiration_bpm"]
-        target_values = np.array([oxygen_level, heart_bps, heart_bpm, resp_avg])
+        # create data dictionary
+        ret_dict = {
+            "oxygen_percent" : oxygen_level,
+            "heart_freq" : heart_bpm / 60,
+            "heart_bpm" : heart_bpm,
+            "respiration_freq" : resp_avg,
+            "respiration_bpm" : resp_avg * 60
+        }
 
         # smooth using exponential moving average
+        target_values = np.array(list(ret_dict.values()))
         if not isinstance(self.current_values, np.ndarray):
             self.current_values = target_values
         else:
             self.current_values = utils.smooth(self.current_values, target_values, self.ema_decay)
         
-        # format as dict and round bpm values
-        ret_dict = {k:v for k,v in zip(osc_param_names, self.current_values.tolist())}
-        ret_dict["osc_heart_bpm"] = int(ret_dict["osc_heart_bpm"] + 0.5)
-        ret_dict["osc_respiration_bpm"] = int(ret_dict["osc_respiration_bpm"] + 0.5)
+        # add smooth values and round bpms
+        ret_dict = {k:v for k,v in zip(ret_dict.keys(), self.current_values.tolist())}
+        for k in ret_dict:
+            ret_dict[k] = int(ret_dict[k] + 0.5) if 'bpm' in k else ret_dict[k]
 
         return ret_dict
