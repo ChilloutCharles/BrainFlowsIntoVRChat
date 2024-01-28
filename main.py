@@ -1,18 +1,18 @@
 import argparse
 import time
-from collections import ChainMap
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from pythonosc.udp_client import SimpleUDPClient
-
-from constants import OSC_Path, OSC_BASE_PATH
-
 from logic.telemetry import Telemetry
-from logic.focus_relax import Focus_Relax
-from logic.heartrate import HeartRate
+from logic.power_ratios import Power_Ratios
+from logic.neuro_feedback import Neuro_Feedback
+from logic.respiration import Respiration
+
+from reporters.osc_reporter import OSC_Reporter
+
+import pprint
 
 def tryFunc(func, val):
     try:
@@ -22,6 +22,8 @@ def tryFunc(func, val):
 
 
 def main():
+    pp = pprint.PrettyPrinter()
+
     BoardShim.enable_board_logger()
     DataFilter.enable_data_logger()
 
@@ -84,7 +86,10 @@ def main():
     ### OSC Setup ###
     ip = args.osc_ip_address
     send_port = args.osc_port
-    osc_client = SimpleUDPClient(ip, send_port)
+    osc_reporter = OSC_Reporter(ip, send_port)
+    
+    # seperate out telemetry name for exeption paths
+    telemetry_name = 'device'
 
     def BoardInit(args):
         ### Streaming Params ###
@@ -100,14 +105,15 @@ def main():
 
         ### Logic Modules ###
         logics = [
-            Telemetry(board, window_seconds),
-            Focus_Relax(board, window_seconds, ema_decay=ema_decay)
+            Telemetry(board, logic_name=telemetry_name, window_seconds=window_seconds),
+            Power_Ratios(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            Neuro_Feedback(board, window_seconds=window_seconds, ema_decay=ema_decay)
         ]
 
         ### Muse 2/S heartbeat support ###
         if master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD):
             board.config_board('p52')
-            heart_rate_logic = HeartRate(board, 2048, ema_decay)
+            heart_rate_logic = Respiration(board, fft_size=2048, ema_decay=ema_decay)
             heart_window_seconds = heart_rate_logic.window_seconds
             startup_time = max(startup_time, heart_window_seconds)
             logics.append(heart_rate_logic)
@@ -130,15 +136,13 @@ def main():
                 
                 # Execute all logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Execute all Logic")
-                data_dicts = list(map(lambda logic: logic.get_data_dict(), logics))
-                full_dict = dict(ChainMap(*data_dicts))
+                data_dict = {logic.get_logic_name() : logic.get_data_dict() for logic in logics}
 
                 # Send messages from executed logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
-                osc_client.send_message(OSC_Path.ConnectionStatus, True)
-                for osc_name in full_dict:
-                    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(osc_name, full_dict[osc_name]))
-                    osc_client.send_message(OSC_BASE_PATH + osc_name, full_dict[osc_name])
+                send_pairs = osc_reporter.send(data_dict)
+                for param_path, param_value in send_pairs:
+                    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
                 
                 # sleep based on refresh_rate
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
@@ -149,7 +153,7 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_client.send_message(OSC_Path.ConnectionStatus, False)
+                osc_reporter.send({telemetry_name : {'is_connected':False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -166,7 +170,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_client.send_message(OSC_Path.ConnectionStatus, False)
+        osc_reporter.send({telemetry_name : {'is_connected':False}})
         board.release_session()
 
 

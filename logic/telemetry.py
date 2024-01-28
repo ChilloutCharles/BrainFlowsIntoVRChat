@@ -21,7 +21,6 @@ class Telemetry(Base_Logic):
         self.board_timeout = board_timeout
 
     def get_data_dict(self):
-        ret_dict = {}
         data = self.board.get_current_board_data(self.max_sample_size)
         
         # timeout check
@@ -31,11 +30,13 @@ class Telemetry(Base_Logic):
         time_diff = current_time - last_sample_time
 
         if time_diff > self.board_timeout:
+            self.ret_dict["is_connected"] = False
             raise TimeoutError("Biosensor board timed out")
-        ret_dict["time_diff"] = time_diff
+        self.ret_dict["time_diff"] = time_diff
+        self.ret_dict["is_connected"] = True
 
         # battery channel (if available)
         if self.battery_channel:
-            ret_dict["battery_lvl"] = data[self.battery_channel][-1]
+            self.ret_dict["battery_lvl"] = data[self.battery_channel][-1]
         
-        return ret_dict
+        return self.ret_dict
