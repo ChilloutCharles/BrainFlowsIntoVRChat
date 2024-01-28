@@ -1,4 +1,4 @@
-from logic.base_logic import Base_Logic
+from logic.base_logic import BaseLogic
 
 from brainflow.board_shim import BoardShim, BrainFlowPresets
 from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterTypes, DetrendOperations, WindowOperations
@@ -6,9 +6,9 @@ from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterT
 import numpy as np
 import utils
 
-class Respiration(Base_Logic):
-    def __init__(self, board, logic_name='respiration', fft_size=1024, ema_decay=0.025):
-        super().__init__(board, logic_name)
+class Respiration(BaseLogic):
+    def __init__(self, board, fft_size=1024, ema_decay=0.025):
+        super().__init__(board)
 
         board_id = board.get_board_id()
         

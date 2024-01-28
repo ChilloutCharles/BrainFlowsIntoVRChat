@@ -1,10 +1,10 @@
-from logic.power_ratios import Power_Ratios
+from logic.power_bands import PowerBands
 from constants import BAND_POWERS
 from utils import tanh_normalize, map2dto1d
 
-class Neuro_Feedback(Power_Ratios):
-    def __init__(self, board, logic_name='neurofeedback', window_seconds=2, normalize_scale=1.1, ema_decay=0.025):
-        super().__init__(board, logic_name=logic_name, window_seconds=window_seconds, ema_decay=ema_decay)
+class NeuroFeedback(PowerBands):
+    def __init__(self, board, window_seconds=2, normalize_scale=1.1, ema_decay=0.025):
+        super().__init__(board, window_seconds=window_seconds, ema_decay=ema_decay)
         self.bands = [BAND_POWERS.Alpha, BAND_POWERS.Beta, BAND_POWERS.Theta]
         self.band_names = list(map(lambda b: b.name.lower(), self.bands))
         self.locations = ["left", "right", "avg"]

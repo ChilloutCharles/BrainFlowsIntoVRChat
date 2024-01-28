@@ -1,11 +1,11 @@
-from logic.base_logic import Base_Logic
-from logic.neuro_feedback import Neuro_Feedback
+from logic.base_logic import BaseLogic
+from logic.neuro_feedback import NeuroFeedback
 from utils import map2dto1d
 
-class Addons(Base_Logic):
-    def __init__(self, board, logic_name="addons", window_seconds=2, normalize_scale=1.1, ema_decay=0.025):
-        super().__init__(board, logic_name)
-        self.neuro_feedback_logic = Neuro_Feedback(board, logic_name, window_seconds=window_seconds,
+class Addons(BaseLogic):
+    def __init__(self, board, window_seconds=2, normalize_scale=1.1, ema_decay=0.025):
+        super().__init__(board)
+        self.neuro_feedback_logic = NeuroFeedback(board, window_seconds=window_seconds,
             normalize_scale=normalize_scale, ema_decay=ema_decay)
     
     def get_data_dict(self):

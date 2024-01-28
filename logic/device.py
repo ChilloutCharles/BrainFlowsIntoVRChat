@@ -1,11 +1,16 @@
-from logic.base_logic import Base_Logic
-
+from logic.base_logic import BaseLogic
 from brainflow.board_shim import BoardShim
+from enum import Enum
 import time
 
-class Telemetry(Base_Logic):
-    def __init__(self, board, logic_name="device", window_seconds=2, board_timeout=5):
-        super().__init__(board, logic_name)
+class DeviceEnum(Enum):
+    CONNECTED = "Connected"
+    TIME_DIFF = "time_diff"
+    BATTERY = "battery_lvl"
+
+class Device(BaseLogic):
+    def __init__(self, board, window_seconds=2, board_timeout=5):
+        super().__init__(board)
         
         board_id = board.get_board_id()
         self.time_channel = BoardShim.get_timestamp_channel(board_id)
@@ -31,13 +36,13 @@ class Telemetry(Base_Logic):
         time_diff = current_time - last_sample_time
 
         if time_diff > self.board_timeout:
-            ret_dict["is_connected"] = False
+            ret_dict[DeviceEnum.CONNECTED.value] = False
             raise TimeoutError("Biosensor board timed out")
-        ret_dict["time_diff"] = time_diff
-        ret_dict["is_connected"] = True
+        ret_dict[DeviceEnum.TIME_DIFF.value] = time_diff
+        ret_dict[DeviceEnum.CONNECTED.value] = True
 
         # battery channel (if available)
         if self.battery_channel:
-            ret_dict["battery_lvl"] = data[self.battery_channel][-1]
+            ret_dict[DeviceEnum.BATTERY] = data[self.battery_channel][-1]
         
         return ret_dict

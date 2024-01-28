@@ -5,9 +5,9 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.telemetry import Telemetry
-from logic.power_ratios import Power_Ratios
-from logic.neuro_feedback import Neuro_Feedback
+from logic.device import Device, DeviceEnum
+from logic.power_bands import PowerBands
+from logic.neuro_feedback import NeuroFeedback
 from logic.respiration import Respiration
 from logic.addons import Addons
 
@@ -112,9 +112,9 @@ def main():
 
         ### Logic Modules ###
         logics = [
-            Telemetry(board, logic_name=telemetry_name, window_seconds=window_seconds),
-            Power_Ratios(board, window_seconds=window_seconds, ema_decay=ema_decay),
-            Neuro_Feedback(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            Device(board, window_seconds=window_seconds),
+            PowerBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            NeuroFeedback(board, window_seconds=window_seconds, ema_decay=ema_decay),
             Addons(board, window_seconds=window_seconds, ema_decay=ema_decay)
         ]
 
@@ -144,7 +144,7 @@ def main():
                 
                 # Execute all logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Execute all Logic")
-                data_dict = {logic.get_logic_name() : logic.get_data_dict() for logic in logics}
+                data_dict = {type(logic).__name__ : logic.get_data_dict() for logic in logics}
 
                 # Send messages from executed logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
@@ -161,7 +161,7 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_reporter.send({telemetry_name : {'is_connected':False}})
+                osc_reporter.send({Device.__name__ : {DeviceEnum.CONNECTED.value:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -178,7 +178,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_reporter.send({telemetry_name : {'is_connected':False}})
+        osc_reporter.send({Device.__name__ : {DeviceEnum.CONNECTED.value:False}})
         board.release_session()
 
 

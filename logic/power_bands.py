@@ -1,4 +1,4 @@
-from logic.base_logic import Base_Logic
+from logic.base_logic import BaseLogic
 from constants import BAND_POWERS
 
 from brainflow.board_shim import BoardShim
@@ -9,9 +9,9 @@ import numpy as np
 
 import utils
 
-class Power_Ratios(Base_Logic):
-    def __init__(self, board, logic_name="power_ratios", window_seconds=2, ema_decay=0.025):
-        super().__init__(board, logic_name)
+class PowerBands(BaseLogic):
+    def __init__(self, board, window_seconds=2, ema_decay=0.025):
+        super().__init__(board)
         
         board_id = board.get_board_id()
         self.sampling_rate = BoardShim.get_sampling_rate(board_id)
