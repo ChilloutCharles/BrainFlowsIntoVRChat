@@ -8,7 +8,7 @@ from brainflow.exit_codes import BrainFlowError
 from logic.device import Device
 from logic.power_bands import PowerBands
 from logic.neuro_feedback import NeuroFeedback
-from logic.respiration import Respiration
+from logic.ppg import HeartRate, Respiration
 from logic.addons import Addons
 
 from reporters.osc_reporter import OSC_Reporter
@@ -107,10 +107,12 @@ def main():
         ### Muse 2/S heartbeat support ###
         if master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD):
             board.config_board('p52')
-            heart_rate_logic = Respiration(board, fft_size=2048, ema_decay=ema_decay)
+            fft_size=2048
+            heart_rate_logic = HeartRate(board, fft_size=fft_size, ema_decay=ema_decay)
+            respiration_logic = Respiration(board, fft_size=fft_size, ema_decay=ema_decay)
             heart_window_seconds = heart_rate_logic.window_seconds
             startup_time = max(startup_time, heart_window_seconds)
-            logics.append(heart_rate_logic)
+            logics = logics + [heart_rate_logic, respiration_logic]
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
         board.start_stream(streamer_params=args.streamer_params)

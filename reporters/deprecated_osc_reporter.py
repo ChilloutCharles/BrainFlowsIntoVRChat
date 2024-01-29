@@ -6,7 +6,7 @@ from constants import OSC_BASE_PATH
 from logic.device import Device
 from logic.power_bands import PowerBands
 from logic.neuro_feedback import NeuroFeedback
-from logic.respiration import Respiration
+from logic.ppg import HeartRate, Respiration, Ppg
 from logic.addons import Addons
 
 
@@ -28,10 +28,11 @@ class Old_OSC_Reporter(Base_Reporter):
     def flatten(self, data_dict):
         func_dict = {
             Device.__name__ : self.flatten_telemetry,
-            Respiration.__name__ : self.flatten_respiration,
             NeuroFeedback.__name__ : self.flatten_neurofeedback,
             PowerBands.__name__ : self.flatten_power_ratios,
-            Addons.__name__ : self.flatten_addons
+            Addons.__name__ : self.flatten_addons,
+            HeartRate.__name__ : self.flatten_heart_rate,
+            Respiration.__name__ : self.flatten_respiration
         }
         list_of_pairs = [func(data_dict[k]) for k, func in func_dict.items() if k in data_dict]
         return sum(list_of_pairs, [])
@@ -50,11 +51,16 @@ class Old_OSC_Reporter(Base_Reporter):
     
     def flatten_respiration(self, data_dict):
         old_dict = {
-            "osc_heart_bpm" : data_dict[Respiration.HEART_BPM],
-            "osc_heart_bps" : data_dict[Respiration.HEART_FREQ],
-            "osc_respiration_bpm" : data_dict[Respiration.RESP_BPM],
-            "osc_respiration_bps" : data_dict[Respiration.RESP_FREQ],
-            "osc_oxygen_percent" : data_dict[Respiration.OXYGEN_PERCENT]
+            "osc_respiration_bpm" : data_dict[Ppg.RESP_BPM],
+            "osc_respiration_bps" : data_dict[Ppg.RESP_FREQ],
+            "osc_oxygen_percent" : data_dict[Ppg.OXYGEN_PERCENT]
+        }
+        return list(old_dict.items())
+    
+    def flatten_heart_rate(self, data_dict):
+        old_dict = {
+            "osc_heart_bpm" : data_dict[Ppg.HEART_BPM],
+            "osc_heart_bps" : data_dict[Ppg.HEART_FREQ]
         }
         return list(old_dict.items())
     

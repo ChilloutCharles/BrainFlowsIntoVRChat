@@ -6,12 +6,12 @@ from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterT
 import numpy as np
 import utils
 
-class Respiration(BaseLogic):
+class Ppg(BaseLogic):
     OXYGEN_PERCENT = "OxygenPercent"
-    HEART_FREQ = "heart_freq"
-    HEART_BPM = "heart_bpm"
-    RESP_FREQ = "respiration_freq"
-    RESP_BPM = "respiration_bpm"
+    HEART_FREQ = "HeartBeatsPerSecond"
+    HEART_BPM = "HeartBeatsPerMinute"
+    RESP_FREQ = "BreathsPerSecond"
+    RESP_BPM = "BreathsPerMinute"
 
     def __init__(self, board, fft_size=1024, ema_decay=0.025):
         super().__init__(board)
@@ -101,11 +101,11 @@ class Respiration(BaseLogic):
 
         # create data dictionary
         ret_dict = {
-            Respiration.OXYGEN_PERCENT : oxygen_level,
-            Respiration.HEART_FREQ : heart_bpm / 60,
-            Respiration.HEART_BPM : heart_bpm,
-            Respiration.RESP_FREQ : resp_avg,
-            Respiration.RESP_BPM : resp_avg * 60
+            Ppg.OXYGEN_PERCENT : oxygen_level,
+            Ppg.HEART_FREQ : heart_bpm / 60,
+            Ppg.HEART_BPM : heart_bpm,
+            Ppg.RESP_FREQ : resp_avg,
+            Ppg.RESP_BPM : resp_avg * 60
         }
 
         # smooth using exponential moving average
@@ -117,7 +117,27 @@ class Respiration(BaseLogic):
         
         # add smooth values and round bpms
         ret_dict = {k:v for k,v in zip(ret_dict.keys(), self.current_values.tolist())}
-        for k in ret_dict:
-            ret_dict[k] = int(ret_dict[k] + 0.5) if 'bpm' in k else ret_dict[k]
+        for k in (Ppg.HEART_BPM, Ppg.RESP_BPM):
+            ret_dict[k] = int(ret_dict[k] + 0.5)
 
+        return ret_dict
+
+class HeartRate(Ppg):
+    def __init__(self, board, fft_size=1024, ema_decay=0.025):
+        super().__init__(board, fft_size, ema_decay)
+    
+    def get_data_dict(self):
+        ret_dict = super().get_data_dict()
+        keys = (Ppg.HEART_BPM, Ppg.HEART_FREQ)
+        ret_dict = {k: ret_dict[k] for k in keys}
+        return ret_dict
+
+class Respiration(Ppg):
+    def __init__(self, board, fft_size=1024, ema_decay=0.025):
+        super().__init__(board, fft_size, ema_decay)
+    
+    def get_data_dict(self):
+        ret_dict = super().get_data_dict()
+        keys = (Ppg.RESP_BPM, Ppg.RESP_FREQ, Ppg.OXYGEN_PERCENT)
+        ret_dict = {k: ret_dict[k] for k in keys}
         return ret_dict
