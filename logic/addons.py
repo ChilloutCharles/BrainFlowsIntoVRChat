@@ -13,8 +13,8 @@ class Addons(BaseLogic):
         nf_dict = self.neuro_feedback_logic.get_data_dict()
 
         # get average scores
-        focus = nf_dict[NeuroFeedback.FOCUS][NeuroFeedback.AVERAGE]
-        relax = nf_dict[NeuroFeedback.RELAX][NeuroFeedback.AVERAGE]
+        focus = nf_dict[NeuroFeedback.FOCUS][NeuroFeedback.SIGNED][NeuroFeedback.AVERAGE]
+        relax = nf_dict[NeuroFeedback.RELAX][NeuroFeedback.SIGNED][NeuroFeedback.AVERAGE]
 
         # remap focus and relax to 1D
         hueshift = map2dto1d(focus + 1, relax + 1, 2) / 8

@@ -29,7 +29,7 @@ class Old_OSC_Reporter(Base_Reporter):
         func_dict = {
             Device.__name__ : self.flatten_telemetry,
             NeuroFeedback.__name__ : self.flatten_neurofeedback,
-            PowerBands.__name__ : self.flatten_power_ratios,
+            PowerBands.__name__ : self.flatten_power_bands,
             Addons.__name__ : self.flatten_addons,
             HeartRate.__name__ : self.flatten_heart_rate,
             Respiration.__name__ : self.flatten_respiration
@@ -66,18 +66,19 @@ class Old_OSC_Reporter(Base_Reporter):
     
     def flatten_neurofeedback(self, data_dict):
         pairs = []
-        for location, scores_dict in data_dict.items():
-            for score, value in scores_dict.items():
-                param_name = "osc_{}_{}".format(location, score).lower()
+        for score_name, value_dict in data_dict.items():
+            signed_dict = value_dict[NeuroFeedback.SIGNED]
+            for location, value in signed_dict.items():
+                param_name = "osc_{}_{}".format(score_name, location).lower()
                 pair = (param_name, value)
                 pairs.append(pair)
         return pairs
     
-    def flatten_power_ratios(self, power_dict):
+    def flatten_power_bands(self, power_dict):
         pairs = []
-        for power, location_dict in power_dict.items():
-            for location, value in location_dict.items():
-                param_name = "osc_band_power_{}_{}".format(location, power).lower()
+        for location, power_dict in power_dict.items():
+            for power_name, value in power_dict.items():
+                param_name = "osc_band_power_{}_{}".format(location, power_name).lower()
                 pair = (param_name, value)
                 pairs.append(pair)
         return pairs
