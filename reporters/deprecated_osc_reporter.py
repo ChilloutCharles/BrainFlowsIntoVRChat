@@ -42,11 +42,12 @@ class Old_OSC_Reporter(Base_Reporter):
 
     def flatten_telemetry(self, data_dict):
         telemetry_map = {
-            Device.BATTERY : "osc_battery_lvl",
+            Device.BATTERYLEVEL : "osc_battery_lvl",
             Device.CONNECTED : "osc_is_connected",
             Device.TIME_DIFF : "osc_time_diff"
         }
-        pairs = [ (telemetry_map[k], v) for k, v in data_dict.items()]
+        keys = telemetry_map.keys() & data_dict.keys()
+        pairs = [ (telemetry_map[k], data_dict[k]) for k in keys]
         return pairs
     
     def flatten_respiration(self, data_dict):

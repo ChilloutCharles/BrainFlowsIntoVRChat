@@ -5,7 +5,8 @@ import time
 class Device(BaseLogic):
     CONNECTED = "Connected"
     TIME_DIFF = "TimeSinceLastSample"
-    BATTERY = "BatteryPercent"
+    BATTERYLEVEL = "Battery/Level"
+    BATTERYSUPPORT = "Battery/Supported"
 
     def __init__(self, board, window_seconds=2, board_timeout=5):
         super().__init__(board)
@@ -39,8 +40,8 @@ class Device(BaseLogic):
         ret_dict[Device.TIME_DIFF] = time_diff
         ret_dict[Device.CONNECTED] = True
 
-        # battery channel (if available)
-        if self.battery_channel:
-            ret_dict[Device.BATTERY] = data[self.battery_channel][-1]
+        # battery channel
+        ret_dict[Device.BATTERYLEVEL] = data[self.battery_channel][-1] if self.battery_channel else -1.0
+        ret_dict[Device.BATTERYSUPPORT] = bool(self.battery_channel)
         
         return ret_dict
