@@ -40,19 +40,19 @@ Brainflow:
       - Right [float]
       - Avg [float]
   PowerBands:
-    left:
+    Left:
       - Alpha [float]
       - Beta [float]
       - Theta [float]
       - Delta [float]
       - Gamma [float]
-    right:
+    Right:
       - Alpha [float]
       - Beta [float]
       - Theta [float]
       - Delta [float]
       - Gamma [float]
-    avg:
+    Avg:
       - Alpha [float]
       - Beta [float]
       - Theta [float]
