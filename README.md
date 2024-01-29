@@ -29,52 +29,52 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 Here are the various avatar parameters sent to VRChat. Focus and relax scores range from -1 to 1, corresponding to much focus and relaxation you're experiencing. Brain wave power bands are also sent as floats from 0 to 1. Depending on the board you're using, respiration data might be available.
 
 ```yaml
-brainflow:
-  neurofeedback:
+Brainflow:
+  NeuroFeedback:
+    Focus:
+      - Left [float]
+      - Right [float]
+      - Avg [float]
+    Relax:
+      - Left [float]
+      - Right [float]
+      - Avg [float]
+  PowerBands:
     left:
-      - focus [float]
-      - relax [float]
+      - Alpha [float]
+      - Beta [float]
+      - Theta [float]
+      - Delta [float]
+      - Gamma [float]
     right:
-      - focus [float]
-      - relax [float]
+      - Alpha [float]
+      - Beta [float]
+      - Theta [float]
+      - Delta [float]
+      - Gamma [float]
     avg:
-      - focus [float]
-      - relax [float]
-  power_ratios:
-    left:
-      - alpha [float]
-      - beta [float]
-      - theta [float]
-      - delta [float]
-      - gamma [float]
-    right:
-      - alpha [float]
-      - beta [float]
-      - theta [float]
-      - delta [float]
-      - gamma [float]
-    avg:
-      - alpha [float]
-      - beta [float]
-      - theta [float]
-      - delta [float]
-      - gamma [float]
-  addons:
+      - Alpha [float]
+      - Beta [float]
+      - Theta [float]
+      - Delta [float]
+      - Gamma [float]
+  Addons:
     - Hueshift [float 0-1]
-  respiration: # board depedent
-    - oxygen_percent [float]
-    - heart_freq [float]
-    - heart_bpm [int]
-    - respiration_freq [float
-    - respiration_bpm [int]
-  device:
-    - time_diff [float]
-    - is_connected [bool]
-    - battery_lvl [float] # board depedent
+  HeartRate: # board dependent
+    - HeartBeatsPerSecond [float]
+    - HeartBeatsPerMinute [int]
+  Respiration: # board dependent
+    - OxygenPercent [float]
+    - BreathsPerSecond [float]
+    - BreathsPerMinute [int]
+  Device:
+    - TimeSinceLastSample [float]
+    - Connected [bool]
+    - BatteryPercent [float] # board depedent
 ```
 
 To use parameters in within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
-- `brainflow/power_ratios/left/alpha`
+- `Brainflow/PowerBands/Left/Alpha`
 
 ## Deprecation
 
@@ -101,7 +101,7 @@ Thanks to
 
 - I've set up everything and made a new avatar, but its still not reacting
   - Reason: VRChat stores cached OSC parameters for your avatar that aren't updated when the avatar is updated with new parameters
-  - Solution: Go to C:\Users\\(USERNAME)\AppData\LocalLow\VRChat\VRChat and delete all folders under it, then reload avatar
+  - Solution: Go to `C:\Users\<YOUR USERNAME HERE>\AppData\LocalLow\VRChat\VRChat` and delete all folders under it, then reload avatar
 
 ## License
 [MIT](http://opensource.org/licenses/MIT).

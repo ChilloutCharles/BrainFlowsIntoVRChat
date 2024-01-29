@@ -25,7 +25,7 @@ class OSC_Reporter(Base_Reporter):
     
     def send(self, data_dict):
         # flatten dictionary into a list of pairs
-        send_pairs = self.flatten(OSC_BASE_PATH + "brainflow", data_dict)
+        send_pairs = self.flatten(OSC_BASE_PATH + "Brainflow", data_dict)
 
         # send each pair
         for path, value in send_pairs:
