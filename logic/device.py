@@ -1,14 +1,12 @@
 from logic.base_logic import BaseLogic
 from brainflow.board_shim import BoardShim
-from enum import Enum
 import time
 
-class DeviceEnum(Enum):
-    CONNECTED = "Connected"
-    TIME_DIFF = "time_diff"
-    BATTERY = "battery_lvl"
-
 class Device(BaseLogic):
+    CONNECTED = "Connected"
+    TIME_DIFF = "TimeSinceLastSample"
+    BATTERY = "BatteryPercent"
+
     def __init__(self, board, window_seconds=2, board_timeout=5):
         super().__init__(board)
         
@@ -36,13 +34,13 @@ class Device(BaseLogic):
         time_diff = current_time - last_sample_time
 
         if time_diff > self.board_timeout:
-            ret_dict[DeviceEnum.CONNECTED.value] = False
+            ret_dict[Device.CONNECTED] = False
             raise TimeoutError("Biosensor board timed out")
-        ret_dict[DeviceEnum.TIME_DIFF.value] = time_diff
-        ret_dict[DeviceEnum.CONNECTED.value] = True
+        ret_dict[Device.TIME_DIFF] = time_diff
+        ret_dict[Device.CONNECTED] = True
 
         # battery channel (if available)
         if self.battery_channel:
-            ret_dict[DeviceEnum.BATTERY] = data[self.battery_channel][-1]
+            ret_dict[Device.BATTERY] = data[self.battery_channel][-1]
         
         return ret_dict

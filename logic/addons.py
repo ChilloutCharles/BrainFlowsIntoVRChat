@@ -10,12 +10,11 @@ class Addons(BaseLogic):
     
     def get_data_dict(self):
         # get neurofeedback scores 
-        nf_dict_all = self.neuro_feedback_logic.get_data_dict()
+        nf_dict = self.neuro_feedback_logic.get_data_dict()
 
         # get average scores
-        nf_dict_avg = nf_dict_all['avg']
-        focus = nf_dict_avg['focus']
-        relax = nf_dict_avg['relax']
+        focus = nf_dict[NeuroFeedback.FOCUS][NeuroFeedback.AVERAGE]
+        relax = nf_dict[NeuroFeedback.RELAX][NeuroFeedback.AVERAGE]
 
         # remap focus and relax to 1D
         hueshift = map2dto1d(focus + 1, relax + 1, 2) / 8

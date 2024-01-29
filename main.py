@@ -5,7 +5,7 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.device import Device, DeviceEnum
+from logic.device import Device
 from logic.power_bands import PowerBands
 from logic.neuro_feedback import NeuroFeedback
 from logic.respiration import Respiration
@@ -94,9 +94,6 @@ def main():
     ip = args.osc_ip_address
     send_port = args.osc_port
     osc_reporter = Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)
-    
-    # seperate out telemetry name for exception paths
-    telemetry_name = 'device'
 
     def BoardInit(args):
         ### Streaming Params ###
@@ -161,7 +158,7 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_reporter.send({Device.__name__ : {DeviceEnum.CONNECTED.value:False}})
+                osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -178,7 +175,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_reporter.send({Device.__name__ : {DeviceEnum.CONNECTED.value:False}})
+        osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
         board.release_session()
 
 
