@@ -1,8 +1,13 @@
 from reporters.base_reporter import Base_Reporter
-
 from pythonosc.udp_client import SimpleUDPClient
 
 from constants import OSC_BASE_PATH
+
+from logic.device import Device
+from logic.power_bands import PowerBands
+from logic.neuro_feedback import NeuroFeedback
+from logic.respiration import Respiration
+from logic.addons import Addons
 
 
 class Old_OSC_Reporter(Base_Reporter):
@@ -22,11 +27,11 @@ class Old_OSC_Reporter(Base_Reporter):
 
     def flatten(self, data_dict):
         func_dict = {
-            'device' : self.flatten_telemetry,
-            'respiration' : self.flatten_respiration,
-            'neurofeedback' : self.flatten_neurofeedback,
-            'power_ratios' : self.flatten_power_ratios,
-            'addons': self.flatten_addons
+            Device.__name__ : self.flatten_telemetry,
+            Respiration.__name__ : self.flatten_respiration,
+            NeuroFeedback.__name__ : self.flatten_neurofeedback,
+            PowerBands.__name__ : self.flatten_power_ratios,
+            Addons.__name__ : self.flatten_addons
         }
         list_of_pairs = [func(data_dict[k]) for k, func in func_dict.items() if k in data_dict]
         return sum(list_of_pairs, [])
@@ -35,16 +40,21 @@ class Old_OSC_Reporter(Base_Reporter):
         return [("HueShift", data_dict["HueShift"])]
 
     def flatten_telemetry(self, data_dict):
-        pairs = [ ("osc_" + k, v) for k, v in data_dict.items()]
+        telemetry_map = {
+            Device.BATTERY : "osc_battery_lvl",
+            Device.CONNECTED : "osc_is_connected",
+            Device.TIME_DIFF : "osc_time_diff"
+        }
+        pairs = [ (telemetry_map[k], v) for k, v in data_dict.items()]
         return pairs
     
     def flatten_respiration(self, data_dict):
         old_dict = {
-            "osc_heart_bpm" : data_dict["heart_bpm"],
-            "osc_heart_bps" : data_dict["heart_freq"],
-            "osc_respiration_bpm" : data_dict["respiration_bpm"],
-            "osc_respiration_bps" : data_dict["respiration_freq"],
-            "osc_oxygen_percent" : data_dict["oxygen_percent"]
+            "osc_heart_bpm" : data_dict[Respiration.HEART_BPM],
+            "osc_heart_bps" : data_dict[Respiration.HEART_FREQ],
+            "osc_respiration_bpm" : data_dict[Respiration.RESP_BPM],
+            "osc_respiration_bps" : data_dict[Respiration.RESP_FREQ],
+            "osc_oxygen_percent" : data_dict[Respiration.OXYGEN_PERCENT]
         }
         return list(old_dict.items())
     
@@ -52,16 +62,16 @@ class Old_OSC_Reporter(Base_Reporter):
         pairs = []
         for location, scores_dict in data_dict.items():
             for score, value in scores_dict.items():
-                param_name = "osc_{}_{}".format(score, location)
+                param_name = "osc_{}_{}".format(location, score).lower()
                 pair = (param_name, value)
                 pairs.append(pair)
         return pairs
     
-    def flatten_power_ratios(self, data_dict):
+    def flatten_power_ratios(self, power_dict):
         pairs = []
-        for location, power_dict in data_dict.items():
-            for power, value in power_dict.items():
-                param_name = "osc_band_power_{}_{}".format(location, power)
+        for power, location_dict in power_dict.items():
+            for location, value in location_dict.items():
+                param_name = "osc_band_power_{}_{}".format(location, power).lower()
                 pair = (param_name, value)
                 pairs.append(pair)
         return pairs

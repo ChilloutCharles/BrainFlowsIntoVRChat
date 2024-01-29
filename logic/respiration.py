@@ -7,6 +7,12 @@ import numpy as np
 import utils
 
 class Respiration(BaseLogic):
+    OXYGEN_PERCENT = "OxygenPercent"
+    HEART_FREQ = "heart_freq"
+    HEART_BPM = "heart_bpm"
+    RESP_FREQ = "respiration_freq"
+    RESP_BPM = "respiration_bpm"
+
     def __init__(self, board, fft_size=1024, ema_decay=0.025):
         super().__init__(board)
 
@@ -95,11 +101,11 @@ class Respiration(BaseLogic):
 
         # create data dictionary
         ret_dict = {
-            "oxygen_percent" : oxygen_level,
-            "heart_freq" : heart_bpm / 60,
-            "heart_bpm" : heart_bpm,
-            "respiration_freq" : resp_avg,
-            "respiration_bpm" : resp_avg * 60
+            Respiration.OXYGEN_PERCENT : oxygen_level,
+            Respiration.HEART_FREQ : heart_bpm / 60,
+            Respiration.HEART_BPM : heart_bpm,
+            Respiration.RESP_FREQ : resp_avg,
+            Respiration.RESP_BPM : resp_avg * 60
         }
 
         # smooth using exponential moving average

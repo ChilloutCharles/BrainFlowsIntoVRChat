@@ -14,18 +14,7 @@ from logic.addons import Addons
 from reporters.osc_reporter import OSC_Reporter
 from reporters.deprecated_osc_reporter import Old_OSC_Reporter
 
-import pprint
-
-def tryFunc(func, val):
-    try:
-        return func(val)
-    except:
-        return None
-
-
 def main():
-    pp = pprint.PrettyPrinter()
-
     BoardShim.enable_board_logger()
     DataFilter.enable_data_logger()
 
