@@ -123,11 +123,11 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | osc_band_power_right_theta | Brainflow/PowerBands/Right/Theta |
 | osc_band_power_right_delta | Brainflow/PowerBands/Right/Delta |
 | osc_band_power_right_gamma | Brainflow/PowerBands/Right/Gamma |
-| osc_band_power_overall_alpha | Brainflow/PowerBands/Average/Alpha |
-| osc_band_power_overall_beta | Brainflow/PowerBands/Average/Beta |
-| osc_band_power_overall_theta | Brainflow/PowerBands/Average/Theta |
-| osc_band_power_overall_delta | Brainflow/PowerBands/Average/Delta |
-| osc_band_power_overall_gamma | Brainflow/PowerBands/Average/Gamma |
+| osc_band_power_avg_alpha | Brainflow/PowerBands/Average/Alpha |
+| osc_band_power_avg_beta | Brainflow/PowerBands/Average/Beta |
+| osc_band_power_avg_theta | Brainflow/PowerBands/Average/Theta |
+| osc_band_power_avg_delta | Brainflow/PowerBands/Average/Delta |
+| osc_band_power_avg_gamma | Brainflow/PowerBands/Average/Gamma |
 | osc_battery_lvl | Brainflow/Device/Battery/Level |
 | osc_is_connected | Brainflow/Device/Connected |
 | osc_time_diff | Brainflow/Device/SecondsSinceLastUpdate |
