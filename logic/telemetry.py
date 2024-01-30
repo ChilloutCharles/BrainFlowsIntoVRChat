@@ -2,6 +2,21 @@ from logic.base_logic import BaseLogic
 from brainflow.board_shim import BoardShim
 import time
 
+class Meta(BaseLogic):
+    VMAJOR = "VersionMajor"
+    VMINOR = "VersionMinor"
+    
+    def __init__(self, board, major, minor):
+        super().__init__(board)
+        self.major = major
+        self.minor = minor
+    
+    def get_data_dict(self):
+        return {
+            Meta.VMAJOR : self.major,
+            Meta.VMINOR : self.minor
+        }
+
 class Device(BaseLogic):
     CONNECTED = "Connected"
     TIME_DIFF = "TimeSinceLastSample"

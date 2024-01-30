@@ -3,7 +3,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from constants import OSC_BASE_PATH
 
-from logic.device import Device
+from logic.telemetry import Device
 from logic.power_bands import PowerBands
 from logic.neuro_feedback import NeuroFeedback
 from logic.ppg import HeartRate, Respiration, Ppg

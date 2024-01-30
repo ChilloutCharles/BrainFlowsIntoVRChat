@@ -1,11 +1,12 @@
 import argparse
 import time
+import constants
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.device import Device
+from logic.telemetry import Device, Meta
 from logic.power_bands import PowerBands
 from logic.neuro_feedback import NeuroFeedback
 from logic.ppg import HeartRate, Respiration
@@ -104,6 +105,7 @@ def main():
         respiration_logic = Respiration(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
 
         logics = [
+            Meta(board, constants.VERSION_MAJOR, constants.VERSION_MINOR),
             Device(board, window_seconds=window_seconds),
             PowerBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
             NeuroFeedback(board, window_seconds=window_seconds, ema_decay=ema_decay),
