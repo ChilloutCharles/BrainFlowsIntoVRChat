@@ -99,7 +99,7 @@ In order to use the old parameter names as documented in previous versions, add 
 
 ### Old Parameter Mappings
 
-Need to migrate your existing prefabs? You can use this chart to convert your existing parameters to the new standard using this chart!
+Need to migrate your existing prefabs? You convert your existing parameters to the new standard using this chart!
 
 | Old Parameter | New Parameter |
 | ------------- | ----------------- |
