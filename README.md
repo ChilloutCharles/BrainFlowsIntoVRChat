@@ -97,6 +97,42 @@ To use parameters in within VRChat, write the parameter name as a path. For exam
 
 In order to use the old parameter names as documented in previous versions, add the argument `--use-old-reporter`. An announcement will be made soon to sunset the old parameter names.
 
+### Old Parameter Mappings
+
+Need to migrate your existing prefabs? You can convert your existing parameters to the new standard using this chart!
+
+| Old Parameter | New Parameter |
+| ------------- | ----------------- |
+| osc_focus_left | Brainflow/NeuroFeedback/Focus/Signed/Left |
+| osc_focus_right | Brainflow/NeuroFeedback/Focus/Signed/Right |
+| osc_focus_avg | Brainflow/NeuroFeedback/Focus/Signed/Average |
+| osc_relax_left | Brainflow/NeuroFeedback/Relax/Signed/Left |
+| osc_relax_right | Brainflow/NeuroFeedback/Relax/Signed/Right |
+| osc_relax_avg | Brainflow/NeuroFeedback/Relax/Signed/Average |
+| osc_heart_bpm | Brainflow/HeartRate/HeartBeatsPerMinute |
+| osc_heart_bps | Brainflow/HeartRate/HeartBeatsPerSecond |
+| osc_oxygen_percent | Brainflow/Respiration/OxygenPercent |
+| osc_respiration_bpm | Brainflow/Respiration/BreathsPerMinute |
+| osc_band_power_left_alpha | Brainflow/PowerBands/Left/Alpha |
+| osc_band_power_left_beta | Brainflow/PowerBands/Left/Beta |
+| osc_band_power_left_theta | Brainflow/PowerBands/Left/Theta |
+| osc_band_power_left_delta | Brainflow/PowerBands/Left/Delta |
+| osc_band_power_left_gamma | Brainflow/PowerBands/Left/Gamma |
+| osc_band_power_right_alpha | Brainflow/PowerBands/Right/Alpha |
+| osc_band_power_right_beta | Brainflow/PowerBands/Right/Beta |
+| osc_band_power_right_theta | Brainflow/PowerBands/Right/Theta |
+| osc_band_power_right_delta | Brainflow/PowerBands/Right/Delta |
+| osc_band_power_right_gamma | Brainflow/PowerBands/Right/Gamma |
+| osc_band_power_avg_alpha | Brainflow/PowerBands/Average/Alpha |
+| osc_band_power_avg_beta | Brainflow/PowerBands/Average/Beta |
+| osc_band_power_avg_theta | Brainflow/PowerBands/Average/Theta |
+| osc_band_power_avg_delta | Brainflow/PowerBands/Average/Delta |
+| osc_band_power_avg_gamma | Brainflow/PowerBands/Average/Gamma |
+| osc_battery_lvl | Brainflow/Device/Battery/Level |
+| osc_is_connected | Brainflow/Device/Connected |
+| osc_time_diff | Brainflow/Device/SecondsSinceLastUpdate |
+| HueShift | Brainflow/Addon/HueShift |
+
 ## Thanks
 
 Thanks to 
