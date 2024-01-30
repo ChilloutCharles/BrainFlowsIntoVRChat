@@ -26,19 +26,32 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 
 **OSC Avatar Parameter Schema**
 
-Here are the various avatar parameters sent to VRChat. Focus and relax scores range from -1 to 1, corresponding to much focus and relaxation you're experiencing. Brain wave power bands are also sent as floats from 0 to 1. Depending on the board you're using, respiration data might be available.
+Here are the various avatar parameters sent to VRChat. Neurofeedback scores range from -1 to 1 for signed floats, 0 to 1 for unsigned, with higher and lower values corresponding to higher and lower relax/focus scores. Depending on the board you're using, respiration data and battery level might be available. Power Band numbers are also sent per location as well, ranging from 0 to 1 averaging at 0.2.
 
 ```yaml
 Brainflow:
+  Meta:
+    - VersionMajor [int] -- Determines breaking changes in the schema representation
+    - VersionMinor [int] -- Any update to the schema which remains compatible with existing prefabs.
   NeuroFeedback:
     Focus:
-      - Left [float]
-      - Right [float]
-      - Avg [float]
+      Signed:
+        - Left [float]
+        - Right [float]
+        - Avg [float]
+      Unsigned:
+        - Left [float]
+        - Right [float]
+        - Avg [float]
     Relax:
-      - Left [float]
-      - Right [float]
-      - Avg [float]
+      Signed:
+        - Left [float]
+        - Right [float]
+        - Avg [float]
+      Unsigned:
+        - Left [float]
+        - Right [float]
+        - Avg [float]
   PowerBands:
     Left:
       - Alpha [float]
@@ -61,16 +74,20 @@ Brainflow:
   Addons:
     - Hueshift [float 0-1]
   HeartRate: # board dependent
+    - Supported [bool]
     - HeartBeatsPerSecond [float]
     - HeartBeatsPerMinute [int]
   Respiration: # board dependent
+    - Supported [bool]
     - OxygenPercent [float]
     - BreathsPerSecond [float]
     - BreathsPerMinute [int]
   Device:
     - TimeSinceLastSample [float]
     - Connected [bool]
-    - BatteryPercent [float] # board depedent
+    Battery: # board dependent
+      - Supported [bool]
+      - BatteryPercent [float]
 ```
 
 To use parameters in within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
