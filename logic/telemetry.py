@@ -19,7 +19,7 @@ class Meta(BaseLogic):
 
 class Device(BaseLogic):
     CONNECTED = "Connected"
-    TIME_DIFF = "TimeSinceLastSample"
+    TIME_DIFF = "SecondsSinceLastUpdate"
     BATTERYLEVEL = "Battery/Level"
     BATTERYSUPPORT = "Battery/Supported"
 

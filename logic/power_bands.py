@@ -11,7 +11,7 @@ import numpy as np
 class PowerBands(BaseLogic):
     LEFT = 'Left'
     RIGHT = 'Right'
-    AVERAGE = 'Avg'
+    AVERAGE = 'Average'
 
     def __init__(self, board, window_seconds=2, ema_decay=0.025):
         super().__init__(board)

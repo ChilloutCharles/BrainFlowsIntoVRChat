@@ -73,19 +73,29 @@ class Old_OSC_Reporter(Base_Reporter):
     
     def flatten_neurofeedback(self, data_dict):
         pairs = []
+        location_map = {
+            PowerBands.LEFT: PowerBands.LEFT,
+            PowerBands.RIGHT: PowerBands.RIGHT,
+            PowerBands.AVERAGE: "avg"
+        }
         for score_name, value_dict in data_dict.items():
             signed_dict = value_dict[NeuroFeedback.SIGNED]
             for location, value in signed_dict.items():
-                param_name = "osc_{}_{}".format(score_name, location).lower()
+                param_name = "osc_{}_{}".format(score_name, location_map[location]).lower()
                 pair = (param_name, value)
                 pairs.append(pair)
         return pairs
     
     def flatten_power_bands(self, power_dict):
         pairs = []
+        location_map = {
+            PowerBands.LEFT: PowerBands.LEFT,
+            PowerBands.RIGHT: PowerBands.RIGHT,
+            PowerBands.AVERAGE: "avg"
+        }
         for location, power_dict in power_dict.items():
             for power_name, value in power_dict.items():
-                param_name = "osc_band_power_{}_{}".format(location, power_name).lower()
+                param_name = "osc_band_power_{}_{}".format(location_map[location], power_name).lower()
                 pair = (param_name, value)
                 pairs.append(pair)
         return pairs

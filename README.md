@@ -38,20 +38,20 @@ Brainflow:
       Signed:
         - Left [float]
         - Right [float]
-        - Avg [float]
+        - Average [float]
       Unsigned:
         - Left [float]
         - Right [float]
-        - Avg [float]
+        - Average [float]
     Relax:
       Signed:
         - Left [float]
         - Right [float]
-        - Avg [float]
+        - Average [float]
       Unsigned:
         - Left [float]
         - Right [float]
-        - Avg [float]
+        - Average [float]
   PowerBands:
     Left:
       - Alpha [float]
@@ -65,7 +65,7 @@ Brainflow:
       - Theta [float]
       - Delta [float]
       - Gamma [float]
-    Avg:
+    Average:
       - Alpha [float]
       - Beta [float]
       - Theta [float]
@@ -83,11 +83,11 @@ Brainflow:
     - BreathsPerSecond [float]
     - BreathsPerMinute [int]
   Device:
-    - TimeSinceLastSample [float]
+    - SecondsSinceLastUpdate [float]
     - Connected [bool]
     Battery: # board dependent
       - Supported [bool]
-      - BatteryPercent [float]
+      - Level [float]
 ```
 
 To use parameters in within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
