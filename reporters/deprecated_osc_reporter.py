@@ -51,19 +51,25 @@ class Old_OSC_Reporter(Base_Reporter):
         return pairs
     
     def flatten_respiration(self, data_dict):
-        old_dict = {
-            "osc_respiration_bpm" : data_dict[Ppg.RESP_BPM],
-            "osc_respiration_bps" : data_dict[Ppg.RESP_FREQ],
-            "osc_oxygen_percent" : data_dict[Ppg.OXYGEN_PERCENT]
-        }
-        return list(old_dict.items())
-    
+        pairs = []
+        if data_dict[Ppg.SUPPORTED]:
+            old_dict = {
+                "osc_respiration_bpm" : data_dict[Ppg.RESP_BPM],
+                "osc_respiration_bps" : data_dict[Ppg.RESP_FREQ],
+                "osc_oxygen_percent" : data_dict[Ppg.OXYGEN_PERCENT]
+            }
+            pairs =  list(old_dict.items())
+        return pairs
+        
     def flatten_heart_rate(self, data_dict):
-        old_dict = {
-            "osc_heart_bpm" : data_dict[Ppg.HEART_BPM],
-            "osc_heart_bps" : data_dict[Ppg.HEART_FREQ]
-        }
-        return list(old_dict.items())
+        pairs = []
+        if data_dict[Ppg.SUPPORTED]:
+            old_dict = {
+                "osc_heart_bpm" : data_dict[Ppg.HEART_BPM],
+                "osc_heart_bps" : data_dict[Ppg.HEART_FREQ]
+            }
+            pairs = list(old_dict.items())
+        return pairs
     
     def flatten_neurofeedback(self, data_dict):
         pairs = []

@@ -1,4 +1,4 @@
-from logic.base_logic import BaseLogic
+from logic.base_logic import OptionalBaseLogic
 
 from brainflow.board_shim import BoardShim, BrainFlowPresets
 from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterTypes, DetrendOperations, WindowOperations
@@ -6,30 +6,31 @@ from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterT
 import numpy as np
 import utils
 
-class Ppg(BaseLogic):
+class Ppg(OptionalBaseLogic):
     OXYGEN_PERCENT = "OxygenPercent"
     HEART_FREQ = "HeartBeatsPerSecond"
     HEART_BPM = "HeartBeatsPerMinute"
     RESP_FREQ = "BreathsPerSecond"
     RESP_BPM = "BreathsPerMinute"
 
-    def __init__(self, board, fft_size=1024, ema_decay=0.025):
-        super().__init__(board)
+    def __init__(self, board, supported=True, fft_size=1024, ema_decay=0.025):
+        super().__init__(board, supported)
 
-        board_id = board.get_board_id()
+        if supported:
+            board_id = board.get_board_id()
         
-        self.ppg_channels = BoardShim.get_ppg_channels(
-            board_id, BrainFlowPresets.ANCILLARY_PRESET)
-        self.ppg_sampling_rate = BoardShim.get_sampling_rate(
-            board_id, BrainFlowPresets.ANCILLARY_PRESET)
+            self.ppg_channels = BoardShim.get_ppg_channels(
+                board_id, BrainFlowPresets.ANCILLARY_PRESET)
+            self.ppg_sampling_rate = BoardShim.get_sampling_rate(
+                board_id, BrainFlowPresets.ANCILLARY_PRESET)
 
-        self.window_seconds = int(fft_size / self.ppg_sampling_rate) + 1
-        self.max_sample_size = self.ppg_sampling_rate * self.window_seconds
-        self.fft_size = fft_size
+            self.window_seconds = int(fft_size / self.ppg_sampling_rate) + 1
+            self.max_sample_size = self.ppg_sampling_rate * self.window_seconds
+            self.fft_size = fft_size
 
-        # ema smoothing variables
-        self.current_values = None
-        self.ema_decay = ema_decay
+            # ema smoothing variables
+            self.current_values = None
+            self.ema_decay = ema_decay
 
     def estimate_respiration(self, resp_signal, ppg_ambient):
         # do not modify data
@@ -79,6 +80,8 @@ class Ppg(BaseLogic):
         return heart_bpm
 
     def get_data_dict(self):
+        ret_dict = super().get_data_dict()
+
         # get current data from board
         ppg_data = self.board.get_current_board_data(
             self.max_sample_size, BrainFlowPresets.ANCILLARY_PRESET)
@@ -100,7 +103,7 @@ class Ppg(BaseLogic):
         resp_avg = np.mean((resp_ir, resp_red))
 
         # create data dictionary
-        ret_dict = {
+        ppg_dict = {
             Ppg.OXYGEN_PERCENT : oxygen_level,
             Ppg.HEART_FREQ : heart_bpm / 60,
             Ppg.HEART_BPM : heart_bpm,
@@ -109,35 +112,40 @@ class Ppg(BaseLogic):
         }
 
         # smooth using exponential moving average
-        target_values = np.array(list(ret_dict.values()))
+        target_values = np.array(list(ppg_dict.values()))
         if not isinstance(self.current_values, np.ndarray):
             self.current_values = target_values
         else:
             self.current_values = utils.smooth(self.current_values, target_values, self.ema_decay)
         
         # add smooth values and round bpms
-        ret_dict = {k:v for k,v in zip(ret_dict.keys(), self.current_values.tolist())}
+        ppg_dict = {k:v for k,v in zip(ppg_dict.keys(), self.current_values.tolist())}
         for k in (Ppg.HEART_BPM, Ppg.RESP_BPM):
-            ret_dict[k] = int(ret_dict[k] + 0.5)
-
+            ppg_dict[k] = int(ppg_dict[k] + 0.5)
+        
+        ret_dict.update(ppg_dict)
         return ret_dict
 
 class HeartRate(Ppg):
-    def __init__(self, board, fft_size=1024, ema_decay=0.025):
-        super().__init__(board, fft_size, ema_decay)
+    def __init__(self, board, supported=True, fft_size=1024, ema_decay=0.025):
+        super().__init__(board, supported, fft_size, ema_decay)
     
     def get_data_dict(self):
-        ret_dict = super().get_data_dict()
-        keys = (Ppg.HEART_BPM, Ppg.HEART_FREQ)
-        ret_dict = {k: ret_dict[k] for k in keys}
+        ret_dict = super(Ppg, self).get_data_dict()
+        if self.supported:
+            ret_dict = super().get_data_dict()
+            keys = (Ppg.SUPPORTED, Ppg.HEART_BPM, Ppg.HEART_FREQ)
+            ret_dict = {k: ret_dict[k] for k in keys}
         return ret_dict
 
 class Respiration(Ppg):
-    def __init__(self, board, fft_size=1024, ema_decay=0.025):
-        super().__init__(board, fft_size, ema_decay)
+    def __init__(self, board, supported=True, fft_size=1024, ema_decay=0.025):
+        super().__init__(board, supported, fft_size, ema_decay)
     
     def get_data_dict(self):
-        ret_dict = super().get_data_dict()
-        keys = (Ppg.RESP_BPM, Ppg.RESP_FREQ, Ppg.OXYGEN_PERCENT)
-        ret_dict = {k: ret_dict[k] for k in keys}
+        ret_dict = super(Ppg, self).get_data_dict()
+        if self.supported:
+            ret_dict = super().get_data_dict()
+            keys = (Ppg.SUPPORTED, Ppg.RESP_BPM, Ppg.RESP_FREQ, Ppg.OXYGEN_PERCENT)
+            ret_dict = {k: ret_dict[k] for k in keys}
         return ret_dict
