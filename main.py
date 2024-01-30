@@ -1,25 +1,19 @@
 import argparse
 import time
-from collections import ChainMap
+import constants
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from pythonosc.udp_client import SimpleUDPClient
+from logic.telemetry import Device, Meta
+from logic.power_bands import PowerBands
+from logic.neuro_feedback import NeuroFeedback
+from logic.ppg import HeartRate, Respiration
+from logic.addons import Addons
 
-from constants import OSC_Path, OSC_BASE_PATH
-
-from logic.telemetry import Telemetry
-from logic.focus_relax import Focus_Relax
-from logic.heartrate import HeartRate
-
-def tryFunc(func, val):
-    try:
-        return func(val)
-    except:
-        return None
-
+from reporters.osc_reporter import OSC_Reporter
+from reporters.deprecated_osc_reporter import Old_OSC_Reporter
 
 def main():
     BoardShim.enable_board_logger()
@@ -68,6 +62,10 @@ def main():
     parser.add_argument('--osc-port', type=int,
                         help='port the osc listener', required=False, default=9000)
     
+    # choose which reporter to use
+    parser.add_argument("--use-old-reporter", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to use the old osc reporter')
+    
     args = parser.parse_args()
 
     params = BrainFlowInputParams()
@@ -82,9 +80,10 @@ def main():
     params.file = args.file
 
     ### OSC Setup ###
+    use_old_reporter = args.use_old_reporter
     ip = args.osc_ip_address
     send_port = args.osc_port
-    osc_client = SimpleUDPClient(ip, send_port)
+    osc_reporter = Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)
 
     def BoardInit(args):
         ### Streaming Params ###
@@ -99,18 +98,27 @@ def main():
         master_board_id = board.get_board_id()
 
         ### Logic Modules ###
+        has_muse_ppg = master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD)
+        
+        fft_size=2048
+        heart_rate_logic = HeartRate(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
+        respiration_logic = Respiration(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
+
         logics = [
-            Telemetry(board, window_seconds),
-            Focus_Relax(board, window_seconds, ema_decay=ema_decay)
+            Meta(board, constants.VERSION_MAJOR, constants.VERSION_MINOR),
+            Device(board, window_seconds=window_seconds),
+            PowerBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            NeuroFeedback(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            heart_rate_logic, 
+            respiration_logic
         ]
 
         ### Muse 2/S heartbeat support ###
-        if master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD):
+        if has_muse_ppg:
             board.config_board('p52')
-            heart_rate_logic = HeartRate(board, 2048, ema_decay)
             heart_window_seconds = heart_rate_logic.window_seconds
             startup_time = max(startup_time, heart_window_seconds)
-            logics.append(heart_rate_logic)
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
         board.start_stream(streamer_params=args.streamer_params)
@@ -130,15 +138,13 @@ def main():
                 
                 # Execute all logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Execute all Logic")
-                data_dicts = list(map(lambda logic: logic.get_data_dict(), logics))
-                full_dict = dict(ChainMap(*data_dicts))
+                data_dict = {type(logic).__name__ : logic.get_data_dict() for logic in logics}
 
                 # Send messages from executed logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
-                osc_client.send_message(OSC_Path.ConnectionStatus, True)
-                for osc_name in full_dict:
-                    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(osc_name, full_dict[osc_name]))
-                    osc_client.send_message(OSC_BASE_PATH + osc_name, full_dict[osc_name])
+                send_pairs = osc_reporter.send(data_dict)
+                for param_path, param_value in send_pairs:
+                    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
                 
                 # sleep based on refresh_rate
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
@@ -149,7 +155,7 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_client.send_message(OSC_Path.ConnectionStatus, False)
+                osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -166,7 +172,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_client.send_message(OSC_Path.ConnectionStatus, False)
+        osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
         board.release_session()
 
 

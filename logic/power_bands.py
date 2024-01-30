@@ -1,15 +1,18 @@
-from logic.base_logic import Base_Logic
+from logic.base_logic import BaseLogic
 from constants import BAND_POWERS
+import utils
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, AggOperations
+from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes
 
 import re
 import numpy as np
 
-import utils
+class PowerBands(BaseLogic):
+    LEFT = 'Left'
+    RIGHT = 'Right'
+    AVERAGE = 'Average'
 
-class Power_Ratios(Base_Logic):
     def __init__(self, board, window_seconds=2, ema_decay=0.025):
         super().__init__(board)
         
@@ -28,7 +31,7 @@ class Power_Ratios(Base_Logic):
         self.right_chans = [eeg_chan for eeg_chan, eeg_num in chan_num_pairs if eeg_num % 2 == 0]
 
         # ema smoothing variables
-        self.current_values = None
+        self.current_dict = {}
         self.ema_decay = ema_decay
 
     def get_data_dict(self):
@@ -45,21 +48,30 @@ class Power_Ratios(Base_Logic):
         right_powers, _ = DataFilter.get_avg_band_powers(data, self.right_chans, self.sampling_rate, True)
         avg_powers, _ = DataFilter.get_avg_band_powers(data, self.eeg_channels, self.sampling_rate, True)
 
-        # format powers to be returned in a dictionary        
-        def make_power_dict(prefix, powers):
-            return {prefix + bp.name.lower(): powers[bp] for bp in BAND_POWERS}
+        # create location dict
+        location_dict = {
+            PowerBands.LEFT     : left_powers,
+            PowerBands.RIGHT    : right_powers,
+            PowerBands.AVERAGE  : avg_powers
+        }
 
-        left_dict = make_power_dict("osc_band_power_left_", left_powers)
-        right_dict = make_power_dict("osc_band_power_right_", right_powers)
-        avg_dict = make_power_dict("osc_band_power_avg_", avg_powers)
-        ret_dict = left_dict | right_dict | avg_dict
+        # smooth out powers
+        location_dict = {loc : self.location_smooth(loc, powers) for loc, powers in location_dict.items()}
 
-        # smooth update based on exponential moving average
-        target_values = np.array(list(ret_dict.values()))
-        if not isinstance(self.current_values, np.ndarray):
-            self.current_values = target_values
-        else:
-            self.current_values = utils.smooth(self.current_values, target_values, self.ema_decay)
-        ret_dict = {k:v for k, v in zip(ret_dict.keys(), self.current_values.tolist())}
+        # create power dicts per location
+        def make_power_dict(powers):
+            return {bp.name : powers[bp] for bp in BAND_POWERS}
+        ret_dict = {loc: make_power_dict(powers) for loc, powers in location_dict.items()}
 
         return ret_dict
+    
+    def location_smooth(self, loc_name, target_values):
+        current_values = self.current_dict.get(loc_name, None)
+
+        if isinstance(current_values, np.ndarray):
+            current_values = utils.smooth(current_values, target_values, self.ema_decay)
+        else:
+            current_values = target_values
+            
+        self.current_dict[loc_name] = current_values
+        return current_values

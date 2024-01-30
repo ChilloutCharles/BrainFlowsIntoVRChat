@@ -1,9 +1,28 @@
-from logic.base_logic import Base_Logic
-
+from logic.base_logic import BaseLogic
 from brainflow.board_shim import BoardShim
 import time
 
-class Telemetry(Base_Logic):
+class Meta(BaseLogic):
+    VMAJOR = "VersionMajor"
+    VMINOR = "VersionMinor"
+    
+    def __init__(self, board, major, minor):
+        super().__init__(board)
+        self.major = major
+        self.minor = minor
+    
+    def get_data_dict(self):
+        return {
+            Meta.VMAJOR : self.major,
+            Meta.VMINOR : self.minor
+        }
+
+class Device(BaseLogic):
+    CONNECTED = "Connected"
+    TIME_DIFF = "SecondsSinceLastUpdate"
+    BATTERYLEVEL = "Battery/Level"
+    BATTERYSUPPORT = "Battery/Supported"
+
     def __init__(self, board, window_seconds=2, board_timeout=5):
         super().__init__(board)
         
@@ -21,9 +40,9 @@ class Telemetry(Base_Logic):
         self.board_timeout = board_timeout
 
     def get_data_dict(self):
-        ret_dict = {}
         data = self.board.get_current_board_data(self.max_sample_size)
-        
+        ret_dict = {}
+
         # timeout check
         time_data = data[self.time_channel]
         last_sample_time = time_data[-1]
@@ -31,11 +50,13 @@ class Telemetry(Base_Logic):
         time_diff = current_time - last_sample_time
 
         if time_diff > self.board_timeout:
+            ret_dict[Device.CONNECTED] = False
             raise TimeoutError("Biosensor board timed out")
-        ret_dict["osc_time_diff"] = time_diff
+        ret_dict[Device.TIME_DIFF] = time_diff
+        ret_dict[Device.CONNECTED] = True
 
-        # battery channel (if available)
-        if self.battery_channel:
-            ret_dict["osc_battery_lvl"] = data[self.battery_channel][-1]
+        # battery channel
+        ret_dict[Device.BATTERYLEVEL] = data[self.battery_channel][-1] if self.battery_channel else -1.0
+        ret_dict[Device.BATTERYSUPPORT] = bool(self.battery_channel)
         
         return ret_dict
