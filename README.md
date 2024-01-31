@@ -133,9 +133,10 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | osc_time_diff | BFI/Info/SecondsSinceLastUpdate |
 | HueShift | BFI/Addons/HueShift |
 
+
 # These utility paramaters give basic information about your device and BFiVRC
 | Paramater | Description | Type |
-| ------ | ----- | ----- | ----- |
+| ------ | ----- | ----- |
 | BFI/Info/VersionMajor | The major version number of BFiVRC | Int |
 | BFI/Info/VersionMinor | The minor version number of BFiVRC | Int |
 | BFI/Info/SecondsSinceLastUpdate | The refresh rate of BFiVRCs data stream | Float |
