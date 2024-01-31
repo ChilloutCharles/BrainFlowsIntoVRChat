@@ -8,7 +8,7 @@ from brainflow.exit_codes import BrainFlowError
 
 from logic.telemetry import Device, Meta
 from logic.power_bands import PowerBands
-from logic.neuro_feedback import NeuroFeedback
+from logic.neuro_feedback import NeuroFB
 from logic.ppg import HeartRate, Respiration
 from logic.addons import Addons
 
@@ -108,7 +108,7 @@ def main():
             Meta(board, constants.VERSION_MAJOR, constants.VERSION_MINOR),
             Device(board, window_seconds=window_seconds),
             PowerBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
-            NeuroFeedback(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay),
             Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
             heart_rate_logic, 
             respiration_logic

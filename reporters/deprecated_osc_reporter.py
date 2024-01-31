@@ -5,7 +5,7 @@ from constants import OSC_BASE_PATH
 
 from logic.telemetry import Device
 from logic.power_bands import PowerBands
-from logic.neuro_feedback import NeuroFeedback
+from logic.neuro_feedback import NeuroFB
 from logic.ppg import HeartRate, Respiration, Ppg
 from logic.addons import Addons
 
@@ -28,7 +28,7 @@ class Old_OSC_Reporter(Base_Reporter):
     def flatten(self, data_dict):
         func_dict = {
             Device.__name__ : self.flatten_telemetry,
-            NeuroFeedback.__name__ : self.flatten_neurofeedback,
+            NeuroFB.__name__ : self.flatten_neurofeedback,
             PowerBands.__name__ : self.flatten_power_bands,
             Addons.__name__ : self.flatten_addons,
             HeartRate.__name__ : self.flatten_heart_rate,
@@ -73,17 +73,15 @@ class Old_OSC_Reporter(Base_Reporter):
     
     def flatten_neurofeedback(self, data_dict):
         pairs = []
-        location_map = {
-            PowerBands.LEFT: PowerBands.LEFT,
-            PowerBands.RIGHT: PowerBands.RIGHT,
-            PowerBands.AVERAGE: "avg"
-        }
-        for score_name, value_dict in data_dict.items():
-            signed_dict = value_dict[NeuroFeedback.SIGNED]
-            for location, value in signed_dict.items():
-                param_name = "osc_{}_{}".format(score_name, location_map[location]).lower()
-                pair = (param_name, value)
-                pairs.append(pair)
+        param_map = {}
+        for nfb_name in (NeuroFB.FOCUS, NeuroFB.RELAX):
+            for location in (NeuroFB.LEFT, NeuroFB.RIGHT, NeuroFB.AVERAGE):
+                param_map[nfb_name + location + NeuroFB.SIGNED] = "osc_{}_{}".format(nfb_name, location).lower()
+        
+        for new_param, old_param in param_map.items():
+            pair = (old_param, data_dict[new_param])
+            pairs.append(pair)
+        
         return pairs
     
     def flatten_power_bands(self, power_dict):
