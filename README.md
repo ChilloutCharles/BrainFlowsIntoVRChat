@@ -1,4 +1,4 @@
-# BrainFlowsIntoVRChat
+# BFiVRC: BrainFlowsIntoVRChat
 
 This is a BrainFlow implementation of my [bci-workshop fork](https://github.com/ChilloutCharles/bci-workshop) that sends your brain's relaxation and focus metrics, and power values based on the common frequency bands used in EEG measuements, for left, right and both sides of the head. Additional support for heart rate and respiration is available when supported by your hardware.
 
