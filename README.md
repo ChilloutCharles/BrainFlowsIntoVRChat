@@ -26,10 +26,10 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 
 ## OSC Avatar Parameter Schema
 
-Here are the various avatar parameters sent to VRChat. Neurofeedback scores range from -1 to 1 for signed floats, 0 to 1 for unsigned, with higher and lower values corresponding to higher and lower relax/focus scores. Depending on the board you're using, respiration data and battery level might be available. Power Band numbers are also sent per location as well, ranging from 0 to 1 averaging at 0.2. 
+Here are the various avatar parameters sent to VRChat. Neurofeedback scores range from -1 to 1 for signed floats, 0 to 1 for unsigned, with higher and lower values corresponding to higher and lower relax/focus scores. Depending on the board you're using, heartrate, respiration and battery information might be available. Power Band numbers are also sent per location as well, ranging from 0 to 1 averaging at 0.2. 
 
-To use parameters within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
-- `Brainflow/PwrBands/Left/Alpha`
+To use these parameters within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
+- `BFI/PwrBands/Left/Alpha`
 
 ```yaml
 BFI:
