@@ -8,10 +8,10 @@ from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes
 import re
 import numpy as np
 
-class PowerBands(BaseLogic):
+class PwrBands(BaseLogic):
     LEFT = 'Left'
     RIGHT = 'Right'
-    AVERAGE = 'Average'
+    AVERAGE = 'Avg'
 
     def __init__(self, board, window_seconds=2, ema_decay=0.025):
         super().__init__(board)
@@ -50,9 +50,9 @@ class PowerBands(BaseLogic):
 
         # create location dict
         location_dict = {
-            PowerBands.LEFT     : left_powers,
-            PowerBands.RIGHT    : right_powers,
-            PowerBands.AVERAGE  : avg_powers
+            PwrBands.LEFT     : left_powers,
+            PwrBands.RIGHT    : right_powers,
+            PwrBands.AVERAGE  : avg_powers
         }
 
         # smooth out powers

@@ -6,10 +6,10 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.telemetry import Device, Meta
-from logic.power_bands import PowerBands
-from logic.neuro_feedback import NeuroFeedback
-from logic.ppg import HeartRate, Respiration
+from logic.telemetry import Info, Meta
+from logic.power_bands import PwrBands
+from logic.neuro_feedback import NeuroFB
+from logic.biometrics import Biometrics
 from logic.addons import Addons
 
 from reporters.osc_reporter import OSC_Reporter
@@ -101,23 +101,20 @@ def main():
         has_muse_ppg = master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD)
         
         fft_size=2048
-        heart_rate_logic = HeartRate(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
-        respiration_logic = Respiration(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
+        biometrics_logic = Biometrics(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
 
         logics = [
-            Meta(board, constants.VERSION_MAJOR, constants.VERSION_MINOR),
-            Device(board, window_seconds=window_seconds),
-            PowerBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
-            NeuroFeedback(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            Info(board, window_seconds=window_seconds),
+            PwrBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay),
             Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
-            heart_rate_logic, 
-            respiration_logic
+            biometrics_logic
         ]
 
         ### Muse 2/S heartbeat support ###
         if has_muse_ppg:
             board.config_board('p52')
-            heart_window_seconds = heart_rate_logic.window_seconds
+            heart_window_seconds = biometrics_logic.window_seconds
             startup_time = max(startup_time, heart_window_seconds)
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
@@ -155,7 +152,7 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
+                osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -172,7 +169,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
+        osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
 
 

@@ -1,12 +1,12 @@
-from logic.power_bands import PowerBands
+from logic.power_bands import PwrBands
 from constants import BAND_POWERS
 from utils import tanh_normalize
 
-class NeuroFeedback(PowerBands):
+class NeuroFB(PwrBands):
     FOCUS = "Focus"
     RELAX = "Relax"
-    SIGNED = "Signed"
-    UNSIGNED = "Unsigned"
+    SIGNED = ""
+    UNSIGNED = "Pos"
 
     def __init__(self, board, window_seconds=2, normalize_scale=1.1, ema_decay=0.025):
         super().__init__(board, window_seconds=window_seconds, ema_decay=ema_decay)
@@ -23,20 +23,21 @@ class NeuroFeedback(PowerBands):
             power_dict[location][BAND_POWERS.Alpha.name], 
             power_dict[location][BAND_POWERS.Theta.name])
         
-        # create dictionary to return
-        ret_dict = {
-            NeuroFeedback.FOCUS: get_focus,
-            NeuroFeedback.RELAX: get_relax
+        # create a function dict to apply calculations with
+        # and return dict to aggregate values
+        function_dict = {
+            NeuroFB.FOCUS: get_focus,
+            NeuroFB.RELAX: get_relax
         }
-        
-        # apply score calculations per location
-        for nfb_name, nfb_func in ret_dict.items():
-            signed_dict = {location : nfb_func(location) for location in power_dict}
-            unsigned_dict = {k : (v+1)/2 for k, v in signed_dict.items()}
-            ret_dict[nfb_name] = {
-                NeuroFeedback.SIGNED    : signed_dict,
-                NeuroFeedback.UNSIGNED  : unsigned_dict
-            }
+        ret_dict = {}
+
+        # apply score calculations per location and add to ret_dict
+        for nfb_name, nfb_func in function_dict.items():
+            signed_dict = {location + NeuroFB.SIGNED : nfb_func(location) for location in power_dict}
+            unsigned_dict = {location + NeuroFB.UNSIGNED : (value+1)/2 for location, value in signed_dict.items()}
+            inner_flat_dict = signed_dict | unsigned_dict
+            inner_flat_dict = {nfb_name + key : value for key, value in inner_flat_dict.items()}
+            ret_dict |= inner_flat_dict
         
         return ret_dict
     
