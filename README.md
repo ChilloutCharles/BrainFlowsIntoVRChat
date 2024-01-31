@@ -1,6 +1,6 @@
 # BrainFlowsIntoVRChat
 
-This is a BrainFlow implementation of my [bci-workshop fork](https://github.com/ChilloutCharles/bci-workshop) that sends your brain's relaxation and focus metrics to vrchat avatar Parameters via OSC.
+This is a BrainFlow implementation of my [bci-workshop fork](https://github.com/ChilloutCharles/bci-workshop) that sends your brain's relaxation and focus metrics, and power values based on the common frequency bands used in EEG measuements, for left, right and both sides of the head. Additional support for heart rate and respiration is available when supported by your hardware.
 
 ## Why BrainFlow?
 
@@ -26,33 +26,34 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 
 ## OSC Avatar Parameter Schema
 
-Here are the various avatar parameters sent to VRChat. Neurofeedback scores range from -1 to 1 for signed floats, 0 to 1 for unsigned, with higher and lower values corresponding to higher and lower relax/focus scores. Depending on the board you're using, respiration data and battery level might be available. Power Band numbers are also sent per location as well, ranging from 0 to 1 averaging at 0.2.
+Here are the various avatar parameters sent to VRChat. Neurofeedback scores range from -1 to 1 for signed floats, 0 to 1 for unsigned, with higher and lower values corresponding to higher and lower relax/focus scores. Depending on the board you're using, respiration data and battery level might be available. Power Band numbers are also sent per location as well, ranging from 0 to 1 averaging at 0.2. 
+
+To use parameters within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
+- `Brainflow/PowerBands/Left/Alpha`
 
 ```yaml
-Brainflow:
-  Meta:
-    - VersionMajor [int] -- Determines breaking changes in the schema representation
-    - VersionMinor [int] -- Any update to the schema which remains compatible with existing prefabs.
-  NeuroFeedback:
-    Focus:
-      Signed:
-        - Left [float]
-        - Right [float]
-        - Average [float]
-      Unsigned:
-        - Left [float]
-        - Right [float]
-        - Average [float]
-    Relax:
-      Signed:
-        - Left [float]
-        - Right [float]
-        - Average [float]
-      Unsigned:
-        - Left [float]
-        - Right [float]
-        - Average [float]
-  PowerBands:
+BFI:
+  Info:
+    - VersionMajor [int]
+    - VersionMinor [int]
+    - SecondsSinceLastUpdate [float]
+    - DeviceConnected [bool]
+    - BatterySupported [bool]
+    - BatteryLevel [float]
+  NeuroFB:
+    - FocusLeft [float]
+    - FocusLeftPos [float]
+    - FocusRight [float]
+    - FocusRightPos [float]
+    - FocusAvg [float]
+    - FocusAvgPos [float]
+    - RelaxLeft [float]
+    - RelaxLeftPos [float]
+    - RelaxRight [float]
+    - RelaxRightPos [float]
+    - RelaxAvg [float]
+    - RelaxAvgPos [float]
+  PwrBand:
     Left:
       - Alpha [float]
       - Beta [float]
@@ -65,7 +66,7 @@ Brainflow:
       - Theta [float]
       - Delta [float]
       - Gamma [float]
-    Average:
+    Avg:
       - Alpha [float]
       - Beta [float]
       - Theta [float]
@@ -73,25 +74,18 @@ Brainflow:
       - Gamma [float]
   Addons:
     - Hueshift [float 0-1]
-  HeartRate: # board dependent
+  Biometrics:
     - Supported [bool]
     - HeartBeatsPerSecond [float]
     - HeartBeatsPerMinute [int]
-  Respiration: # board dependent
-    - Supported [bool]
     - OxygenPercent [float]
     - BreathsPerSecond [float]
     - BreathsPerMinute [int]
-  Device:
-    - SecondsSinceLastUpdate [float]
-    - Connected [bool]
-    Battery: # board dependent
-      - Supported [bool]
-      - Level [float]
 ```
 
-To use parameters in within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
-- `Brainflow/PowerBands/Left/Alpha`
+## Depracation
+
+If you still want to use the old parameter scheme, you can switch to them by adding the `--use-old-reporter` launch argument. Be aware that this will be deprecated in the future and an official announcement will be made for its sunset.
 
 ## Migration from Old Parameter Schema
 
@@ -129,15 +123,13 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | osc_time_diff | BFI/Info/SecondsSinceLastUpdate |
 | HueShift | BFI/Addons/HueShift |
 
-If you still want to use the old parameter scheme, you can switch to them by adding the `--use-old-reporter` launch argument. Be aware that this will be deprecated in the future and an official announcement will be made for its sunset.
-
 ## Parameter Descriptions
 ### Utility
 These utility Parameters give basic information about your device and BFiVRC
 | Parameter | Description | Type |
 | ------ | ----- | ----- |
-| BFI/Info/VersionMajor | The major version number of BFiVRC | Int |
-| BFI/Info/VersionMinor | The minor version number of BFiVRC | Int |
+| BFI/Info/VersionMajor | The major version number of current parameter schema | Int |
+| BFI/Info/VersionMinor | The minor version number of current parameter schema | Int |
 | BFI/Info/SecondsSinceLastUpdate | The refresh rate of BFiVRCs data stream | Float |
 | BFI/Info/DeviceConnected | The connection status of your device to BFiVRC | Bool |
 | BFI/Info/BatterySupported | If your device supports sending battery status to BFiVRC | Bool |
@@ -154,7 +146,7 @@ These Parameters are calculated based on your current mental state and make use 
 | BFI/NeuroFB/RelaxRight | Right Excited to Relaxed | Float | [-1.0, 1.0] |
 | BFI/NeuroFB/RelaxAvg | Excited to Relaxed | Float | [-1.0, 1.0] |
 
-These are the same Neurofeedback scores remapped to positive floats for easier use with prefabs, animations, and avatar smoothing
+These are the same Neurofeedback scores remapped to the positive 0 to 1 range for cases where it may be required.
 | Parameter | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
 | BFI/NeuroFB/FocusLeftPos | Left Unfocused to Focused | Float | [0.0, 1.0] |
@@ -185,7 +177,7 @@ These Parameters give the power value for the common frequency bands used in EEG
 | BFI/PwrBand/Avg/Gamma | Brainwaves Gamma band | Float | [0.0, 1.0] |
 
 ### Addons
-These Parameters are addiotional functions of BFiVRC
+These Parameters are additional functions of BFiVRC
 | Parameter | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
 | BFI/Addons/Hueshift | This Parameter uses combinations of relax/focus to drive a single float Parameter for material fx | Float | [0.0, 1.0] |
@@ -194,12 +186,11 @@ These Parameters are addiotional functions of BFiVRC
 These Parameters read other biometric data from your device if supported by your hardware
 | Parameter | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
-| BFI/Biometrics/HeartrateSupported | If your hardware supports heart rate readout | Bool | True/False |
-| BFI/Biometrics/HeartBeatsPerSecond | Your heartrate calculated per second | Float | [0.0, inf] |
+| BFI/Biometrics/Supported | If your hardware supports heart rate and respiration readouts | Bool | True/False |
+| BFI/Biometrics/HeartBeatsPerSecond | Your heartrate calculated per second | Float | [0.0, inf) |
 | BFI/Biometrics/HeartBeatsPerMinute | Your heartrate calculated per minute | Int | [0, 255] |
-| BFI/Biometrics/OxygenSupported | If your hardware supports oxygen level readout | Bool | True/False |
 | BFI/Biometrics/OxygenPercent | Percentage of oxygen in blood | Float | [0.0, 1.0] |
-| BFI/Biometrics/BreathsPerSecond | Estimated breaths taken per second  | Float | [0.0, inf] |
+| BFI/Biometrics/BreathsPerSecond | Estimated breaths taken per second  | Float | [0.0, inf) |
 | BFI/Biometrics/BreathsPerMinute | Estimated breaths taken per minute  | Int | [0, 255] |
 
 
