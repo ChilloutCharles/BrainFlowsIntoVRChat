@@ -2,7 +2,7 @@ from reporters.base_reporter import Base_Reporter
 
 from pythonosc.udp_client import SimpleUDPClient
 
-from constants import OSC_BASE_PATH
+from constants import OSC_BASE_PATH, BFI_ROOT
 
 class OSC_Reporter(Base_Reporter):
     def __init__(self, ip, send_port):
@@ -25,7 +25,7 @@ class OSC_Reporter(Base_Reporter):
     
     def send(self, data_dict):
         # flatten dictionary into a list of pairs
-        send_pairs = self.flatten(OSC_BASE_PATH + "Brainflow", data_dict)
+        send_pairs = self.flatten(OSC_BASE_PATH + BFI_ROOT, data_dict)
 
         # send each pair
         for path, value in send_pairs:
