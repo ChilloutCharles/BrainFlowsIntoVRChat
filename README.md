@@ -133,8 +133,9 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | osc_time_diff | BFI/Info/SecondsSinceLastUpdate |
 | HueShift | BFI/Addons/HueShift |
 
-
-# These utility paramaters give basic information about your device and BFiVRC
+# Paramaters
+## Utility
+These utility paramaters give basic information about your device and BFiVRC
 | Paramater | Description | Type |
 | ------ | ----- | ----- |
 | BFI/Info/VersionMajor | The major version number of BFiVRC | Int |
@@ -144,9 +145,8 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | BFI/Info/BatterySupported | If your device supports sending battery status to BFiVRC | Bool |
 | BFI/Info/BatteryLevel | The current charge status of your devices battery | Float |
 
-
-
-# These paramaters are calculated based on your current mental state??????? (idk better way to word this) and make use of the full signed positive and negative float range
+## Neural Feedback
+### These paramaters are calculated based on your current mental state??????? (idk better way to word this) and make use of the full signed positive and negative float range
 | Paramater | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
 | BFI/NeuroFB/FocusLeft | Left Unfocused to Focused | Float | -1.0 - 1.0 |
@@ -156,7 +156,7 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | BFI/NeuroFB/RelaxRight | Right Excited to Relaxed | Float | -1.0 - 1.0 |
 | BFI/NeuroFB/RelaxAvg | Excited to Relaxed | Float | -1.0 - 1.0 |
 
-# These paramaters are calculated based on your current mental state??????? (idk better way to word this) and use the unsigned positive float range
+### These paramaters are calculated based on your current mental state??????? (idk better way to word this) and use the unsigned positive float range
 | Paramater | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
 | BFI/NeuroFB/FocusLeftPos | Left Unfocused to Focused | Float | 0.0 - 1.0 |
@@ -166,7 +166,7 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | BFI/NeuroFB/RelaxRightPos | Right Excited to Relaxed | Float | 0.0 - 1.0 |
 | BFI/NeuroFB/RelaxAvgPos | Excited to Relaxed | Float | 0.0 - 1.0 |
 
-
+## Raw Brainwave Powerbands
 # These paramaters read your raw brainwave data per band
 | Paramater | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
