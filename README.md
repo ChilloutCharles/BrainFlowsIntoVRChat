@@ -85,7 +85,7 @@ BFI:
 
 ## Depracation
 
-If you still want to use the old parameter scheme, you can switch to them by adding the `--use-old-reporter` launch argument. Be aware that this will be deprecated in the future and an official announcement will be made for its sunset.
+We recommend updating to this schema. However, if your assets are still using the old parameter scheme, you can switch to them by adding the `--use-old-reporter` launch argument. Be aware that this will be deprecated in the future and an official announcement will be made for its sunset.
 
 ## Migration from Old Parameter Schema
 
