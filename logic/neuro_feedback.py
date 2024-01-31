@@ -1,8 +1,8 @@
-from logic.power_bands import PowerBands
+from logic.power_bands import PwrBands
 from constants import BAND_POWERS
 from utils import tanh_normalize
 
-class NeuroFB(PowerBands):
+class NeuroFB(PwrBands):
     FOCUS = "Focus"
     RELAX = "Relax"
     SIGNED = ""

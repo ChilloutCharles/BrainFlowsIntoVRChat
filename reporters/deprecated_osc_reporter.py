@@ -4,7 +4,7 @@ from pythonosc.udp_client import SimpleUDPClient
 from constants import OSC_BASE_PATH
 
 from logic.telemetry import Info
-from logic.power_bands import PowerBands
+from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
@@ -29,7 +29,7 @@ class Old_OSC_Reporter(Base_Reporter):
         func_dict = {
             Info.__name__ : self.flatten_telemetry,
             NeuroFB.__name__ : self.flatten_neurofeedback,
-            PowerBands.__name__ : self.flatten_power_bands,
+            PwrBands.__name__ : self.flatten_power_bands,
             Addons.__name__ : self.flatten_addons,
             Biometrics.__name__ : self.flatten_biometrics
         }
@@ -78,9 +78,9 @@ class Old_OSC_Reporter(Base_Reporter):
     def flatten_power_bands(self, power_dict):
         pairs = []
         location_map = {
-            PowerBands.LEFT: PowerBands.LEFT,
-            PowerBands.RIGHT: PowerBands.RIGHT,
-            PowerBands.AVERAGE: "avg"
+            PwrBands.LEFT: PwrBands.LEFT,
+            PwrBands.RIGHT: PwrBands.RIGHT,
+            PwrBands.AVERAGE: "avg"
         }
         for location, power_dict in power_dict.items():
             for power_name, value in power_dict.items():

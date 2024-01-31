@@ -7,7 +7,7 @@ from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
 from logic.telemetry import Info, Meta
-from logic.power_bands import PowerBands
+from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
@@ -105,7 +105,7 @@ def main():
 
         logics = [
             Info(board, window_seconds=window_seconds),
-            PowerBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
+            PwrBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
             NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay),
             Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
             biometrics_logic
