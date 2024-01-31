@@ -1,27 +1,26 @@
 from logic.base_logic import BaseLogic
 from brainflow.board_shim import BoardShim
 import time
+import constants
 
 class Meta(BaseLogic):
     VMAJOR = "VersionMajor"
     VMINOR = "VersionMinor"
     
-    def __init__(self, board, major, minor):
+    def __init__(self, board):
         super().__init__(board)
-        self.major = major
-        self.minor = minor
     
     def get_data_dict(self):
         return {
-            Meta.VMAJOR : self.major,
-            Meta.VMINOR : self.minor
+            Meta.VMAJOR : constants.VERSION_MAJOR,
+            Meta.VMINOR : constants.VERSION_MINOR
         }
 
-class Device(BaseLogic):
-    CONNECTED = "Connected"
+class Info(Meta):
+    CONNECTED = "DeviceConnected"
     TIME_DIFF = "SecondsSinceLastUpdate"
-    BATTERYLEVEL = "Battery/Level"
-    BATTERYSUPPORT = "Battery/Supported"
+    BATTERYLEVEL = "BatteryLevel"
+    BATTERYSUPPORT = "BatterySupported"
 
     def __init__(self, board, window_seconds=2, board_timeout=5):
         super().__init__(board)
@@ -41,7 +40,7 @@ class Device(BaseLogic):
 
     def get_data_dict(self):
         data = self.board.get_current_board_data(self.max_sample_size)
-        ret_dict = {}
+        ret_dict = super().get_data_dict()
 
         # timeout check
         time_data = data[self.time_channel]
@@ -50,13 +49,13 @@ class Device(BaseLogic):
         time_diff = current_time - last_sample_time
 
         if time_diff > self.board_timeout:
-            ret_dict[Device.CONNECTED] = False
+            ret_dict[Info.CONNECTED] = False
             raise TimeoutError("Biosensor board timed out")
-        ret_dict[Device.TIME_DIFF] = time_diff
-        ret_dict[Device.CONNECTED] = True
+        ret_dict[Info.TIME_DIFF] = time_diff
+        ret_dict[Info.CONNECTED] = True
 
         # battery channel
-        ret_dict[Device.BATTERYLEVEL] = data[self.battery_channel][-1] if self.battery_channel else -1.0
-        ret_dict[Device.BATTERYSUPPORT] = bool(self.battery_channel)
+        ret_dict[Info.BATTERYLEVEL] = data[self.battery_channel][-1] if self.battery_channel else -1.0
+        ret_dict[Info.BATTERYSUPPORT] = bool(self.battery_channel)
         
         return ret_dict

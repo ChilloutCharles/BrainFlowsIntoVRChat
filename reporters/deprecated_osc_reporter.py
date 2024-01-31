@@ -3,7 +3,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from constants import OSC_BASE_PATH
 
-from logic.telemetry import Device
+from logic.telemetry import Info
 from logic.power_bands import PowerBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
@@ -27,7 +27,7 @@ class Old_OSC_Reporter(Base_Reporter):
 
     def flatten(self, data_dict):
         func_dict = {
-            Device.__name__ : self.flatten_telemetry,
+            Info.__name__ : self.flatten_telemetry,
             NeuroFB.__name__ : self.flatten_neurofeedback,
             PowerBands.__name__ : self.flatten_power_bands,
             Addons.__name__ : self.flatten_addons,
@@ -41,9 +41,9 @@ class Old_OSC_Reporter(Base_Reporter):
 
     def flatten_telemetry(self, data_dict):
         telemetry_map = {
-            Device.BATTERYLEVEL : "osc_battery_lvl",
-            Device.CONNECTED : "osc_is_connected",
-            Device.TIME_DIFF : "osc_time_diff"
+            Info.BATTERYLEVEL : "osc_battery_lvl",
+            Info.CONNECTED : "osc_is_connected",
+            Info.TIME_DIFF : "osc_time_diff"
         }
         keys = telemetry_map.keys() & data_dict.keys()
         pairs = [ (telemetry_map[k], data_dict[k]) for k in keys]

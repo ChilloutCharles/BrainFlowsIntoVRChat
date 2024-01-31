@@ -6,7 +6,7 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.telemetry import Device, Meta
+from logic.telemetry import Info, Meta
 from logic.power_bands import PowerBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
@@ -104,8 +104,7 @@ def main():
         biometrics_logic = Biometrics(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
 
         logics = [
-            Meta(board, constants.VERSION_MAJOR, constants.VERSION_MINOR),
-            Device(board, window_seconds=window_seconds),
+            Info(board, window_seconds=window_seconds),
             PowerBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
             NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay),
             Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
@@ -153,7 +152,7 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
+                osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -170,7 +169,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_reporter.send({Device.__name__ : {Device.CONNECTED:False}})
+        osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
 
 
