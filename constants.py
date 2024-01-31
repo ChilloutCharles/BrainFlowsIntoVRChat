@@ -4,7 +4,7 @@ VERSION_MAJOR = 1
 VERSION_MINOR = 0
 
 OSC_BASE_PATH = '/avatar/parameters/'
-BFI_ROOT = 'BFI/'
+BFI_ROOT = 'BFI'
 
 class BAND_POWERS(enum.IntEnum):
     Gamma = 4
