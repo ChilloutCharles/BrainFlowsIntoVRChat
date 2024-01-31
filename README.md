@@ -103,35 +103,104 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 
 | Old Parameter | New Parameter |
 | ------------- | ----------------- |
-| osc_focus_left | Brainflow/NeuroFeedback/Focus/Signed/Left |
-| osc_focus_right | Brainflow/NeuroFeedback/Focus/Signed/Right |
-| osc_focus_avg | Brainflow/NeuroFeedback/Focus/Signed/Average |
-| osc_relax_left | Brainflow/NeuroFeedback/Relax/Signed/Left |
-| osc_relax_right | Brainflow/NeuroFeedback/Relax/Signed/Right |
-| osc_relax_avg | Brainflow/NeuroFeedback/Relax/Signed/Average |
-| osc_heart_bpm | Brainflow/HeartRate/HeartBeatsPerMinute |
-| osc_heart_bps | Brainflow/HeartRate/HeartBeatsPerSecond |
-| osc_oxygen_percent | Brainflow/Respiration/OxygenPercent |
-| osc_respiration_bpm | Brainflow/Respiration/BreathsPerMinute |
-| osc_band_power_left_alpha | Brainflow/PowerBands/Left/Alpha |
-| osc_band_power_left_beta | Brainflow/PowerBands/Left/Beta |
-| osc_band_power_left_theta | Brainflow/PowerBands/Left/Theta |
-| osc_band_power_left_delta | Brainflow/PowerBands/Left/Delta |
-| osc_band_power_left_gamma | Brainflow/PowerBands/Left/Gamma |
-| osc_band_power_right_alpha | Brainflow/PowerBands/Right/Alpha |
-| osc_band_power_right_beta | Brainflow/PowerBands/Right/Beta |
-| osc_band_power_right_theta | Brainflow/PowerBands/Right/Theta |
-| osc_band_power_right_delta | Brainflow/PowerBands/Right/Delta |
-| osc_band_power_right_gamma | Brainflow/PowerBands/Right/Gamma |
-| osc_band_power_avg_alpha | Brainflow/PowerBands/Average/Alpha |
-| osc_band_power_avg_beta | Brainflow/PowerBands/Average/Beta |
-| osc_band_power_avg_theta | Brainflow/PowerBands/Average/Theta |
-| osc_band_power_avg_delta | Brainflow/PowerBands/Average/Delta |
-| osc_band_power_avg_gamma | Brainflow/PowerBands/Average/Gamma |
-| osc_battery_lvl | Brainflow/Device/Battery/Level |
-| osc_is_connected | Brainflow/Device/Connected |
-| osc_time_diff | Brainflow/Device/SecondsSinceLastUpdate |
-| HueShift | Brainflow/Addon/HueShift |
+| osc_focus_left | BFI/NeuroFB/FocusLeft |
+| osc_focus_right | BFI/NeuroFB/FocusRight |
+| osc_focus_avg | BFI/NeuroFB/FocusAvg |
+| osc_relax_left | BFI/NeuroFB/RelaxLeft |
+| osc_relax_right | BFI/NeuroFB/RelaxRight |
+| osc_relax_avg | BFI/NeuroFB/RelaxAvg |
+| osc_heart_bpm | BFI/Biometrics/HeartBeatsPerMinute |
+| osc_heart_bps | BFI/Biometrics/HeartBeatsPerSecond |
+| osc_oxygen_percent | BFI/Biometrics/OxygenPercent |
+| osc_respiration_bpm | BFI/Biometrics/BreathsPerMinute |
+| osc_band_power_left_alpha | BFI/PwrBand/Left/Alpha |
+| osc_band_power_left_beta | BFI/PwrBand/Left/Beta |
+| osc_band_power_left_theta | BFI/PwrBand/Left/Theta |
+| osc_band_power_left_delta | BFI/PwrBand/Left/Delta |
+| osc_band_power_left_gamma | BFI/PwrBand/Left/Gamma |
+| osc_band_power_right_alpha | BFI/PwrBand/Right/Alpha |
+| osc_band_power_right_beta | BFI/PwrBand/Right/Beta |
+| osc_band_power_right_theta | BFI/PwrBand/Right/Theta |
+| osc_band_power_right_delta | BFI/PwrBand/Right/Delta |
+| osc_band_power_right_gamma | BFI/PwrBand/Right/Gamma |
+| osc_band_power_avg_alpha | BFI/PwrBand/Avg/Alpha |
+| osc_band_power_avg_beta | BFI/PwrBand/Avg/Beta |
+| osc_band_power_avg_theta | BFI/PwrBand/Avg/Theta |
+| osc_band_power_avg_delta | BFI/PwrBand/Avg/Delta |
+| osc_band_power_avg_gamma | BFI/PwrBand/Avg/Gamma |
+| osc_battery_lvl | BFI/Info/BatteryLevel |
+| osc_is_connected | BFI/Info/DeviceConnected |
+| osc_time_diff | BFI/Info/SecondsSinceLastUpdate |
+| HueShift | BFI/Addons/HueShift |
+
+# These utility paramaters give basic information about your device and BFiVRC
+| Paramater | Description | Type |
+| ------ | ----- | ----- | ----- |
+| BFI/Info/VersionMajor | The major version number of BFiVRC | Int |
+| BFI/Info/VersionMinor | The minor version number of BFiVRC | Int |
+| BFI/Info/SecondsSinceLastUpdate | The refresh rate of BFiVRCs data stream | Float |
+| BFI/Info/DeviceConnected | The connection status of your device to BFiVRC | Bool |
+| BFI/Info/BatterySupported | If your device supports sending battery status to BFiVRC | Bool |
+| BFI/Info/BatteryLevel | The current charge status of your devices battery | Float |
+
+
+
+# These paramaters are calculated based on your current mental state??????? (idk better way to word this) and make use of the full signed positive and negative float range
+| Paramater | Description | Type | Range |
+| ------ | ----- | ----- | ----- |
+| BFI/NeuroFB/FocusLeft | Left Unfocused to Focused | Float | -1.0 - 1.0 |
+| BFI/NeuroFB/FocusRight | Right Unfocused to Focused | Float | -1.0 - 1.0 |
+| BFI/NeuroFB/FocusAvg | Unfocused to Focused | Float | -1.0 - 1.0 |
+| BFI/NeuroFB/RelaxLeft | Left Excited to Relaxed | Float | -1.0 - 1.0 |
+| BFI/NeuroFB/RelaxRight | Right Excited to Relaxed | Float | -1.0 - 1.0 |
+| BFI/NeuroFB/RelaxAvg | Excited to Relaxed | Float | -1.0 - 1.0 |
+
+# These paramaters are calculated based on your current mental state??????? (idk better way to word this) and use the unsigned positive float range
+| Paramater | Description | Type | Range |
+| ------ | ----- | ----- | ----- |
+| BFI/NeuroFB/FocusLeftPos | Left Unfocused to Focused | Float | 0.0 - 1.0 |
+| BFI/NeuroFB/FocusRightPos | Right Unfocused to Focused | Float | 0.0 - 1.0 |
+| BFI/NeuroFB/FocusAvgPos | Unfocused to Focused | Float | 0.0 - 1.0 |
+| BFI/NeuroFB/RelaxLeftPos | Left Excited to Relaxed | Float | 0.0 - 1.0 |
+| BFI/NeuroFB/RelaxRightPos | Right Excited to Relaxed | Float | 0.0 - 1.0 |
+| BFI/NeuroFB/RelaxAvgPos | Excited to Relaxed | Float | 0.0 - 1.0 |
+
+
+# These paramaters read your raw brainwave data per band
+| Paramater | Description | Type | Range |
+| ------ | ----- | ----- | ----- |
+| BFI/PwrBand/Left/Alpha | Left brainwaves Alpha band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Right/Alpha | Right brainwaves Alpha band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Avg/Alpha | Brainwaves Alpha band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Left/Beta | Left brainwaves Beta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Right/Beta | Right brainwaves Beta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Avg/Beta | Brainwaves Beta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Left/Theta | Left brainwaves Theta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Right/Theta | Right brainwaves Theta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Avg/Theta | Brainwaves Theta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Left/Delta | Left brainwaves Delta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Right/Delta | Right brainwaves Delta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Avg/Delta | Brainwaves Delta band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Left/Gamma | Left brainwaves Gamma band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Right/Gamma | Right brainwaves Gamma band | Float | 0.0 - 1.0 |
+| BFI/PwrBand/Avg/Gamma | Brainwaves Gamma band | Float | 0.0 - 1.0 |
+
+# These paramaters are addiotional functions of BFiVRC
+| Paramater | Description | Type | Range |
+| ------ | ----- | ----- | ----- |
+| BFI/Addons/Hueshift | This paramater uses combinations of relax/focus to drive a single float paramater for material fx | Float | 0.0 - 1.0 |
+
+# These paramaters read other biometric data from your device if supported by your hardware
+| Paramater | Description | Type | Range |
+| ------ | ----- | ----- | ----- |
+| BFI/Biometrics/HeartrateSupported | If your hardware supports heart rate readout | Bool | True/False |
+| BFI/Biometrics/HeartBeatsPerSecond | Your heartrate calculated per second | Float | 0.0 - 255.0 |
+| BFI/Biometrics/HeartBeatsPerMinute | Your heartrate calculated per minute | Int | 0 - 255 |
+
+| BFI/Biometrics/OxygenSupported | If your hardware supports oxygen level readout | Bool | True/False |
+| BFI/Biometrics/OxygenPercent | Percentage of oxygen in blood | Float | 0.0 - 100.0 |
+| BFI/Biometrics/BreathsPerSecond | Estimated breaths taken per second  | Float | 0.0 - 255.0 |
+| BFI/Biometrics/BreathsPerMinute | Estimated breaths taken per minute  | Int | 0 - 255 |
 
 ## Thanks
 
