@@ -215,7 +215,7 @@ Thanks to
 
 - I've set up everything and made a new avatar, but its still not reacting
   - Reason: VRChat stores cached OSC parameters for your avatar that aren't updated when the avatar is updated with new parameters
-  - Solution: Go to `C:\Users\<YOUR USERNAME HERE>\AppData\LocalLow\VRChat\VRChat` and delete all folders under it, then reload avatar
+  - Solution: Go to `C:\Users\<YOUR USERNAME HERE>\AppData\LocalLow\VRChat\VRChat\OSC` and delete all folders under it, then reload avatar
 
 ## License
 [MIT](http://opensource.org/licenses/MIT).
