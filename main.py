@@ -57,6 +57,8 @@ def main():
                         help='refresh rate for the main loop to run at', required=False, default=60)
     parser.add_argument('--ema-decay', type=float,
                         help='exponential moving average constant to smooth outputs', required=False, default=1)
+    parser.add_argument('--retry-count', type=int,
+                        help='sets the amount of times to reconnect before giving up', required=False, default=3)
 
     # osc command line arguments
     parser.add_argument('--osc-ip-address', type=str,
@@ -177,12 +179,12 @@ def main():
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
 
                 # attempt reinitialize 3 times
-                for i in range(3):
+                for i in range(args.retry_count):
                     try: 
                         board, logics, refresh_rate_hz = BoardInit(args)
                         break
                     except BrainFlowError as e:
-                        BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Retry {} Biosensor board error: {}'.format(i, str(e)))
+                        BoardShim.log_message(LogLevels.LEVEL_ERROR.value, 'Retry {} Biosensor board error: {}'.format(i, str(e)))
 
     except KeyboardInterrupt:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
