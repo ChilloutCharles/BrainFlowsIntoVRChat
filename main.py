@@ -12,7 +12,7 @@ from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
 
-from reporters.osc_reporter import OSC_Reporter
+from reporters.osc_reporter import OSC_Reporter, Debug_Reporter
 from reporters.deprecated_osc_reporter import Old_OSC_Reporter
 
 def main():
@@ -67,6 +67,10 @@ def main():
     # choose which reporter to use
     parser.add_argument("--use-old-reporter", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to use the old osc reporter')
+
+    # toggle debug mode
+    parser.add_argument("--debug", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to toggle debug mode on')
     
     args = parser.parse_args()
 
@@ -81,18 +85,23 @@ def main():
     params.timeout = args.timeout
     params.file = args.file
 
+    ### Debug message toggle ###
+    if args.debug:
+        BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+
     ### Board Id selection ###
     if args.board_id.isdigit():
         master_board_id = int(args.board_id)
     else:
         master_board_id = BoardIds[args.board_id.upper()]
-
-
+    
     ### OSC Setup ###
     use_old_reporter = args.use_old_reporter
     ip = args.osc_ip_address
     send_port = args.osc_port
-    osc_reporter = Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)
+    reporters = [Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)]
+    if args.debug:
+        reporters.append(Debug_Reporter(ip, send_port))
 
     def BoardInit(args):
         ### Streaming Params ###
@@ -147,9 +156,10 @@ def main():
 
                 # Send messages from executed logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
-                send_pairs = osc_reporter.send(data_dict)
-                for param_path, param_value in send_pairs:
-                    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
+                for reporter in reporters:
+                    send_pairs = reporter.send(data_dict)
+                    for param_path, param_value in send_pairs:
+                        BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
                 
                 # sleep based on refresh_rate
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
@@ -160,7 +170,8 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+                for reporter in reporters:
+                    reporter.send({Info.__name__ : {Info.CONNECTED:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -177,7 +188,8 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+        for reporter in reporters:
+            reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
 
 

@@ -193,6 +193,8 @@ These Parameters read other biometric data from your device if supported by your
 | BFI/Biometrics/BreathsPerSecond | Estimated breaths taken per second  | Float | [0.0, inf) |
 | BFI/Biometrics/BreathsPerMinute | Estimated breaths taken per minute  | Int | [0, 255] |
 
+## Debugging
+To make it easier to debug, add `--debug` launch argument. This will enable the console to display debug messages for all osc messages sent as well as make the parameter names shorter so that they are readable on vrchat's OSC debug panel as well as any other OSC displays.
 
 ## Thanks
 
