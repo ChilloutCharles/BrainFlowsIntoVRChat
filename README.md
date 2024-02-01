@@ -22,7 +22,7 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 5. Execute this command to install needed depedencies: `python -m pip install -r requirements.txt`
 6. Look up your device's name or board id: [Board IDs Page](https://brainflow.readthedocs.io/en/stable/UserAPI.html?highlight=MUSE_2016_BOARD#brainflow-board-shim)
 7. Turn on your headband
-8. Run the script `main.py` with your device id. The command for running with a [Muse 2 headband](https://choosemuse.com/muse-2/) would be: `python .\main.py --board-id muse_2_board`
+8. Run the script `main.py` with your device name or ID. For example, the command for running with a [Muse 2 headband](https://choosemuse.com/muse-2/) would be: `python .\main.py --board-id muse_2_board`
 
 ## OSC Avatar Parameter Schema
 
