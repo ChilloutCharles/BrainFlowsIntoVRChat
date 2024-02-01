@@ -219,8 +219,8 @@ Thanks to
   - Reason: VRChat stores cached OSC parameters for your avatar that aren't updated when the avatar is updated with new parameters
   - Solution: Go to `C:\Users\<YOUR USERNAME HERE>\AppData\LocalLow\VRChat\VRChat\OSC` and delete all folders under it, then reload avatar
 
-- If Python doesn't seem to be recognized, this may be an issue with paths
-  - for steps 5 and 8, replace `python` with `py`
+- If Python doesn't seem to be recognized, this is a Windows 10/11 issue
+  - Solution: For steps 5 and 8, replace `python` with `py`
 
 ## License
 [MIT](http://opensource.org/licenses/MIT).
