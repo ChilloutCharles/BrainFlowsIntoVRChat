@@ -19,9 +19,6 @@ def main():
     BoardShim.enable_board_logger()
     DataFilter.enable_data_logger()
 
-    ### Uncomment this to see debug messages ###
-    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
-
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
