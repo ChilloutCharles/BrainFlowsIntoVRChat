@@ -6,7 +6,7 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.telemetry import Info, Meta
+from logic.telemetry import Info
 from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
@@ -43,11 +43,13 @@ def main():
                         help='streamer params', required=False, default='')
     parser.add_argument('--serial-number', type=str,
                         help='serial number', required=False, default='')
-    parser.add_argument('--board-id', type=int, help='board id, check docs to get a list of supported boards',
-                        required=True)
     parser.add_argument('--file', type=str, help='file',
                         required=False, default='')
     
+    # board id by name or id
+    parser.add_argument('--board-id', type=str, help='board id or name, check docs to get a list of supported boards',
+                        required=True)
+
     # custom command line arguments
     parser.add_argument('--window-seconds', type=int,
                         help='data window in seconds into the past to do calculations on', required=False, default=2)
@@ -79,6 +81,16 @@ def main():
     params.timeout = args.timeout
     params.file = args.file
 
+    ### Board Id selection ###
+    try:
+        if args.board_id.isdigit():
+            master_board_id = int(args.board_id)
+        else:
+            master_board_id = BoardIds[args.board_id.upper()]
+    except Exception:
+        raise Exception('{} is not a valid board id'.format(master_board_id))
+
+
     ### OSC Setup ###
     use_old_reporter = args.use_old_reporter
     ip = args.osc_ip_address
@@ -93,9 +105,8 @@ def main():
         startup_time = window_seconds
 
         ### Biosensor board setup ###
-        board = BoardShim(args.board_id, params)
+        board = BoardShim(master_board_id, params)
         board.prepare_session()
-        master_board_id = board.get_board_id()
 
         ### Logic Modules ###
         has_muse_ppg = master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD)
