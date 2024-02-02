@@ -29,7 +29,7 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 Here are the various avatar parameters sent to VRChat. Neurofeedback scores range from -1 to 1 for signed floats, 0 to 1 for unsigned, with higher and lower values corresponding to higher and lower relax/focus scores. Depending on the board you're using, heartrate, respiration and battery information might be available. Power Band numbers are also sent per location as well, ranging from 0 to 1 averaging at 0.2. 
 
 To use these parameters within VRChat, write the parameter name as a path. For example, to get the left side alpha value, the parameter name would be:
-- `BFI/PwrBands/Left/Alpha`
+- `BFI/PwrBandss/Left/Alpha`
 
 ```yaml
 BFI:
@@ -53,7 +53,7 @@ BFI:
     - RelaxRightPos [float]
     - RelaxAvg [float]
     - RelaxAvgPos [float]
-  PwrBand:
+  PwrBands:
     Left:
       - Alpha [float]
       - Beta [float]
@@ -103,21 +103,21 @@ Need to migrate your existing prefabs? You can convert your existing parameters 
 | osc_heart_bps | BFI/Biometrics/HeartBeatsPerSecond |
 | osc_oxygen_percent | BFI/Biometrics/OxygenPercent |
 | osc_respiration_bpm | BFI/Biometrics/BreathsPerMinute |
-| osc_band_power_left_alpha | BFI/PwrBand/Left/Alpha |
-| osc_band_power_left_beta | BFI/PwrBand/Left/Beta |
-| osc_band_power_left_theta | BFI/PwrBand/Left/Theta |
-| osc_band_power_left_delta | BFI/PwrBand/Left/Delta |
-| osc_band_power_left_gamma | BFI/PwrBand/Left/Gamma |
-| osc_band_power_right_alpha | BFI/PwrBand/Right/Alpha |
-| osc_band_power_right_beta | BFI/PwrBand/Right/Beta |
-| osc_band_power_right_theta | BFI/PwrBand/Right/Theta |
-| osc_band_power_right_delta | BFI/PwrBand/Right/Delta |
-| osc_band_power_right_gamma | BFI/PwrBand/Right/Gamma |
-| osc_band_power_avg_alpha | BFI/PwrBand/Avg/Alpha |
-| osc_band_power_avg_beta | BFI/PwrBand/Avg/Beta |
-| osc_band_power_avg_theta | BFI/PwrBand/Avg/Theta |
-| osc_band_power_avg_delta | BFI/PwrBand/Avg/Delta |
-| osc_band_power_avg_gamma | BFI/PwrBand/Avg/Gamma |
+| osc_band_power_left_alpha | BFI/PwrBands/Left/Alpha |
+| osc_band_power_left_beta | BFI/PwrBands/Left/Beta |
+| osc_band_power_left_theta | BFI/PwrBands/Left/Theta |
+| osc_band_power_left_delta | BFI/PwrBands/Left/Delta |
+| osc_band_power_left_gamma | BFI/PwrBands/Left/Gamma |
+| osc_band_power_right_alpha | BFI/PwrBands/Right/Alpha |
+| osc_band_power_right_beta | BFI/PwrBands/Right/Beta |
+| osc_band_power_right_theta | BFI/PwrBands/Right/Theta |
+| osc_band_power_right_delta | BFI/PwrBands/Right/Delta |
+| osc_band_power_right_gamma | BFI/PwrBands/Right/Gamma |
+| osc_band_power_avg_alpha | BFI/PwrBands/Avg/Alpha |
+| osc_band_power_avg_beta | BFI/PwrBands/Avg/Beta |
+| osc_band_power_avg_theta | BFI/PwrBands/Avg/Theta |
+| osc_band_power_avg_delta | BFI/PwrBands/Avg/Delta |
+| osc_band_power_avg_gamma | BFI/PwrBands/Avg/Gamma |
 | osc_battery_lvl | BFI/Info/BatteryLevel |
 | osc_is_connected | BFI/Info/DeviceConnected |
 | osc_time_diff | BFI/Info/SecondsSinceLastUpdate |
@@ -160,21 +160,21 @@ These are the same Neurofeedback scores remapped to the positive 0 to 1 range fo
 These Parameters give the power value for the common frequency bands used in EEG measurements, measured per location. For more information on what each power band means, read more about it here: [What are Brainwaves](https://www.sciencedirect.com/topics/agricultural-and-biological-sciences/brain-waves)
 | Parameter | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
-| BFI/PwrBand/Left/Alpha | Left brainwaves Alpha band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Right/Alpha | Right brainwaves Alpha band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Avg/Alpha | Brainwaves Alpha band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Left/Beta | Left brainwaves Beta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Right/Beta | Right brainwaves Beta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Avg/Beta | Brainwaves Beta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Left/Theta | Left brainwaves Theta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Right/Theta | Right brainwaves Theta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Avg/Theta | Brainwaves Theta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Left/Delta | Left brainwaves Delta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Right/Delta | Right brainwaves Delta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Avg/Delta | Brainwaves Delta band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Left/Gamma | Left brainwaves Gamma band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Right/Gamma | Right brainwaves Gamma band | Float | [0.0, 1.0] |
-| BFI/PwrBand/Avg/Gamma | Brainwaves Gamma band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Left/Alpha | Left brainwaves Alpha band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Right/Alpha | Right brainwaves Alpha band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Avg/Alpha | Brainwaves Alpha band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Left/Beta | Left brainwaves Beta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Right/Beta | Right brainwaves Beta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Avg/Beta | Brainwaves Beta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Left/Theta | Left brainwaves Theta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Right/Theta | Right brainwaves Theta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Avg/Theta | Brainwaves Theta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Left/Delta | Left brainwaves Delta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Right/Delta | Right brainwaves Delta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Avg/Delta | Brainwaves Delta band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Left/Gamma | Left brainwaves Gamma band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Right/Gamma | Right brainwaves Gamma band | Float | [0.0, 1.0] |
+| BFI/PwrBands/Avg/Gamma | Brainwaves Gamma band | Float | [0.0, 1.0] |
 
 ### Addons
 These Parameters are additional functions of BFiVRC
