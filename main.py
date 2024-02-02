@@ -89,9 +89,9 @@ def main():
         BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Board Id selection ###
-    if args.board_id.isdigit():
+    try:
         master_board_id = int(args.board_id)
-    else:
+    except ValueError:
         master_board_id = BoardIds[args.board_id.upper()]
     
     ### OSC Setup ###
