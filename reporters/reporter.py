@@ -17,7 +17,3 @@ class Reporter(Base_Reporter):
         message_pairs_per_reporter = map(lambda rp: rp.send(data_dict), self.reporters.values())
         message_pairs = sum(message_pairs_per_reporter, [])
         return message_pairs
-
-
-        
-    
