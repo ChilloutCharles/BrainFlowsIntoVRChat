@@ -55,20 +55,18 @@ def main():
     board.start_stream()
 
     # 1. wait 5 seconds before starting
-    print("Get ready in 5 seconds")
-    time.sleep(5)
+    print("Get ready in {} seconds".format(window_seconds))
+    time.sleep(window_seconds)
 
     # 4. repeat 2 and 3 for 3 times
     for i in range(3):
 
         # 2. think push button 10 seconds, record
-        board.get_board_data() # clear ring buffer
         print("Think push a button for {} seconds".format(window_seconds))
         time.sleep(window_seconds)
         intent_data = board.get_current_board_data(sampling_size)
         
         # 3. be idle for 10, record
-        board.get_board_data() # clear ring buffer
         print("Be idle for {} seconds".format(window_seconds))
         time.sleep(window_seconds) 
         baseline_data = board.get_current_board_data(sampling_size)
