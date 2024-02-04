@@ -12,8 +12,10 @@ from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
 
-from reporters.osc_reporter import OSC_Reporter, Debug_Reporter
+from reporters.osc_reporter import OSC_Reporter
+from reporters.debug_osc_reporter import Debug_Reporter
 from reporters.deprecated_osc_reporter import Old_OSC_Reporter
+from reporters.reporter import Reporter
 
 def main():
     BoardShim.enable_board_logger()
@@ -94,13 +96,15 @@ def main():
     except ValueError:
         master_board_id = BoardIds[args.board_id.upper()]
     
-    ### OSC Setup ###
-    use_old_reporter = args.use_old_reporter
+    ### Reporter Setup ###
     ip = args.osc_ip_address
     send_port = args.osc_port
+    use_old_reporter = args.use_old_reporter
     reporters = [Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)]
     if args.debug:
         reporters.append(Debug_Reporter(ip, send_port))
+    reporter = Reporter(reporters)
+    
 
     def BoardInit(args):
         ### Streaming Params ###
@@ -155,10 +159,9 @@ def main():
 
                 # Send messages from executed logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
-                for reporter in reporters:
-                    send_pairs = reporter.send(data_dict)
-                    for param_path, param_value in send_pairs:
-                        BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
+                send_pairs = reporter.send(data_dict)
+                for param_path, param_value in send_pairs:
+                    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
                 
                 # sleep based on refresh_rate
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
@@ -169,8 +172,7 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                for reporter in reporters:
-                    reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+                reporter.send({Info.__name__ : {Info.CONNECTED:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
@@ -187,8 +189,7 @@ def main():
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        for reporter in reporters:
-            reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+        reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
 
 
