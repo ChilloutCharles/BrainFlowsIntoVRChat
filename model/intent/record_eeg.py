@@ -79,7 +79,7 @@ def main():
 
     # save record data
     print("Saving Data")
-    with open('recorded_eeg.pkl', 'ab') as f:
+    with open('recorded_eeg.pkl', 'wb') as f:
         pickle.dump(record_data, f)
 
 if __name__ == "__main__":
