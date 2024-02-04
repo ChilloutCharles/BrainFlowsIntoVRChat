@@ -103,9 +103,9 @@ def main():
     reporters = [Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)]
     if args.debug:
         reporters.append(Debug_Reporter(ip, send_port))
-    reporter = Reporter(reporters)
+    reporter_dict = {type(rp).__name__:rp for rp in reporters}
+    reporter = Reporter(reporter_dict)
     
-
     def BoardInit(args):
         ### Streaming Params ###
         refresh_rate_hz = args.refresh_rate
