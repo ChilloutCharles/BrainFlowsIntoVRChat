@@ -1,4 +1,4 @@
-*.ml
+**/*.ml
 *.data
 **/*.pyc
 *.bat
