@@ -74,23 +74,31 @@ def main():
             DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
         
         # Independent Component Analysis and selection through kurtosis threshold
-        _, _, _, source_signals = DataFilter.perform_ica(data, 3, eeg_channels)
-        kurtosis_threshold = 3
+        _, _, _, source_signals = DataFilter.perform_ica(data, 2, eeg_channels)
+        # kurtosis_threshold = 3
         kurtoses = [np.abs(kurtosis(component)) for component in source_signals]
-        kurtoses = [k if k < kurtosis_threshold else 0 for k in kurtoses]
-        comp_idx = np.argmax(kurtoses)
+        # kurtoses = [k if k < kurtosis_threshold else 0 for k in kurtoses]
+        comp_idx = np.argmin(kurtoses)
+        # indexes = np.argsort(kurtoses)
         data[eeg_channels] = source_signals[comp_idx]
 
+        intent_wavelets = []
+        # for eeg_channel in eeg_channels:
+        eeg_channel = eeg_channels[0]
         # Wavelet Transform on signal
-        intent_eeg = data[eeg_channels[0]]
+        intent_eeg = data[eeg_channel]
         intent_wavelet_coeffs, intent_lengths = DataFilter.perform_wavelet_transform(intent_eeg, WaveletTypes.DB4, 5)
 
         # only look at detailed parts which will contain the higher frequencies
         intent_wavelet_coeffs = intent_wavelet_coeffs[intent_lengths[0] : ]
 
-        pred_string = clf.predict([intent_wavelet_coeffs])
+        intent_wavelets.append(intent_wavelet_coeffs)
+
+        intent_wavelets = np.array(intent_wavelets).flatten()
+
+        pred_string = clf.predict([intent_wavelets])
         target_value = 1.0 if pred_string[0] == 'button' else 0.0
-        ema_value = 0.03
+        ema_value = 0.01
         current_value = current_value * (1 - ema_value) + target_value * ema_value
 
         string = "^" if current_value > 0.5 else "*"

@@ -36,20 +36,22 @@ for i, data in enumerate(intent_data + baseline_data):
         DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
     
     # Independent Component Analysis and selection through kurtosis threshold
-    _, _, _, source_signals = DataFilter.perform_ica(data, 3, eeg_channels)
-    kurtosis_threshold = 3
+    _, _, _, source_signals = DataFilter.perform_ica(data, 2, eeg_channels)
+    # kurtosis_threshold = 3
     kurtoses = [np.abs(kurtosis(component)) for component in source_signals]
-    kurtoses = [k if k < kurtosis_threshold else 0 for k in kurtoses]
-    comp_idx = np.argmax(kurtoses)
+    # kurtoses = [k if k < kurtosis_threshold else 0 for k in kurtoses]
+    comp_idx = np.argmin(kurtoses)
+    # indexes = np.argsort(kurtoses)
     data[eeg_channels] = source_signals[comp_idx]
     
 window_seconds = 1
-data_size_multiplier = 0.7
+data_size_multiplier = 0.2
 
 slice_indexes = list(range(len(intent_data)))
 random.shuffle(slice_indexes)
-train_slice_indexes = slice_indexes[:-1]
-test_slice_index = slice_indexes[-1]
+# train_slice_indexes = slice_indexes[:-1]
+# test_slice_index = slice_indexes[-1]
+train_slice_indexes = slice_indexes
 
 intent_indexes = list(range(0, sampling_rate * (record_seconds - window_seconds)))
 
@@ -62,12 +64,12 @@ for intent_index in intent_indexes:
 train_size = int(len(train_indexes) * data_size_multiplier)
 train_indexes = random.sample(train_indexes, train_size)
 
-test_indexes = []
-for intent_index in intent_indexes:
-    pair = (test_slice_index, intent_index)
-    test_indexes.append(pair)
-test_size = int(len(test_indexes) * data_size_multiplier)
-test_indexes = random.sample(test_indexes, test_size)
+# test_indexes = []
+# for intent_index in intent_indexes:
+#     pair = (test_slice_index, intent_index)
+#     test_indexes.append(pair)
+# test_size = int(len(test_indexes) * data_size_multiplier)
+# test_indexes = random.sample(test_indexes, test_size)
 
 def create_data(indexes):
     pairs = [] # (X, y)
