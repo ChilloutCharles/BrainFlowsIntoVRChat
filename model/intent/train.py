@@ -44,7 +44,7 @@ for i, data in enumerate(intent_data + baseline_data):
     data[eeg_channels] = source_signals[comp_idx]
     
 window_seconds = 1
-data_size_multiplier = 0.5
+data_size_multiplier = 0.7
 
 slice_indexes = list(range(len(intent_data)))
 random.shuffle(slice_indexes)
@@ -121,9 +121,9 @@ clf = grid.best_estimator_
 # clf = svm.SVC(C=10, probability=True)
 # clf.fit(X, y)
 
-test_X, test_y = create_data(test_indexes)
-preds = clf.predict(test_X)
-print(classification_report(test_y, preds))
-
+# test_X, test_y = create_data(test_indexes)
+# preds = clf.predict(test_X)
+# print(classification_report(test_y, preds))
+print("Best cross-validation score:", grid.best_score_)
 with open('model.ml', 'wb') as f:
     pickle.dump(clf, f)

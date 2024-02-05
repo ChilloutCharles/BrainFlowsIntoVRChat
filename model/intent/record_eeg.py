@@ -4,9 +4,20 @@ import pickle
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds, BrainFlowPresets
 
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+
+
 window_seconds = 10
 
 def main():
+    with Image.open("blank.png") as img:
+        blank_img = np.asarray(img)
+
+    with Image.open("fireball.png") as img:
+        fireball_img = np.asarray(img)
+
 
     parser = argparse.ArgumentParser()
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
@@ -63,12 +74,21 @@ def main():
 
         # 2. think push button 10 seconds, record
         print("Think push a button for {} seconds".format(window_seconds))
-        time.sleep(window_seconds)
+        # time.sleep(window_seconds)
+        plt.imshow(fireball_img)
+        plt.draw()
+        plt.pause(window_seconds)
+        plt.close()
+
         intent_data = board.get_current_board_data(sampling_size)
         
         # 3. be idle for 10, record
         print("Be idle for {} seconds".format(window_seconds))
-        time.sleep(window_seconds) 
+        # time.sleep(window_seconds)
+        plt.imshow(blank_img)
+        plt.draw()
+        plt.pause(window_seconds)
+        plt.close() 
         baseline_data = board.get_current_board_data(sampling_size)
 
         record_data["intent_data"].append(intent_data)
