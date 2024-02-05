@@ -6,21 +6,20 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.telemetry import Info, Meta
+from logic.telemetry import Info
 from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
 
 from reporters.osc_reporter import OSC_Reporter
+from reporters.debug_osc_reporter import Debug_Reporter
 from reporters.deprecated_osc_reporter import Old_OSC_Reporter
+from reporters.reporter import Reporter
 
 def main():
     BoardShim.enable_board_logger()
     DataFilter.enable_data_logger()
-
-    ### Uncomment this to see debug messages ###
-    # BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
 
     ### Paramater Setting ###
     parser = argparse.ArgumentParser()
@@ -43,11 +42,13 @@ def main():
                         help='streamer params', required=False, default='')
     parser.add_argument('--serial-number', type=str,
                         help='serial number', required=False, default='')
-    parser.add_argument('--board-id', type=int, help='board id, check docs to get a list of supported boards',
-                        required=True)
     parser.add_argument('--file', type=str, help='file',
                         required=False, default='')
     
+    # board id by name or id
+    parser.add_argument('--board-id', type=str, help='board id or name, check docs to get a list of supported boards',
+                        required=True)
+
     # custom command line arguments
     parser.add_argument('--window-seconds', type=int,
                         help='data window in seconds into the past to do calculations on', required=False, default=2)
@@ -55,6 +56,8 @@ def main():
                         help='refresh rate for the main loop to run at', required=False, default=60)
     parser.add_argument('--ema-decay', type=float,
                         help='exponential moving average constant to smooth outputs', required=False, default=1)
+    parser.add_argument('--retry-count', type=int,
+                        help='sets the amount of times to reconnect before giving up', required=False, default=3)
 
     # osc command line arguments
     parser.add_argument('--osc-ip-address', type=str,
@@ -65,6 +68,10 @@ def main():
     # choose which reporter to use
     parser.add_argument("--use-old-reporter", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to use the old osc reporter')
+
+    # toggle debug mode
+    parser.add_argument("--debug", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to toggle debug mode on')
     
     args = parser.parse_args()
 
@@ -79,12 +86,26 @@ def main():
     params.timeout = args.timeout
     params.file = args.file
 
-    ### OSC Setup ###
-    use_old_reporter = args.use_old_reporter
+    ### Debug message toggle ###
+    if args.debug:
+        BoardShim.set_log_level(LogLevels.LEVEL_DEBUG.value)
+
+    ### Board Id selection ###
+    try:
+        master_board_id = int(args.board_id)
+    except ValueError:
+        master_board_id = BoardIds[args.board_id.upper()]
+    
+    ### Reporter Setup ###
     ip = args.osc_ip_address
     send_port = args.osc_port
-    osc_reporter = Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)
-
+    use_old_reporter = args.use_old_reporter
+    reporters = [Old_OSC_Reporter(ip, send_port) if use_old_reporter else OSC_Reporter(ip, send_port)]
+    if args.debug:
+        reporters.append(Debug_Reporter(ip, send_port))
+    reporter_dict = {type(rp).__name__:rp for rp in reporters}
+    reporter = Reporter(reporter_dict)
+    
     def BoardInit(args):
         ### Streaming Params ###
         refresh_rate_hz = args.refresh_rate
@@ -93,9 +114,8 @@ def main():
         startup_time = window_seconds
 
         ### Biosensor board setup ###
-        board = BoardShim(args.board_id, params)
+        board = BoardShim(master_board_id, params)
         board.prepare_session()
-        master_board_id = board.get_board_id()
 
         ### Logic Modules ###
         has_muse_ppg = master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD)
@@ -139,7 +159,7 @@ def main():
 
                 # Send messages from executed logic
                 BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
-                send_pairs = osc_reporter.send(data_dict)
+                send_pairs = reporter.send(data_dict)
                 for param_path, param_value in send_pairs:
                     BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
                 
@@ -152,24 +172,24 @@ def main():
 
             except TimeoutError as e:
                 # display disconnect and release old session
-                osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+                reporter.send({Info.__name__ : {Info.CONNECTED:False}})
                 board.release_session()
 
                 BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
 
                 # attempt reinitialize 3 times
-                for i in range(3):
+                for i in range(args.retry_count):
                     try: 
                         board, logics, refresh_rate_hz = BoardInit(args)
                         break
                     except BrainFlowError as e:
-                        BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Retry {} Biosensor board error: {}'.format(i, str(e)))
+                        BoardShim.log_message(LogLevels.LEVEL_ERROR.value, 'Retry {} Biosensor board error: {}'.format(i, str(e)))
 
     except KeyboardInterrupt:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
         board.stop_stream()
     finally:
-        osc_reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+        reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
 
 

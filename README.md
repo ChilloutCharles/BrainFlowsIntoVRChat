@@ -19,10 +19,10 @@ The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is de
 3. Open the command prompt by typing searching cmd at the start menu
 4. Navigate to the project's path within the command prompt. 
    - example: `cd "C:\Users\<YOUR USERNAME HERE>\Documents\GitHub\BrainFlowsIntoVRChat"` 
-5. Execute this command to install needed depedencies: `pip install -r requirements.txt`
-6. Look up your device's id: [Board IDs Page](https://brainflow.readthedocs.io/en/stable/UserAPI.html?highlight=MUSE_2016_BOARD#brainflow-board-shim)
+5. Execute this command to install needed depedencies: `python -m pip install -r requirements.txt`
+6. Look up your device's name or board ID: [Board IDs Page](https://brainflow.readthedocs.io/en/stable/UserAPI.html?highlight=MUSE_2016_BOARD#brainflow-board-shim)
 7. Turn on your headband
-8. Run the script `main.py` with your device id. The command for running with a [Muse 2 headband](https://choosemuse.com/muse-2/) would be: `python .\main.py --board-id 38`
+8. Run the script `main.py` with your device name or ID. For example, the command for running with a [Muse 2 headband](https://choosemuse.com/muse-2/) would be: `python .\main.py --board-id muse_2_board`
 
 ## OSC Avatar Parameter Schema
 
@@ -83,7 +83,7 @@ BFI:
     - BreathsPerMinute [int]
 ```
 
-## Depracation
+## Deprecation
 
 We recommend updating to this schema. However, if your assets are still using the old parameter scheme, you can switch to them by adding the `--use-old-reporter` launch argument. Be aware that this will be deprecated in the future and an official announcement will be made for its sunset.
 
@@ -193,6 +193,8 @@ These Parameters read other biometric data from your device if supported by your
 | BFI/Biometrics/BreathsPerSecond | Estimated breaths taken per second  | Float | [0.0, inf) |
 | BFI/Biometrics/BreathsPerMinute | Estimated breaths taken per minute  | Int | [0, 255] |
 
+## Debugging
+To make it easier to debug, add `--debug` launch argument. This will enable the console to display debug messages for all OSC messages sent as well as make the parameter names shorter so that they are readable on VRChat's OSC debug panel as well as any other OSC displays.
 
 ## Thanks
 
@@ -202,11 +204,11 @@ Thanks to
 - [AtriusX](https://github.com/AtriusX) for helping create a parameter schema.
 
 ## Troubleshooting
-- I have broken bluetooth adapter built into my pc and I would like to use a dongle instead. How can I connect my headband to that dongle?
-  1. Disconnect the bluetooth dongle you want to use
-  2. Search up 'device manager' on the start menu
-  3. Find an entry for a bluetooth radio, right click on it and disable it
-  4. Plug the new bluetooth dongle back in
+- I have broken Bluetooth adapter built into my pc and I would like to use a dongle instead. How can I connect my headband to that dongle?
+  1. Disconnect the Bluetooth dongle you want to use
+  2. Search up 'Device Manager' on the Start Menu
+  3. Find an entry for a Bluetooth radio, right click on it and disable it
+  4. Plug the new Bluetooth dongle back in
 
 - Muse Headband connects just fine but times out after a few seconds. Solution: Reset the headband
   1. Turn off the headband
@@ -216,6 +218,9 @@ Thanks to
 - I've set up everything and made a new avatar, but its still not reacting
   - Reason: VRChat stores cached OSC parameters for your avatar that aren't updated when the avatar is updated with new parameters
   - Solution: Go to `C:\Users\<YOUR USERNAME HERE>\AppData\LocalLow\VRChat\VRChat\OSC` and delete all folders under it, then reload avatar
+
+- If Python doesn't seem to be recognized, this is a Windows 10/11 issue
+  - Solution: For steps 5 and 8, replace `python` with `py`
 
 ## License
 [MIT](http://opensource.org/licenses/MIT).
