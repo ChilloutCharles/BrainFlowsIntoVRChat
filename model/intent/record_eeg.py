@@ -72,6 +72,7 @@ def main():
     # 4. repeat 2 and 3 for 3 times
     for i in range(3):
 
+        input("Get ready to think about fireballs. Press enter to continue")
         # 2. think push button 10 seconds, record
         print("Think push a button for {} seconds".format(window_seconds))
         # time.sleep(window_seconds)
@@ -82,6 +83,7 @@ def main():
 
         intent_data = board.get_current_board_data(sampling_size)
         
+        input("Get ready to think about anything else. Press enter to continue")
         # 3. be idle for 10, record
         print("Be idle for {} seconds".format(window_seconds))
         # time.sleep(window_seconds)
