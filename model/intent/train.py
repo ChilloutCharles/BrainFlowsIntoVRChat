@@ -8,6 +8,7 @@ from brainflow.board_shim import BoardShim
 from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
 
 from sklearn import svm
+from sklearn.decomposition import FastICA
 from sklearn.model_selection import GridSearchCV 
 from sklearn.metrics import classification_report, confusion_matrix 
 from scipy.stats import kurtosis
@@ -35,15 +36,16 @@ for i, data in enumerate(intent_data + baseline_data):
         DataFilter.remove_environmental_noise(data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
         DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
     
-    # Independent Component Analysis and selection through kurtosis threshold
-    _, _, _, source_signals = DataFilter.perform_ica(data, 2, eeg_channels)
-    # kurtosis_threshold = 3
-    kurtoses = [np.abs(kurtosis(component)) for component in source_signals]
-    # kurtoses = [k if k < kurtosis_threshold else 0 for k in kurtoses]
-    comp_idx = np.argmin(kurtoses)
-    # indexes = np.argsort(kurtoses)
-    data[eeg_channels] = source_signals[comp_idx]
-    
+    # Independent Component Analysis and filter through kurtosis threshold
+    ica = FastICA(3)
+    signals = ica.fit_transform(data[eeg_channels])
+    mix_matrix = ica.mixing_
+    kurt = kurtosis(signals, axis=0, fisher=True)
+    remove_indexes = np.where(kurt > 3)[0]
+    signals[:, remove_indexes] = 0
+    filtered = np.dot(signals, mix_matrix.T) + ica.mean_
+    data[eeg_channels] = filtered
+
 window_seconds = 1
 data_size_multiplier = 0.2
 
@@ -81,20 +83,20 @@ def create_data(indexes):
 
         intent_wavelets = []
         baseline_wavelets = []
-        # for eeg_chan in eeg_channels:
-        eeg_chan = eeg_channels[0]
-        intent_eeg = intent_slice[eeg_chan][i:j]
-        intent_wavelet_coeffs, intent_lengths = DataFilter.perform_wavelet_transform(intent_eeg, WaveletTypes.DB4, 5)
+        for eeg_chan in eeg_channels:
+        # eeg_chan = eeg_channels[0]
+            intent_eeg = intent_slice[eeg_chan][i:j]
+            intent_wavelet_coeffs, intent_lengths = DataFilter.perform_wavelet_transform(intent_eeg, WaveletTypes.DB4, 5)
 
-        baseline_eeg = baseline_slice[eeg_chan][i:j]
-        baseline_wavelet_coeffs, baseline_lengths = DataFilter.perform_wavelet_transform(baseline_eeg, WaveletTypes.DB4, 5)
+            baseline_eeg = baseline_slice[eeg_chan][i:j]
+            baseline_wavelet_coeffs, baseline_lengths = DataFilter.perform_wavelet_transform(baseline_eeg, WaveletTypes.DB4, 5)
 
-        # only look at detailed parts which will contain the higher frequencies
-        intent_wavelet_coeffs = intent_wavelet_coeffs[intent_lengths[0] : ]
-        baseline_wavelet_coeffs = baseline_wavelet_coeffs[baseline_lengths[0] : ]
+            # only look at detailed parts which will contain the higher frequencies
+            intent_wavelet_coeffs = intent_wavelet_coeffs[intent_lengths[0] : ]
+            baseline_wavelet_coeffs = baseline_wavelet_coeffs[baseline_lengths[0] : ]
 
-        intent_wavelets.append(intent_wavelet_coeffs)
-        baseline_wavelets.append(baseline_wavelet_coeffs)
+            intent_wavelets.append(intent_wavelet_coeffs)
+            baseline_wavelets.append(baseline_wavelet_coeffs)
 
         intent_wavelets = np.array(intent_wavelets).flatten()
         baseline_wavelets = np.array(baseline_wavelets).flatten()
