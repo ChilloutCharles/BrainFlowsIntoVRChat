@@ -1,133 +1,124 @@
-'''
-1. denoise and detrend data
-2. perform wavelet transform
-3. flatten output
-4. train against svm
-'''
-from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
+import argparse
+import time
+import pickle
+
+from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds, BrainFlowPresets
+from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes, FilterTypes, WindowOperations
+
 
 from sklearn import svm
-from sklearn.decomposition import FastICA
-from sklearn.model_selection import GridSearchCV 
-from sklearn.metrics import classification_report, confusion_matrix 
-from scipy.stats import kurtosis
-
-import pickle
-import random
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report
+from sklearn.model_selection import GridSearchCV, train_test_split
 import numpy as np
 
+import pickle
 
-with open("recorded_eeg.pkl", "rb") as f:
-    recorded_data = pickle.load(f)
+## preprocess and extract features to be shared between train and test
 
-board_id = recorded_data['board_id']
-record_seconds = recorded_data['window_seconds']
-intent_data = recorded_data['intent_data']
-baseline_data = recorded_data['baseline_data']
+def preprocess_data(session_data, sampling_rate):
+    for eeg_chan in range(len(session_data)):
+        DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 100, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only beta and gamma
+        DataFilter.detrend(session_data[eeg_chan], DetrendOperations.LINEAR)
+    return session_data
 
-sampling_rate = BoardShim.get_sampling_rate(board_id)
-eeg_channels = BoardShim.get_eeg_channels(board_id)
+def extract_features(preprocessed_data):
+    features  = []
+    for eeg_row in preprocessed_data:
+        # intent_wavelet_coeffs, intent_lengths = DataFilter.perform_wavelet_transform(eeg_row, WaveletTypes.DB4, 5)
+        # features.extend(intent_wavelet_coeffs)
+        fft_data = DataFilter.perform_fft(eeg_row, WindowOperations.NO_WINDOW.value)
+        features.extend(np.abs(fft_data))
+    return np.array(features)
 
-for i, data in enumerate(intent_data + baseline_data):
-    # detrend and denoise
-    for eeg_chan in eeg_channels:
-        assert len(data[eeg_chan]) == sampling_rate * record_seconds
-        DataFilter.remove_environmental_noise(data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-        DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
-    
-    # Independent Component Analysis and filter through kurtosis threshold
-    ica = FastICA(3)
-    signals = ica.fit_transform(data[eeg_channels])
-    mix_matrix = ica.mixing_
-    kurt = kurtosis(signals, axis=0, fisher=True)
-    remove_indexes = np.where(kurt > 3)[0]
-    signals[:, remove_indexes] = 0
-    filtered = np.dot(signals, mix_matrix.T) + ica.mean_
-    data[eeg_channels] = filtered
+## helper function to generate windows
+def segment_data(eeg_data, samples_per_window, overlap=0):
+    _, total_samples = eeg_data.shape
+    step_size = samples_per_window - overlap
+    windows = []
 
-window_seconds = 1
-data_size_multiplier = 0.2
+    for start in range(0, total_samples - samples_per_window + 1, step_size):
+        end = start + samples_per_window
+        window = eeg_data[:, start:end]
+        windows.append(window)
 
-slice_indexes = list(range(len(intent_data)))
-random.shuffle(slice_indexes)
-# train_slice_indexes = slice_indexes[:-1]
-# test_slice_index = slice_indexes[-1]
-train_slice_indexes = slice_indexes
+    return np.array(windows)
 
-intent_indexes = list(range(0, sampling_rate * (record_seconds - window_seconds)))
 
-train_indexes = []
-for intent_index in intent_indexes:
-    for slice_index in train_slice_indexes:
-        pair = (slice_index, intent_index)
-        train_indexes.append(pair)
-
-train_size = int(len(train_indexes) * data_size_multiplier)
-train_indexes = random.sample(train_indexes, train_size)
-
-# test_indexes = []
-# for intent_index in intent_indexes:
-#     pair = (test_slice_index, intent_index)
-#     test_indexes.append(pair)
-# test_size = int(len(test_indexes) * data_size_multiplier)
-# test_indexes = random.sample(test_indexes, test_size)
-
-def create_data(indexes):
-    pairs = [] # (X, y)
-    for slice_index, sample_index in indexes:
-        intent_slice = intent_data[slice_index]
-        baseline_slice = baseline_data[slice_index]
-
-        i, j = sample_index, sample_index + sampling_rate * window_seconds
-
-        intent_wavelets = []
-        baseline_wavelets = []
-        for eeg_chan in eeg_channels:
-        # eeg_chan = eeg_channels[0]
-            intent_eeg = intent_slice[eeg_chan][i:j]
-            intent_wavelet_coeffs, intent_lengths = DataFilter.perform_wavelet_transform(intent_eeg, WaveletTypes.DB4, 5)
-
-            baseline_eeg = baseline_slice[eeg_chan][i:j]
-            baseline_wavelet_coeffs, baseline_lengths = DataFilter.perform_wavelet_transform(baseline_eeg, WaveletTypes.DB4, 5)
-
-            # only look at detailed parts which will contain the higher frequencies
-            intent_wavelet_coeffs = intent_wavelet_coeffs[intent_lengths[0] : ]
-            baseline_wavelet_coeffs = baseline_wavelet_coeffs[baseline_lengths[0] : ]
-
-            intent_wavelets.append(intent_wavelet_coeffs)
-            baseline_wavelets.append(baseline_wavelet_coeffs)
-
-        intent_wavelets = np.array(intent_wavelets).flatten()
-        baseline_wavelets = np.array(baseline_wavelets).flatten()
-
-        pairs.append((intent_wavelets, "button"))
-        pairs.append((baseline_wavelets, "baseline"))
-
-    random.shuffle(pairs)
-
-    X, y = zip(*pairs)
-    return X, y
-
-X, y = create_data(train_indexes)
-
-param_grid = {'C': [0.1, 1, 10, 100],   
+def main():
+    ## define models to be saved for later
+    param_grid = {'C': [0.1, 1, 10, 100],   
               'gamma': [1, 0.1, 0.01, 'auto', 'scale']}
-              # 'probability': [True]}  
-grid = GridSearchCV(svm.SVC(), param_grid, refit = True, verbose = 3, n_jobs=5) 
-grid.fit(X, y) 
-print(grid.best_params_) 
-print(grid.best_estimator_) 
-clf = grid.best_estimator_
+    grid = GridSearchCV(svm.SVC(), param_grid, refit = True, verbose = 3, n_jobs=5) 
+    feature_scaler = StandardScaler()
+    feature_pca = PCA(n_components=0.95)
+
+    ## load recorded data details
+    with open("recorded_eeg.pkl", "rb") as f:
+        recorded_data = pickle.load(f)
+
+    board_id = recorded_data['board_id']
+    intent_sessions = recorded_data['intent_data']
+    baseline_sessions = recorded_data['baseline_data']
+    sampling_rate = BoardShim.get_sampling_rate(board_id)
+    eeg_channels = BoardShim.get_eeg_channels(board_id)
+
+    ## generate sample windows from recorded data
+    window_size = 1 * sampling_rate
+    intent_sessions = [data[eeg_channels] for data in intent_sessions]
+    baseline_sessions = [data[eeg_channels] for data in baseline_sessions]
+
+    overlap = int(window_size * 0.93)
+    intent_windows = np.concatenate([segment_data(session, window_size, overlap) for session in intent_sessions])
+    baseline_windows = np.concatenate([segment_data(session, window_size, overlap) for session in baseline_sessions])
+
+    ## extract the features from the windows
+    intent_feature_windows = []
+    baseline_feature_windows = []
+
+    for session_data in intent_windows:
+        preprocessed_data = preprocess_data(session_data, sampling_rate)
+        feature_windows = extract_features(preprocessed_data)
+        intent_feature_windows.append(feature_windows)
+
+    for session_data in baseline_windows:
+        preprocessed_data = preprocess_data(session_data, sampling_rate)
+        feature_windows = extract_features(preprocessed_data)
+        baseline_feature_windows.append(feature_windows)
+
+    ## Combine features from all sessions and create labels
+    feature_windows = np.concatenate((intent_feature_windows, baseline_feature_windows))
+    labels = np.array(["button"] * len(intent_feature_windows) + ["baseline"] * len(baseline_feature_windows))
+
+    ## fit scaler and pca models
+    scaled_feature_windows = feature_scaler.fit_transform(feature_windows)
+    fitted_feature_windows = feature_pca.fit_transform(scaled_feature_windows)
+
+    ## create train and test sets
+    X_train, X_test, y_train, y_test = train_test_split(fitted_feature_windows, labels, test_size=0.25, shuffle=True)
+
+    ## scan for optimal hyperparams for svm model
+    grid.fit(X_train, y_train)
+
+    ## Extract svm and print results
+    best_model = grid.best_estimator_
+    print("Best Estimator:", best_model)
+
+    y_pred = best_model.predict(X_test)
+    class_report = classification_report(y_test, y_pred)
+    print(class_report)
+
+    ## Save models for realtime use
+    model_dict = {
+        "feature_scaler" : feature_scaler,
+        "feature_pca" : feature_pca,
+        "svm" : best_model
+    }
+    with open('models.ml', 'wb') as f:
+        pickle.dump(model_dict, f)
 
 
-# clf = svm.SVC(C=1, gamma='auto', probability=True)
-# clf = svm.SVC(C=10, probability=True)
-# clf.fit(X, y)
-
-# test_X, test_y = create_data(test_indexes)
-# preds = clf.predict(test_X)
-# print(classification_report(test_y, preds))
-print("Best cross-validation score:", grid.best_score_)
-with open('model.ml', 'wb') as f:
-    pickle.dump(clf, f)
+if __name__ == "__main__":
+    main()

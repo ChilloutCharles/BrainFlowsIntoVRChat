@@ -13,12 +13,17 @@ import numpy as np
 
 import pickle
 
+from train import extract_features, preprocess_data
+
 window_seconds = 1
 
 def main():
-    with open("model.ml", "rb") as f:
-        clf = pickle.load(f)
-    print(clf.classes_)
+    ## Load model dictionary and extract models
+    with open("models.ml", "rb") as f:
+        model_dict = pickle.load(f)
+    feature_scaler = model_dict["feature_scaler"]
+    feature_pca = model_dict["feature_pca"]
+    classifier = model_dict["svm"]
 
     parser = argparse.ArgumentParser()
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
@@ -55,56 +60,40 @@ def main():
 
     sampling_rate = BoardShim.get_sampling_rate(args.board_id)
     eeg_channels = BoardShim.get_eeg_channels(args.board_id)
+    time_channel = BoardShim.get_timestamp_channel(args.board_id)
     sampling_size = sampling_rate * window_seconds
 
     board.prepare_session()
     board.start_stream()
 
     # 1. wait 5 seconds before starting
-    print("Get ready in {} seconds".format(window_seconds))
-    time.sleep(2)
+    print("Get ready in {} seconds".format(window_seconds*2))
+    time.sleep(window_seconds*2)
 
     current_value = 0
-
     while True:
         data = board.get_current_board_data(sampling_size)
 
-        # detrend and denoise
-        for eeg_chan in eeg_channels:
-            DataFilter.remove_environmental_noise(data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-            DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
-        
-        # Independent Component Analysis and filter through kurtosis threshold
-        ica = FastICA(3)
-        signals = ica.fit_transform(data[eeg_channels])
-        mix_matrix = ica.mixing_
-        kurt = kurtosis(signals, axis=0, fisher=True)
-        remove_indexes = np.where(kurt > 3)[0]
-        signals[:, remove_indexes] = 0
-        data[eeg_channels] = np.dot(signals, mix_matrix.T) + ica.mean_
+        ## timeout check
+        time_data = data[time_channel]
+        if time_data[0] == time_data[-1]:
+            raise TimeoutError("Board Timed Out")
 
-        intent_wavelets = []
-        for eeg_channel in eeg_channels:
-        # eeg_channel = eeg_channels[0]
-        # Wavelet Transform on signal
-            intent_eeg = data[eeg_channel]
-            intent_wavelet_coeffs, intent_lengths = DataFilter.perform_wavelet_transform(intent_eeg, WaveletTypes.DB4, 5)
+        eeg_data = data[eeg_channels]
+        pp_data = preprocess_data(eeg_data, sampling_rate)
+        ft_data = extract_features(pp_data)
+        scaled_features = feature_scaler.transform([ft_data])
+        fitted_features = feature_pca.transform(scaled_features)
+        pred_string = classifier.predict(fitted_features)[0]
 
-            # only look at detailed parts which will contain the higher frequencies
-            intent_wavelet_coeffs = intent_wavelet_coeffs[intent_lengths[0] : ]
-
-            intent_wavelets.append(intent_wavelet_coeffs)
-
-        intent_wavelets = np.array(intent_wavelets).flatten()
-
-        pred_string = clf.predict([intent_wavelets])
-        target_value = 1.0 if pred_string[0] == 'button' else 0.0
+        target_value = 1.0 if pred_string == 'button' else 0.0
         ema_value = 0.05
         current_value = current_value * (1 - ema_value) + target_value * ema_value
 
         string = "^" if current_value > 0.5 else "*"
         visual = string * int(50 * current_value)
-        print("{}\t{}".format(pred_string, visual))
+        print("{:<10}{}".format(pred_string, visual))
+        
 
         time.sleep(1/60)
 
