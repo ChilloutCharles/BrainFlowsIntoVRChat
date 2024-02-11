@@ -6,11 +6,12 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError
 
-from logic.telemetry import Info, Meta
+from logic.telemetry import Info
 from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
+from logic.ml_intent import MLIntent
 
 from reporters.osc_reporter import OSC_Reporter
 from reporters.deprecated_osc_reporter import Old_OSC_Reporter
@@ -65,6 +66,10 @@ def main():
     # choose which reporter to use
     parser.add_argument("--use-old-reporter", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to use the old osc reporter')
+
+    # toggle to enable MLIntent
+    parser.add_argument("--enable-intent", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to enable ml intent logic')
     
     args = parser.parse_args()
 
@@ -116,6 +121,10 @@ def main():
             board.config_board('p52')
             heart_window_seconds = biometrics_logic.window_seconds
             startup_time = max(startup_time, heart_window_seconds)
+        
+        ### Add ml intent to logics if enabled
+        if args.enable_intent:
+            logics.append(MLIntent(board, ema_decay=ema_decay))
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
         board.start_stream(streamer_params=args.streamer_params)

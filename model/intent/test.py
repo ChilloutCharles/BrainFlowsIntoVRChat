@@ -5,6 +5,7 @@ import pickle
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
 from train import extract_features, preprocess_data
+import numpy as np
 
 window_seconds = 1.0
 
@@ -53,7 +54,6 @@ def main():
 
     sampling_rate = BoardShim.get_sampling_rate(args.board_id)
     eeg_channels = BoardShim.get_eeg_channels(args.board_id)
-    time_channel = BoardShim.get_timestamp_channel(args.board_id)
     sampling_size = int(sampling_rate * window_seconds)
 
     ema_value = 1/60 * 2
@@ -76,9 +76,10 @@ def main():
         scaled_features = feature_scaler.transform([ft_data])
         fitted_features = feature_pca.transform(scaled_features)
 
-        probs = classifier.predict_proba(fitted_features)
+        probs = classifier.predict_proba(fitted_features)[0]
+        idx = np.argwhere(classifier.classes_ == "button")[0]
+        target_value = np.round(probs[idx])
         pred_string = classifier.predict(fitted_features)[0]
-        target_value = 1 if pred_string == "button" else 0
 
         current_value = current_value * (1 - ema_value) + target_value * ema_value
 

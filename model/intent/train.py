@@ -16,7 +16,7 @@ def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
         DataFilter.detrend(session_data[eeg_chan], DetrendOperations.LINEAR)
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 50, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only beta and gamma
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 50, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only gamma
     return session_data
 
 def extract_features(preprocessed_data):
@@ -71,7 +71,7 @@ def main():
     baseline_train, baseline_valid = baseline_sessions[:-1], [baseline_sessions[-1]]
 
     window_size = int(1.0 * sampling_rate)
-    overlap = int(window_size * 0.8)
+    overlap = int(window_size * 0.93)
     intent_train_windows = np.concatenate([segment_data(session, window_size, overlap) for session in intent_train])
     intent_valid_windows = np.concatenate([segment_data(session, window_size, overlap) for session in intent_valid])
     baseline_train_windows = np.concatenate([segment_data(session, window_size, overlap) for session in baseline_train])
