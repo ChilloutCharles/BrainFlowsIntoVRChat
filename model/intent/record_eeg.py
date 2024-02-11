@@ -2,7 +2,7 @@ import argparse
 import time
 import pickle
 
-from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds, BrainFlowPresets
+from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
 import numpy as np
 import matplotlib.pyplot as plt

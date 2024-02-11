@@ -2,20 +2,11 @@ import argparse
 import time
 import pickle
 
-from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds, BrainFlowPresets
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
-
-
-from sklearn import svm
-from sklearn.decomposition import FastICA
-from scipy.stats import kurtosis
-import numpy as np
-
-import pickle
+from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
 from train import extract_features, preprocess_data
 
-window_seconds = 1
+window_seconds = 1.0
 
 def main():
     ## Load model dictionary and extract models
@@ -24,6 +15,8 @@ def main():
     feature_scaler = model_dict["feature_scaler"]
     feature_pca = model_dict["feature_pca"]
     classifier = model_dict["svm"]
+
+    print(classifier.classes_)
 
     parser = argparse.ArgumentParser()
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
@@ -61,39 +54,37 @@ def main():
     sampling_rate = BoardShim.get_sampling_rate(args.board_id)
     eeg_channels = BoardShim.get_eeg_channels(args.board_id)
     time_channel = BoardShim.get_timestamp_channel(args.board_id)
-    sampling_size = sampling_rate * window_seconds
+    sampling_size = int(sampling_rate * window_seconds)
+
+    ema_value = 1/60 * 2
 
     board.prepare_session()
     board.start_stream()
 
     # 1. wait 5 seconds before starting
-    print("Get ready in {} seconds".format(window_seconds*2))
-    time.sleep(window_seconds*2)
+    print("Get ready in {} seconds".format(2))
+    time.sleep(2)
 
     current_value = 0
     while True:
         data = board.get_current_board_data(sampling_size)
 
-        ## timeout check
-        time_data = data[time_channel]
-        if time_data[0] == time_data[-1]:
-            raise TimeoutError("Board Timed Out")
-
         eeg_data = data[eeg_channels]
         pp_data = preprocess_data(eeg_data, sampling_rate)
         ft_data = extract_features(pp_data)
+
         scaled_features = feature_scaler.transform([ft_data])
         fitted_features = feature_pca.transform(scaled_features)
-        pred_string = classifier.predict(fitted_features)[0]
 
-        target_value = 1.0 if pred_string == 'button' else 0.0
-        ema_value = 0.05
+        probs = classifier.predict_proba(fitted_features)
+        pred_string = classifier.predict(fitted_features)[0]
+        target_value = 1 if pred_string == "button" else 0
+
         current_value = current_value * (1 - ema_value) + target_value * ema_value
 
         string = "^" if current_value > 0.5 else "*"
         visual = string * int(50 * current_value)
         print("{:<10}{}".format(pred_string, visual))
-        
 
         time.sleep(1/60)
 
