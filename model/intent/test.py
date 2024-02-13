@@ -82,6 +82,7 @@ def main():
         pred_string = classifier.predict(fitted_features)[0]
 
         current_value = current_value * (1 - ema_value) + target_value * ema_value
+        current_value = current_value.item(0)
 
         string = "^" if current_value > 0.5 else "*"
         visual = string * int(50 * current_value)
