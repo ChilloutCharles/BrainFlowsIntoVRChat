@@ -120,7 +120,7 @@ def main():
         ### Logic Modules ###
         has_muse_ppg = master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD)
         
-        fft_size=2048
+        fft_size= 64 * 10
         biometrics_logic = Biometrics(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
 
         logics = [
