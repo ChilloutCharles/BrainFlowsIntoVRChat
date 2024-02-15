@@ -1,15 +1,17 @@
 import pickle
 import random
-import numpy as np
 
 from brainflow.board_shim import BoardShim
 from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes, FilterTypes
 
 from sklearn import svm
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, FastICA
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report
 from sklearn.model_selection import GridSearchCV
+
+import numpy as np
+from scipy.stats import kurtosis
 
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
@@ -17,6 +19,14 @@ def preprocess_data(session_data, sampling_rate):
         DataFilter.detrend(session_data[eeg_chan], DetrendOperations.LINEAR)
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
         DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 50, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only gamma
+    
+    ica = FastICA(2)
+    components = ica.fit_transform(session_data)
+    kurtoses = kurtosis(components, axis=0)
+    remove_idxs = np.where(np.abs(kurtoses) > 3)[0]
+    components[:, remove_idxs] = 0
+    session_data = ica.inverse_transform(components)
+
     return session_data
 
 def extract_features(preprocessed_data):
