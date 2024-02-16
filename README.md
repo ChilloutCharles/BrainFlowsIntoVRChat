@@ -222,5 +222,8 @@ Thanks to
 - If Python doesn't seem to be recognized, this is a Windows 10/11 issue
   - Solution: For steps 5 and 8, replace `python` with `py`
 
+## Community
+Feel free to join our [community](https://discord.com/invite/W2R7zA84ay) to get additional help, hang out and discuss BCI tech, or to be informed of meetups in vrchat!
+
 ## License
 [MIT](http://opensource.org/licenses/MIT).
