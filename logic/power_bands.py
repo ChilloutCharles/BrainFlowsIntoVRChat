@@ -7,6 +7,7 @@ from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes
 
 import re
 import numpy as np
+from sklearn.decomposition import FastICA
 
 class PwrBands(BaseLogic):
     LEFT = 'Left'
@@ -34,14 +35,18 @@ class PwrBands(BaseLogic):
         self.current_dict = {}
         self.ema_decay = ema_decay
 
+        # ICA object for use with kurtosis thresholding in preprocess step
+        self.ica = FastICA(n_components=3, algorithm='deflation')
+
     def get_data_dict(self):
         # get current data from board
         data = self.board.get_current_board_data(self.max_sample_size)
 
-        # denoise and detrend data
+        # denoise, detrend, and kurtosis threshold data
         for eeg_chan in self.eeg_channels:
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
             DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
+        data = utils.ica_kurtosis_threshold(data, self.ica)
         
         # calculate band features for left, right, and overall
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)
