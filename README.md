@@ -55,23 +55,23 @@ BFI:
     - RelaxAvgPos [float]
   PwrBands:
     Left:
-      - Alpha [float]
+      - Gamma [float]
       - Beta [float]
+      - Alpha [float]
       - Theta [float]
       - Delta [float]
-      - Gamma [float]
     Right:
-      - Alpha [float]
+      - Gamma [float]
       - Beta [float]
+      - Alpha [float]
       - Theta [float]
       - Delta [float]
-      - Gamma [float]
     Avg:
-      - Alpha [float]
+      - Gamma [float]
       - Beta [float]
+      - Alpha [float]
       - Theta [float]
       - Delta [float]
-      - Gamma [float]
   Addons:
     - Hueshift [float 0-1]
   Biometrics:

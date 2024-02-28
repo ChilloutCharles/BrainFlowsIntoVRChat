@@ -3,3 +3,4 @@ numpy>=1.23.1
 python_osc>=1.8.0
 scipy>=1.8.0
 setuptools>=68.0.0
+scikit_learn>=1.4.1.post1
