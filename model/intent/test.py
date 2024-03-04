@@ -5,7 +5,6 @@ import pickle
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
 from train import extract_features, preprocess_data
-import numpy as np
 
 window_seconds = 1.0
 
@@ -14,7 +13,6 @@ def main():
     with open("models.ml", "rb") as f:
         model_dict = pickle.load(f)
     feature_scaler = model_dict["feature_scaler"]
-    feature_pca = model_dict["feature_pca"]
     classifier = model_dict["svm"]
 
     print(classifier.classes_)
@@ -72,21 +70,14 @@ def main():
         eeg_data = data[eeg_channels]
         pp_data = preprocess_data(eeg_data, sampling_rate)
         ft_data = extract_features(pp_data)
-
         scaled_features = feature_scaler.transform([ft_data])
-        fitted_features = feature_pca.transform(scaled_features)
-
-        probs = classifier.predict_proba(fitted_features)[0]
-        idx = np.argwhere(classifier.classes_ == "button")[0]
-        target_value = np.round(probs[idx])
-        pred_string = classifier.predict(fitted_features)[0]
+        target_value = classifier.predict(scaled_features)[0]
 
         current_value = current_value * (1 - ema_value) + target_value * ema_value
-        current_value = current_value.item(0)
 
         string = "^" if current_value > 0.5 else "*"
         visual = string * int(50 * current_value)
-        print("{:<10}{}".format(pred_string, visual))
+        print("{:<10}{}".format(target_value, visual))
 
         time.sleep(1/60)
 

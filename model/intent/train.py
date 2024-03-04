@@ -5,7 +5,6 @@ from brainflow.board_shim import BoardShim
 from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes, FilterTypes
 
 from sklearn import svm
-from sklearn.decomposition import PCA, FastICA
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report
 from sklearn.model_selection import GridSearchCV
@@ -18,15 +17,7 @@ def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
         DataFilter.detrend(session_data[eeg_chan], DetrendOperations.LINEAR)
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 50, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only gamma
-    
-    ica = FastICA(2)
-    components = ica.fit_transform(session_data)
-    kurtoses = kurtosis(components, axis=0)
-    remove_idxs = np.where(np.abs(kurtoses) > 3)[0]
-    components[:, remove_idxs] = 0
-    session_data = ica.inverse_transform(components)
-
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 8, 50, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only gamma and beta
     return session_data
 
 def extract_features(preprocessed_data):
@@ -52,11 +43,9 @@ def segment_data(eeg_data, samples_per_window, overlap=0):
 def main():
     ## define models to be saved for later
     param_grid = {'C': [0.1, 1, 10, 100],   
-              'gamma': [1, 0.1, 0.01, 'auto', 'scale'],
-              'probability': [True]}
+              'gamma': [1, 0.1, 0.01, 'auto', 'scale']}
     grid = GridSearchCV(svm.SVC(), param_grid, refit = True, verbose = 3, n_jobs=5) 
     feature_scaler = StandardScaler()
-    feature_pca = PCA(n_components=0.95)
 
     ## load recorded data details
     with open("recorded_eeg.pkl", "rb") as f:
@@ -108,19 +97,18 @@ def main():
         baseline_valid_features + 
         intent_valid_features )
     labels = np.array( 
-        ["baseline"] * len(baseline_train_features) +
-        ["button"] * len(intent_train_features) +
-        ["baseline"] * len(baseline_valid_features) +
-        ["button"] * len(intent_valid_features) )
+        [0] * len(baseline_train_features) +
+        [1] * len(intent_train_features) +
+        [0] * len(baseline_valid_features) +
+        [1] * len(intent_valid_features) )
     split_idx = len(intent_train_features) + len(baseline_train_features)
 
-    ## fit scaler and pca models on train features and craete train set
-    X_train = feature_scaler.fit_transform(feature_windows[:split_idx])
-    X_train = feature_pca.fit_transform(X_train)
+    ## fit feature_scaler to baseline
+    feature_scaler.fit(baseline_train_features)
 
-    ## craete test set with fitted scaler and pca
+    ## scale train and test sets 
+    X_train = feature_scaler.transform(feature_windows[:split_idx])
     X_test = feature_scaler.transform(feature_windows[split_idx:])
-    X_test = feature_pca.transform(X_test)
 
     ## split labels
     y_train = labels[:split_idx]
@@ -152,7 +140,6 @@ def main():
     ## Save models for realtime use
     model_dict = {
         "feature_scaler" : feature_scaler,
-        "feature_pca" : feature_pca,
         "svm" : best_model
     }
     with open('models.ml', 'wb') as f:

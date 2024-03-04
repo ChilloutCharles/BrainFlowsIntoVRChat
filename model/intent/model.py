@@ -1,5 +1,4 @@
 import pickle
-import numpy as np
 import os
 
 from model.intent.train import extract_features, preprocess_data
@@ -15,18 +14,16 @@ class EnsembleModel:
         with open(models_path, "rb") as f:
             model_dict = pickle.load(f)
         self.feature_scaler = model_dict["feature_scaler"]
-        self.feature_pca = model_dict["feature_pca"]
         self.classifier = model_dict["svm"]
-        self.action_idx = np.argwhere(self.classifier.classes_ == "button")[0] 
 
     def predict(self, eeg_data, sampling_rate):
         pp_data = preprocess_data(eeg_data, sampling_rate)
         ft_data = extract_features(pp_data)
 
+        # partial update scaler based on sampling rate to account for drift
+        self.feature_scaler.partial_fit([ft_data], sample_weight=[1/sampling_rate])
         scaled_features = self.feature_scaler.transform([ft_data])
-        fitted_features = self.feature_pca.transform(scaled_features)
 
-        probabilities = self.classifier.predict_proba(fitted_features)[0]
-        action_probability = probabilities[self.action_idx]
+        action_idx = self.classifier.predict(scaled_features)
         
-        return action_probability
+        return action_idx
