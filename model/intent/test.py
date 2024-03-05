@@ -1,6 +1,7 @@
 import argparse
 import time
-import pickle
+import keras
+import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
@@ -9,13 +10,8 @@ from train import extract_features, preprocess_data
 window_seconds = 1.0
 
 def main():
-    ## Load model dictionary and extract models
-    with open("models.ml", "rb") as f:
-        model_dict = pickle.load(f)
-    feature_scaler = model_dict["feature_scaler"]
-    classifier = model_dict["svm"]
-
-    print(classifier.classes_)
+    ## Load CNN model
+    model = keras.models.load_model("shallow.keras")
 
     parser = argparse.ArgumentParser()
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
@@ -59,7 +55,7 @@ def main():
     board.prepare_session()
     board.start_stream()
 
-    # 1. wait 5 seconds before starting
+    # 1. wait 2 seconds before starting
     print("Get ready in {} seconds".format(2))
     time.sleep(2)
 
@@ -69,9 +65,15 @@ def main():
 
         eeg_data = data[eeg_channels]
         pp_data = preprocess_data(eeg_data, sampling_rate)
-        ft_data = extract_features(pp_data)
-        scaled_features = feature_scaler.transform([ft_data])
-        target_value = classifier.predict(scaled_features)[0]
+        ft_data = np.array(extract_features(pp_data))
+        
+        w_coeff_rows = ft_data.shape[0]
+        w_coeff_size = ft_data.shape[1]
+        ft_data = ft_data.reshape((1, w_coeff_rows, w_coeff_size, 1))
+
+        prediction_probs = model.predict(ft_data, verbose=0)[0]
+        target_value = prediction_probs[0].item()
+        target_value = np.round(target_value, 3)
 
         current_value = current_value * (1 - ema_value) + target_value * ema_value
 

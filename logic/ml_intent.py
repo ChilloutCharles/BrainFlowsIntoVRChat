@@ -27,7 +27,7 @@ class MLIntent(BaseLogic):
         eeg_data = data[self.eeg_channels]
         
         # predict binary thought
-        target_value = self.model.predict(eeg_data, self.sampling_rate)[0]
+        target_value = self.model.predict(eeg_data, self.sampling_rate)
 
         # smooth
         self.current_value = utils.smooth(self.current_value, target_value, self.ema_decay)
