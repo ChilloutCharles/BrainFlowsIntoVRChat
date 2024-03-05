@@ -38,7 +38,7 @@ Command to start testing: `python test.py --board-id <YOUR BOARD ID>`
 
 I am blown away by how effective using Convolutional Neural Networks are with this. Wavelet transformations decompose signals into components that capture both frequency and time information. Stacking these rows of components from each channel creates something like an "image" where the "color" is determined by the component values. It's this spatial-like data that CNNs excel at understanding, finding frequency patterns over time and channel location.
 
-There is still work to be done in terms of thought categorization. While the model performs fairly well, isn't generalized enough to differentiate between other thoughts that required active thinking and in the future will need more training data (ex. fireball vs waterball).
+There is still work to be done in terms of thought categorization. While the model performs fairly well, it isn't generalized enough to differentiate between other thoughts that required active thinking and in the future will need more training data (ex. fireball vs waterball).
 
 Training sessions have been redone to get a better baseline.
 
