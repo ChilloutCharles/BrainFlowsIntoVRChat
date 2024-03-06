@@ -66,12 +66,21 @@ def main():
     board.start_stream()
 
     # 1. wait 5 seconds before starting
-    print("Get ready in {} seconds".format(window_seconds))
-    time.sleep(window_seconds)
+    wait_seconds = 2
+    print("Get ready in {} seconds".format(wait_seconds))
+    time.sleep(wait_seconds)
 
-    # 4. repeat 2 and 3 for 3 times
+    input("Get ready to think about anything else. Press enter to continue")
+    print("Be idle for {} seconds".format(3 * window_seconds))
+    plt.imshow(blank_img)
+    plt.draw()
     for i in range(3):
+        plt.pause(window_seconds)
+        baseline_data = board.get_current_board_data(sampling_size)
+        record_data["baseline_data"].append(baseline_data)
+    plt.close()
 
+    for i in range(3):
         input("Get ready to think about fireballs. Press enter to continue")
         # 2. think push button 10 seconds, record
         print("Think push a button for {} seconds".format(window_seconds))
@@ -82,19 +91,7 @@ def main():
         plt.close()
 
         intent_data = board.get_current_board_data(sampling_size)
-        
-        input("Get ready to think about anything else. Press enter to continue")
-        # 3. be idle for 10, record
-        print("Be idle for {} seconds".format(window_seconds))
-        # time.sleep(window_seconds)
-        plt.imshow(blank_img)
-        plt.draw()
-        plt.pause(window_seconds)
-        plt.close() 
-        baseline_data = board.get_current_board_data(sampling_size)
-
         record_data["intent_data"].append(intent_data)
-        record_data["baseline_data"].append(baseline_data)
 
     board.stop_stream()
     board.release_session()

@@ -3,7 +3,6 @@ from logic.base_logic import BaseLogic
 import utils
 
 from brainflow.board_shim import BoardShim
-import numpy as np
 
 
 class MLIntent(BaseLogic):
@@ -27,9 +26,8 @@ class MLIntent(BaseLogic):
         data = self.board.get_current_board_data(self.sample_size)
         eeg_data = data[self.eeg_channels]
         
-        # predict binary thought, round
+        # predict binary thought
         target_value = self.model.predict(eeg_data, self.sampling_rate)
-        target_value = np.round(target_value)[0]
 
         # smooth
         self.current_value = utils.smooth(self.current_value, target_value, self.ema_decay)

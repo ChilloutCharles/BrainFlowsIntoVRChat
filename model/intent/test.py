@@ -1,23 +1,17 @@
 import argparse
 import time
-import pickle
+import keras
+import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
 from train import extract_features, preprocess_data
-import numpy as np
 
 window_seconds = 1.0
 
 def main():
-    ## Load model dictionary and extract models
-    with open("models.ml", "rb") as f:
-        model_dict = pickle.load(f)
-    feature_scaler = model_dict["feature_scaler"]
-    feature_pca = model_dict["feature_pca"]
-    classifier = model_dict["svm"]
-
-    print(classifier.classes_)
+    ## Load CNN model
+    model = keras.models.load_model("shallow.keras")
 
     parser = argparse.ArgumentParser()
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
@@ -61,7 +55,7 @@ def main():
     board.prepare_session()
     board.start_stream()
 
-    # 1. wait 5 seconds before starting
+    # 1. wait 2 seconds before starting
     print("Get ready in {} seconds".format(2))
     time.sleep(2)
 
@@ -71,22 +65,21 @@ def main():
 
         eeg_data = data[eeg_channels]
         pp_data = preprocess_data(eeg_data, sampling_rate)
-        ft_data = extract_features(pp_data)
+        ft_data = np.array(extract_features(pp_data))
+        
+        w_coeff_rows = ft_data.shape[0]
+        w_coeff_size = ft_data.shape[1]
+        ft_data = ft_data.reshape((1, w_coeff_rows, w_coeff_size, 1))
 
-        scaled_features = feature_scaler.transform([ft_data])
-        fitted_features = feature_pca.transform(scaled_features)
-
-        probs = classifier.predict_proba(fitted_features)[0]
-        idx = np.argwhere(classifier.classes_ == "button")[0]
-        target_value = np.round(probs[idx])
-        pred_string = classifier.predict(fitted_features)[0]
+        prediction_probs = model.predict(ft_data, verbose=0)[0]
+        target_value = prediction_probs[0].item()
+        target_value = np.round(target_value, 3)
 
         current_value = current_value * (1 - ema_value) + target_value * ema_value
-        current_value = current_value.item(0)
 
         string = "^" if current_value > 0.5 else "*"
         visual = string * int(50 * current_value)
-        print("{:<10}{}".format(pred_string, visual))
+        print("{:<10}{}".format(target_value, visual))
 
         time.sleep(1/60)
 

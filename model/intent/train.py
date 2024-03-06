@@ -4,36 +4,27 @@ import random
 from brainflow.board_shim import BoardShim
 from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes, FilterTypes
 
-from sklearn import svm
-from sklearn.decomposition import PCA, FastICA
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report
-from sklearn.model_selection import GridSearchCV
-
 import numpy as np
-from scipy.stats import kurtosis
+
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Conv2D, Flatten
+from keras.optimizers import Adam
+
+from sklearn.metrics import classification_report
 
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
         DataFilter.detrend(session_data[eeg_chan], DetrendOperations.LINEAR)
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 50, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only gamma
-    
-    ica = FastICA(2)
-    components = ica.fit_transform(session_data)
-    kurtoses = kurtosis(components, axis=0)
-    remove_idxs = np.where(np.abs(kurtoses) > 3)[0]
-    components[:, remove_idxs] = 0
-    session_data = ica.inverse_transform(components)
-
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 100, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only gamma and high gamma
     return session_data
 
 def extract_features(preprocessed_data):
     features  = []
     for eeg_row in preprocessed_data:
         intent_wavelet_coeffs, _ = DataFilter.perform_wavelet_transform(eeg_row, WaveletTypes.DB4, 5)
-        features.extend(intent_wavelet_coeffs)
+        features.append(intent_wavelet_coeffs)
     return features
 
 ## helper function to generate windows
@@ -50,14 +41,6 @@ def segment_data(eeg_data, samples_per_window, overlap=0):
     return np.array(windows)
 
 def main():
-    ## define models to be saved for later
-    param_grid = {'C': [0.1, 1, 10, 100],   
-              'gamma': [1, 0.1, 0.01, 'auto', 'scale'],
-              'probability': [True]}
-    grid = GridSearchCV(svm.SVC(), param_grid, refit = True, verbose = 3, n_jobs=5) 
-    feature_scaler = StandardScaler()
-    feature_pca = PCA(n_components=0.95)
-
     ## load recorded data details
     with open("recorded_eeg.pkl", "rb") as f:
         recorded_data = pickle.load(f)
@@ -107,20 +90,18 @@ def main():
         intent_train_features + 
         baseline_valid_features + 
         intent_valid_features )
+    base_label = [0, 1]
+    intent_label = [1, 0]
     labels = np.array( 
-        ["baseline"] * len(baseline_train_features) +
-        ["button"] * len(intent_train_features) +
-        ["baseline"] * len(baseline_valid_features) +
-        ["button"] * len(intent_valid_features) )
+        [base_label] * len(baseline_train_features) +
+        [intent_label] * len(intent_train_features) +
+        [base_label] * len(baseline_valid_features) +
+        [intent_label] * len(intent_valid_features) )
     split_idx = len(intent_train_features) + len(baseline_train_features)
 
-    ## fit scaler and pca models on train features and craete train set
-    X_train = feature_scaler.fit_transform(feature_windows[:split_idx])
-    X_train = feature_pca.fit_transform(X_train)
-
-    ## craete test set with fitted scaler and pca
-    X_test = feature_scaler.transform(feature_windows[split_idx:])
-    X_test = feature_pca.transform(X_test)
+    ## scale train and test sets 
+    X_train = feature_windows[:split_idx]
+    X_test = feature_windows[split_idx:]
 
     ## split labels
     y_train = labels[:split_idx]
@@ -137,26 +118,36 @@ def main():
     X_test = X_test[test_indexes]
     y_test = y_test[test_indexes]
 
-    ## scan for optimal hyperparams for svm model
-    grid.fit(X_train, y_train)
+    ## reshape data for Conv2D layer
+    w_coeff_rows = X_train.shape[1]
+    w_coeff_size = X_train.shape[2]
+    X_train = X_train.reshape((X_train.shape[0], w_coeff_rows, w_coeff_size, 1))
+    X_test = X_test.reshape((X_test.shape[0], w_coeff_rows, w_coeff_size, 1))
 
-    ## Extract svm and print results
-    best_model = grid.best_estimator_
-    print("Best Estimator:", best_model)
-    print("Train Score:", grid.best_score_)
+    ## Define the model
+    conv_input_shape = (w_coeff_rows, w_coeff_size, 1)
+    temporal_kernel = (w_coeff_rows//2, w_coeff_size//w_coeff_rows)
 
-    y_pred = best_model.predict(X_test)
-    class_report = classification_report(y_test, y_pred)
-    print(class_report)
+    model = Sequential()
+    model.add(Conv2D(32, temporal_kernel, activation='relu', input_shape=conv_input_shape))
+    model.add(Dropout(0.5))  # prevent overfitting
+    model.add(Flatten()) # flatten cnn output for Dense
+    model.add(Dense(2, activation='softmax'))  # Output layer
+
+    ## Compile the model
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+
+    ## Train the model
+    model.fit(X_train, y_train, epochs=50, batch_size=10, verbose=1)
+
+    ## Evaluate the model on the test set
+    predictions_prob = model.predict(X_test)
+    predictions = np.argmax(predictions_prob, axis=1)
+    y_test_idxs = np.argmax(y_test, axis=1)
+    print(classification_report(y_test_idxs, predictions))
 
     ## Save models for realtime use
-    model_dict = {
-        "feature_scaler" : feature_scaler,
-        "feature_pca" : feature_pca,
-        "svm" : best_model
-    }
-    with open('models.ml', 'wb') as f:
-        pickle.dump(model_dict, f)
+    model.save('shallow.keras')
 
 
 if __name__ == "__main__":
