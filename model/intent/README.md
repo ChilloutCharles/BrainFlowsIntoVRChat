@@ -3,9 +3,10 @@ This folder contains the code to generate a model to attempt to guess between tw
 
 ## Pipeline
 1. Detrend and denoise: Remove over time trendlines and remove 50, 60hz noise.
-2. Bandpass to gamma and high gamma for frequencies associated with higher thought
-3. Perform Wavelet Transform on filtered channels, stacking them into a 2D feature vector
-4. Classify 2D feature vector against a Convolutional Neural Network
+2. ~~Bandpass to gamma and high gamma for frequencies associated with higher thought~~
+3. Perform Wavelet Transform on filtered channels, saving the coefficients
+4. Stack the lists of coefficients into a 1D feature vector, with each list being a 'color' channel
+5. Classify 1D feature vector against a 1D Convolutional Neural Network
 
 ## Recording
 Recording eeg is done by doing a 30 second baseline session and three 10 seconds sessions. Each session will ask you to think a specific thought and will start once you press the enter button.
@@ -18,8 +19,8 @@ A new file `recorded_eeg.pkl` will be generated containing the session data.
 Once the recording session is done, training can start. This involves: 
 - generate 1 second windows from the session data.
 - split the windows to train and validation sets.
-- preprocess and extract 2D features.
-- train CNN model
+- preprocess and extract 1D features.
+- train CNN model.
 - validate trained model against the validation set.
 
 Command to start training: `python train.py`
@@ -41,6 +42,11 @@ I am blown away by how effective using Convolutional Neural Networks are with th
 There is still work to be done in terms of thought categorization. While the model performs fairly well, it isn't generalized enough to differentiate between other thoughts that required active thinking and in the future will need more training data (ex. fireball vs waterball).
 
 Training sessions have been redone to get a better baseline.
+
+There are dropout layers in the model. If the model doesn't converge, train again as it may have settled on a local minimum.
+
+The model is inspired by the [Thin MobileNet Architecture](https://scholarworks.iupui.edu/server/api/core/bitstreams/a7fbc815-0f25-480a-bce1-0cb231238b66/content
+).
 
 ## Usage with BFiVRC
 

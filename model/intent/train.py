@@ -2,12 +2,11 @@ import pickle
 import random
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes, FilterTypes
-
+from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
 import numpy as np
 
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Conv2D, Flatten
+from keras.layers import Dense, Dropout, SeparableConv1D, BatchNormalization, GlobalAveragePooling1D
 from keras.optimizers import Adam
 
 from sklearn.metrics import classification_report
@@ -17,15 +16,14 @@ def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
         DataFilter.detrend(session_data[eeg_chan], DetrendOperations.LINEAR)
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 30, 100, 6, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0) # only gamma and high gamma
     return session_data
 
 def extract_features(preprocessed_data):
     features  = []
     for eeg_row in preprocessed_data:
-        intent_wavelet_coeffs, _ = DataFilter.perform_wavelet_transform(eeg_row, WaveletTypes.DB4, 5)
-        features.append(intent_wavelet_coeffs)
-    return features
+        coeffs, _ = DataFilter.perform_wavelet_transform(eeg_row, WaveletTypes.DB4, 5)
+        features.append(coeffs)
+    return np.stack(features, axis=-1)
 
 ## helper function to generate windows
 def segment_data(eeg_data, samples_per_window, overlap=0):
@@ -118,27 +116,27 @@ def main():
     X_test = X_test[test_indexes]
     y_test = y_test[test_indexes]
 
-    ## reshape data for Conv2D layer
-    w_coeff_rows = X_train.shape[1]
-    w_coeff_size = X_train.shape[2]
-    X_train = X_train.reshape((X_train.shape[0], w_coeff_rows, w_coeff_size, 1))
-    X_test = X_test.reshape((X_test.shape[0], w_coeff_rows, w_coeff_size, 1))
-
     ## Define the model
-    conv_input_shape = (w_coeff_rows, w_coeff_size, 1)
-    temporal_kernel = (w_coeff_rows//2, w_coeff_size//w_coeff_rows)
-
+    # model inspired by thin mobilenet 
+    # https://scholarworks.iupui.edu/server/api/core/bitstreams/a7fbc815-0f25-480a-bce1-0cb231238b66/content
     model = Sequential()
-    model.add(Conv2D(32, temporal_kernel, activation='relu', input_shape=conv_input_shape))
-    model.add(Dropout(0.5))  # prevent overfitting
-    model.add(Flatten()) # flatten cnn output for Dense
-    model.add(Dense(2, activation='softmax'))  # Output layer
+    model.add(SeparableConv1D(2, 3, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.1))
+
+    model.add(SeparableConv1D(4, 3, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.2))
+
+    model.add(GlobalAveragePooling1D())
+    model.add(Dense(2, activation='softmax'))
 
     ## Compile the model
     model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
 
     ## Train the model
-    model.fit(X_train, y_train, epochs=50, batch_size=10, verbose=1)
+    epochs = X_train.shape[0] * 2 // 10
+    model.fit(X_train, y_train, epochs=epochs, batch_size=10, verbose=1, validation_data=(X_test, y_test))
 
     ## Evaluate the model on the test set
     predictions_prob = model.predict(X_test)
@@ -152,3 +150,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
