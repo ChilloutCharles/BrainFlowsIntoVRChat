@@ -65,13 +65,8 @@ def main():
 
         eeg_data = data[eeg_channels]
         pp_data = preprocess_data(eeg_data, sampling_rate)
-        ft_data = np.array(extract_features(pp_data))
-        
-        w_coeff_rows = ft_data.shape[0]
-        w_coeff_size = ft_data.shape[1]
-        ft_data = ft_data.reshape((1, w_coeff_rows, w_coeff_size, 1))
-
-        prediction_probs = model.predict(ft_data, verbose=0)[0]
+        ft_data = extract_features(pp_data)
+        prediction_probs = model.predict(ft_data[None, ...], verbose=0)[0]
         target_value = prediction_probs[0].item()
         target_value = np.round(target_value, 3)
 
