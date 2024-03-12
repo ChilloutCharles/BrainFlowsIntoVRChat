@@ -9,8 +9,8 @@ import keras
 
 @keras.saving.register_keras_serializable()
 class CNNGRUModel(Model):
-    def __init__(self):
-        super(CNNGRUModel, self).__init__()
+    def __init__(self, **kwargs):
+        super(CNNGRUModel, self).__init__(**kwargs)
         
         # CNN branch
         self.cnn = Sequential()
