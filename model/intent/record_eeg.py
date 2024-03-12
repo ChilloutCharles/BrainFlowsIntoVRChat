@@ -87,7 +87,7 @@ def main():
         # time.sleep(window_seconds)
         plt.imshow(fireball_img)
         plt.draw()
-        plt.pause(window_seconds)
+        plt.pause(window_seconds + 1) # skip the part where you press enter
         plt.close()
 
         intent_data = board.get_current_board_data(sampling_size)

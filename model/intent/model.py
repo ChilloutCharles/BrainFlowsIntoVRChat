@@ -1,22 +1,40 @@
+from keras.models import Model, Sequential
+from keras.layers import GRU, SeparableConv1D, GlobalAveragePooling1D, BatchNormalization, Dense, Dropout, concatenate
 import keras
-import os
-import numpy as np
 
-from model.intent.train import extract_features, preprocess_data
+## Define the model
+# cnn branch inspired by thin mobilenet 
+# https://scholarworks.iupui.edu/server/api/core/bitstreams/a7fbc815-0f25-480a-bce1-0cb231238b66/content
+# adding GRU branch to have temporal details
 
-class EnsembleModel:
+@keras.saving.register_keras_serializable()
+class CNNGRUModel(Model):
     def __init__(self):
-        # get path for models no matter where this is run
-        abs_script_path = os.path.abspath(__file__)
-        abs_script_dir = os.path.dirname(abs_script_path)
-        file_name = "shallow.keras"
-        model_path = os.path.join(abs_script_dir, file_name)
+        super(CNNGRUModel, self).__init__()
         
-        self.classifier = keras.models.load_model(model_path)
-
-    def predict(self, eeg_data, sampling_rate):
-        pp_data = preprocess_data(eeg_data, sampling_rate)
-        ft_data = extract_features(pp_data)
-        prediction_probs = self.classifier.predict(ft_data[None, ...], verbose=0)[0]
-        action_prob = prediction_probs[0].item()
-        return action_prob
+        # CNN branch
+        self.cnn = Sequential()
+        self.cnn.add(SeparableConv1D(8, 3, activation='relu'))
+        self.cnn.add(BatchNormalization())
+        self.cnn.add(SeparableConv1D(16, 3, activation='relu'))
+        self.cnn.add(BatchNormalization())
+        self.cnn.add(SeparableConv1D(32, 3, activation='relu'))
+        self.cnn.add(BatchNormalization())
+        self.cnn.add(GlobalAveragePooling1D())
+        
+        # GRU branch
+        self.gru = Sequential()
+        self.gru.add(GRU(16, return_sequences=True))
+        self.gru.add(GRU(32))
+        self.gru.add(BatchNormalization())
+        
+        # Fully connected layer
+        self.fc = Sequential()
+        self.fc.add(Dropout(0.1))
+        self.fc.add(Dense(2, activation='softmax'))
+        
+    def call(self, inputs):
+        x_cnn = self.cnn(inputs)
+        x_gru = self.gru(inputs)
+        x_combined = concatenate([x_cnn, x_gru], axis=-1)
+        return self.fc(x_combined)

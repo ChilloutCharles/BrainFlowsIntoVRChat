@@ -1,9 +1,11 @@
-from model.intent.model import EnsembleModel
+from model.intent.pipeline import Pipeline
 from logic.base_logic import BaseLogic
 import utils
 
 from brainflow.board_shim import BoardShim
 
+# imported so decorator can recognize loaded model
+from model.intent.model import CNNGRUModel
 
 class MLIntent(BaseLogic):
     def __init__(self, board, ema_decay=1/60):
@@ -13,7 +15,7 @@ class MLIntent(BaseLogic):
         self.sampling_rate = BoardShim.get_sampling_rate(board_id)
         self.eeg_channels = BoardShim.get_eeg_channels(board_id)
 
-        self.model = EnsembleModel()
+        self.pipeline = Pipeline()
         self.ema_decay = ema_decay
         self.current_value = 0
 
@@ -27,7 +29,7 @@ class MLIntent(BaseLogic):
         eeg_data = data[self.eeg_channels]
         
         # predict binary thought
-        target_value = self.model.predict(eeg_data, self.sampling_rate)
+        target_value = self.pipeline.predict(eeg_data, self.sampling_rate)
 
         # smooth
         self.current_value = utils.smooth(self.current_value, target_value, self.ema_decay)

@@ -3,10 +3,10 @@ This folder contains the code to generate a model to attempt to guess between tw
 
 ## Pipeline
 1. Detrend and denoise: Remove over time trendlines and remove 50, 60hz noise.
-2. ~~Bandpass to gamma and high gamma for frequencies associated with higher thought~~
-3. Perform Wavelet Transform on filtered channels, saving the coefficients
-4. Stack the lists of coefficients into a 1D feature vector, with each list being a 'color' channel
-5. Classify 1D feature vector against a 1D Convolutional Neural Network
+2. ~~Bandpass to gamma and high gamma for frequencies associated with higher thought.~~
+3. Perform Wavelet Transform on filtered channels, saving the coefficients.
+4. Stack the lists of coefficients into a 1D feature vector, with each list being a 'color' channel.
+5. Classify 1D feature vector against a combined 1D Convolution and Recurrent Neural Network.
 
 ## Recording
 Recording eeg is done by doing a 30 second baseline session and three 10 seconds sessions. Each session will ask you to think a specific thought and will start once you press the enter button.
@@ -20,7 +20,7 @@ Once the recording session is done, training can start. This involves:
 - generate 1 second windows from the session data.
 - split the windows to train and validation sets.
 - preprocess and extract 1D features.
-- train CNN model.
+- train the model.
 - validate trained model against the validation set.
 
 Command to start training: `python train.py`
@@ -47,6 +47,8 @@ There are dropout layers in the model. If the model doesn't converge, train agai
 
 The model is inspired by the [Thin MobileNet Architecture](https://scholarworks.iupui.edu/server/api/core/bitstreams/a7fbc815-0f25-480a-bce1-0cb231238b66/content
 ).
+
+I've made the model parallel, incorporating side by side Convolutional and Recurrent Neural Networks. That should capture both spatial and temporal features.
 
 ## Usage with BFiVRC
 

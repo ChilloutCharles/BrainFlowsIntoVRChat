@@ -1,17 +1,16 @@
 import argparse
 import time
-import keras
 import numpy as np
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
-from train import extract_features, preprocess_data
+from pipeline import Pipeline
 
 window_seconds = 1.0
 
 def main():
-    ## Load CNN model
-    model = keras.models.load_model("shallow.keras")
+    ## Load pipeline
+    pipeline = Pipeline()
 
     parser = argparse.ArgumentParser()
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
@@ -64,10 +63,7 @@ def main():
         data = board.get_current_board_data(sampling_size)
 
         eeg_data = data[eeg_channels]
-        pp_data = preprocess_data(eeg_data, sampling_rate)
-        ft_data = extract_features(pp_data)
-        prediction_probs = model.predict(ft_data[None, ...], verbose=0)[0]
-        target_value = prediction_probs[0].item()
+        target_value = pipeline.predict(eeg_data, sampling_rate)
         target_value = np.round(target_value, 3)
 
         current_value = current_value * (1 - ema_value) + target_value * ema_value
