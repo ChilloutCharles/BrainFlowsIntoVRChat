@@ -19,8 +19,6 @@ def main():
     parser.add_argument('--mac-address', type=str, help='mac address', required=False, default='')
     parser.add_argument('--other-info', type=str, help='other info', required=False, default='')
     parser.add_argument('--serial-number', type=str, help='serial number', required=False, default='')
-    parser.add_argument('--board-id', type=int, help='board id, check docs to get a list of supported boards',
-                        required=True)
     parser.add_argument('--file', type=str, help='file', required=False, default='')
     parser.add_argument('--actions', type=int, help='number of actions to record',
                         required=True)

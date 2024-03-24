@@ -24,11 +24,12 @@ def main():
     parser.add_argument('--mac-address', type=str, help='mac address', required=False, default='')
     parser.add_argument('--other-info', type=str, help='other info', required=False, default='')
     parser.add_argument('--serial-number', type=str, help='serial number', required=False, default='')
-    parser.add_argument('--board-id', type=int, help='board id, check docs to get a list of supported boards',
-                        required=True)
     parser.add_argument('--file', type=str, help='file', required=False, default='')
     parser.add_argument('--master-board', type=int, help='master board id for streaming and playback boards',
                         required=False, default=BoardIds.NO_BOARD)
+    # board id by name or id
+    parser.add_argument('--board-id', type=str, help='board id or name, check docs to get a list of supported boards',
+                        required=True)
     args = parser.parse_args()
 
     params = BrainFlowInputParams()
@@ -43,10 +44,16 @@ def main():
     params.file = args.file
     params.master_board = args.master_board
 
-    board = BoardShim(args.board_id, params)
+    ### Board Id selection ###
+    try:
+        master_board_id = int(args.board_id)
+    except ValueError:
+        master_board_id = BoardIds[args.board_id.upper()]
 
-    sampling_rate = BoardShim.get_sampling_rate(args.board_id)
-    eeg_channels = BoardShim.get_eeg_channels(args.board_id)
+    board = BoardShim(master_board_id, params)
+
+    sampling_rate = BoardShim.get_sampling_rate(master_board_id)
+    eeg_channels = BoardShim.get_eeg_channels(master_board_id)
     sampling_size = int(sampling_rate * window_seconds)
 
     ema_value = 1/60 * 2
