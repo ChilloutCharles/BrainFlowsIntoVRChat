@@ -39,7 +39,6 @@ def main():
     params.ip_protocol = args.ip_protocol
     params.timeout = args.timeout
     params.file = args.file
-    params.master_board = args.master_board
 
     action_count = args.actions
     sesesion_count = args.sessions
