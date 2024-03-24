@@ -1,57 +1,34 @@
-# Intent Classification
-This folder contains the code to generate a model to attempt to guess between two thoughts (baseline and fireball). To use this folder, make sure to rerun Step 5 from the main readme to get the new depenencies.
+# Action Classification
+This folder contains the code needed to record, train, and test a machine learning model that will predict a set of actions from your brainwaves. To go over the development details, read the `Notes.md` file.
 
-## Pipeline
-1. Detrend and denoise: Remove over time trendlines and remove 50, 60hz noise.
-2. ~~Bandpass to gamma and high gamma for frequencies associated with higher thought.~~
-3. Perform Wavelet Transform on filtered channels, saving the coefficients.
-4. Stack the lists of coefficients into a 1D feature vector, with each list being a 'color' channel.
-5. Classify 1D feature vector against a combined 1D Convolution and Recurrent Neural Network.
+## Prerequisites
+1. Rerun this command at the base directory to install needed depedencies: `python -m pip install -r requirements.txt`
 
-## Recording
-Recording eeg is done by doing a 30 second baseline session and three 10 seconds sessions. Each session will ask you to think a specific thought and will start once you press the enter button.
+## Recording your Brainwaves
+1. Determine the amount of actions you'd like to record (optional: sessions per action. Default is 2)
+2. Determine the board id or name of your headband
+3. Within this directory, execute this command 
+   - `python record_eeg.py --board-id <YOUR BOARD ID> --actions <ACTION COUNT> --sessions <OPTIONAL SESSION COUNT>`
+4. Follow on screen commands to completion. A file named `recorded_eeg.pkl` will be generated.
 
-Command to start the recording session: `python record_eeg.py --board-id <YOUR BOARD ID>`
+#### Some tips before starting
+ - make sure to take care of your surroundings, particularly matching as close as possible to where you would be using this.
+ - when thinking of an action, pick something that really stands out to you either visually or conceptually.
+ - its highly advised to have one action where you don't do anything at all. This is typically Action 0
 
-A new file `recorded_eeg.pkl` will be generated containing the session data.
+## Training the model
+1. Execute the command `python train.py`. This training part should take a few minutes.
+2. Once the training is done, a classification report and a window showing the error graph over time will be displayed.
+   - The graph should show the orange line closely following the blue line smoothly to zero. If it doesn't, either redo step 1 or redo the recording
+   - If the classification report shows numbers that aren't all that promising, redo the recording, taking care of the environment you are in.
+3. Close the window. A new file containing the model will be created: `shallow.keras`
 
-## Training
-Once the recording session is done, training can start. This involves: 
-- generate 1 second windows from the session data.
-- split the windows to train and validation sets.
-- preprocess and extract 1D features.
-- train the model.
-- validate trained model against the validation set.
-
-Command to start training: `python train.py`
-
-A new file `shallow.keras` will be generated, containing the CNN model.
-
-### Notes
-Baseline Accuracy - You will want to keep baseline as accurate as possible, since a false positive is worse than a false negative. Make sure that `1 recall` is at least comparable to the `f1-score accuracy`. If not, the model needs to be retrained.
-
-## Testing
-A test script is added to test out how well the model behaves in real time. The results will be displayed at 60hz refresh rate with an ema_decay of 1/60.
-
-Command to start testing: `python test.py --board-id <YOUR BOARD ID>`
-
-## Considerations
-
-I am blown away by how effective using Convolutional Neural Networks are with this. Wavelet transformations decompose signals into components that capture both frequency and time information. Stacking these rows of components from each channel creates something like an "image" where the "color" is determined by the component values. It's this spatial-like data that CNNs excel at understanding, finding frequency patterns over time and channel location.
-
-There is still work to be done in terms of thought categorization. While the model performs fairly well, it isn't generalized enough to differentiate between other thoughts that required active thinking and in the future will need more training data (ex. fireball vs waterball).
-
-Training sessions have been redone to get a better baseline.
-
-There are dropout layers in the model. If the model doesn't converge, train again as it may have settled on a local minimum.
-
-The model is inspired by the [Thin MobileNet Architecture](https://scholarworks.iupui.edu/server/api/core/bitstreams/a7fbc815-0f25-480a-bce1-0cb231238b66/content
-).
-
-I've made the model parallel, incorporating side by side Convolutional and Recurrent Neural Networks. That should capture both spatial and temporal features.
+## Testing the model
+1. Execute command `python test.py --board-id <YOUR BOARD ID>`
+2. The list of numbers that appear will correspond to actions. The zeroth action will be the first score, first action the second, and so on.
+3. Test here to see how well it works in realtime. If it doesn't feel satisfactory,either retrain or re-record.
 
 ## Usage with BFiVRC
-
-To use the model within VRChat, redo the depndency step, go through recording and training, then add the launch argument `--enable-intent` when running main
-
-The avatar variable name is `BFI/MLIntent/Action` which will give back a float of range [0, 1], which corresponds to the predicted probability you're thinking an action.
+To use the model within VRChat, add the launch argument `--enable-action` when running `main.py`. Here are the parameters that will be returned:
+- `BFI/MLIntent/Action<ID>` (float [0.0, 1.0]) : The score of an action with the index `<ID>`. The higher the score, the higher chance the model thinks you are thinking this action.
+- `BFI/MLIntent/Action` (int) : The action index of the action that has the highest score.

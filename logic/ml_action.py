@@ -1,13 +1,14 @@
 from model.intent.pipeline import Pipeline
 from logic.base_logic import BaseLogic
 import utils
+import numpy as np
 
 from brainflow.board_shim import BoardShim
 
 # imported so decorator can recognize loaded model
 from model.intent.model import CNNGRUModel
 
-class MLIntent(BaseLogic):
+class MLAction(BaseLogic):
     def __init__(self, board, ema_decay=1/60):
         super().__init__(board)
 
@@ -33,7 +34,11 @@ class MLIntent(BaseLogic):
 
         # smooth
         self.current_value = utils.smooth(self.current_value, target_value, self.ema_decay)
+        
+        # get action index with highest score
+        action_idx = np.argmax(self.current_value)
 
         # return as dictionary
-        ret_dict |= {'Action' : self.current_value}
+        ret_dict['Action'] = action_idx.item()
+        ret_dict |= {'Action{}'.format(i): value for i, value in enumerate(self.current_value.tolist())}
         return ret_dict

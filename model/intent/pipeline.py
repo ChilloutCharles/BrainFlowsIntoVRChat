@@ -2,7 +2,6 @@ import keras
 import os
 import numpy as np
 
-from brainflow.board_shim import BoardShim
 from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
 
 ## preprocess and extract features to be shared between train and test
@@ -33,5 +32,4 @@ class Pipeline:
         pp_data = preprocess_data(eeg_data, sampling_rate)
         ft_data = extract_features(pp_data)
         prediction_probs = self.classifier.predict(ft_data[None, ...], verbose=0)[0]
-        action_prob = prediction_probs[0].item()
-        return action_prob
+        return prediction_probs

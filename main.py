@@ -11,7 +11,7 @@ from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
-from logic.ml_intent import MLIntent
+from logic.ml_action import MLAction
 
 from reporters.osc_reporter import OSC_Reporter
 from reporters.debug_osc_reporter import Debug_Reporter
@@ -74,9 +74,9 @@ def main():
     parser.add_argument("--debug", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to toggle debug mode on')
 
-    # toggle to enable MLIntent
-    parser.add_argument("--enable-intent", type=bool, action=argparse.BooleanOptionalAction, 
-                        help='add this argument to enable ml intent logic')
+    # toggle to enable MLAction
+    parser.add_argument("--enable-action", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to enable ml action logic')
     
     args = parser.parse_args()
 
@@ -142,9 +142,9 @@ def main():
             heart_window_seconds = biometrics_logic.window_seconds
             startup_time = max(startup_time, heart_window_seconds)
         
-        ### Add ml intent to logics if enabled
-        if args.enable_intent:
-            logics.append(MLIntent(board, ema_decay=ema_decay * 5)) # sped up for good feels
+        ### Add ml action to logics if enabled
+        if args.enable_action:
+            logics.append(MLAction(board, ema_decay=ema_decay * 5)) # sped up for good feels
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
         board.start_stream(streamer_params=args.streamer_params)

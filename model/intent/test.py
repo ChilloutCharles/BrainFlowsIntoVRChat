@@ -64,13 +64,8 @@ def main():
 
         eeg_data = data[eeg_channels]
         target_value = pipeline.predict(eeg_data, sampling_rate)
-        target_value = np.round(target_value, 3)
-
         current_value = current_value * (1 - ema_value) + target_value * ema_value
-
-        string = "^" if current_value > 0.5 else "*"
-        visual = string * int(50 * current_value)
-        print("{:<10}{}".format(target_value, visual))
+        print(np.round(current_value, 3))
 
         time.sleep(1/60)
 

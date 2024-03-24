@@ -5,8 +5,10 @@ import numpy as np
 
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
+from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
+
 
 import matplotlib.pyplot as plt
 
@@ -32,20 +34,20 @@ def main():
         recorded_data = pickle.load(f)
 
     board_id = recorded_data['board_id']
-    intent_sessions = recorded_data['intent_data']
-    baseline_sessions = recorded_data['baseline_data']
     sampling_rate = BoardShim.get_sampling_rate(board_id)
     eeg_channels = BoardShim.get_eeg_channels(board_id)
 
-    ## get recording session data
-    intent_sessions = [data[eeg_channels] for data in intent_sessions]
-    baseline_sessions = [data[eeg_channels] for data in baseline_sessions]
-
+    action_dict = recorded_data['action_dict']
     window_size = int(1.0 * sampling_rate)
     overlap = int(window_size * 0.93)
 
-    intent_windows = np.concatenate([segment_data(session, window_size, overlap) for session in intent_sessions])
-    baseline_windows = np.concatenate([segment_data(session, window_size, overlap) for session in baseline_sessions])
+    def windows_from_datas(datas):
+        eegs = [data[eeg_channels] for data in datas]
+        windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
+        windows = np.concatenate(windows_per_session)
+        return windows
+    
+    action_windows = {k:windows_from_datas(datas) for k, datas in action_dict.items()}
 
     ## extract the features from the windows
     def process_windows(windows):
@@ -56,15 +58,12 @@ def main():
             feature_windows.append(features)
         return feature_windows
     
-    intent_features = process_windows(intent_windows)
-    baseline_features = process_windows(baseline_windows)
+    processed_windows = {k:process_windows(windows) for k, windows in action_windows.items()}
     
     ## create train and test sets and labels
-    base_label = [0, 1]
-    intent_label = [1, 0]
-
-    X = np.array(baseline_features + intent_features)
-    y = np.array([base_label]*len(baseline_features) + [intent_label]*len(intent_features))
+    indices = np.concatenate([[k] * len(v) for k, v in processed_windows.items()])
+    X = np.concatenate(list(processed_windows.values()))
+    y = to_categorical(indices, num_classes=len(processed_windows))
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, shuffle=True)
 
     ## Compile the model
