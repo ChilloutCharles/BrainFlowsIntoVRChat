@@ -1,4 +1,6 @@
-*.ml
+**/*.keras
 *.data
 **/*.pyc
 *.bat
+**/*.pkl
+**/dataset/

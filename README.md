@@ -2,6 +2,8 @@
 
 This is a BrainFlow implementation of my [bci-workshop fork](https://github.com/ChilloutCharles/bci-workshop) that sends your brain's relaxation and focus metrics, and power values based on the common frequency bands used in EEG measuements, for left, right and both sides of the head. Additional support for heart rate and respiration is available when supported by your hardware.
 
+**NEW**: Added logic to read actions off of your brainwaves using machine learning. Read the README.md in the `model/intent` directory for more information.
+
 ## Why BrainFlow?
 
 The [BrainFlow](https://BrainFlow.org) library provides a uniform API that is device agnostic, allowing this implementation of my workshop fork to work for all [supported biosensors](https://BrainFlow.readthedocs.io/en/stable/SupportedBoards.html) (including the muse headbands). No extra software needed!
@@ -55,23 +57,23 @@ BFI:
     - RelaxAvgPos [float]
   PwrBands:
     Left:
-      - Alpha [float]
+      - Gamma [float]
       - Beta [float]
+      - Alpha [float]
       - Theta [float]
       - Delta [float]
-      - Gamma [float]
     Right:
-      - Alpha [float]
+      - Gamma [float]
       - Beta [float]
+      - Alpha [float]
       - Theta [float]
       - Delta [float]
-      - Gamma [float]
     Avg:
-      - Alpha [float]
+      - Gamma [float]
       - Beta [float]
+      - Alpha [float]
       - Theta [float]
       - Delta [float]
-      - Gamma [float]
   Addons:
     - Hueshift [float 0-1]
   Biometrics:
@@ -202,6 +204,7 @@ Thanks to
 - [@Mitzi_DelverVRC](https://twitter.com/Mitzi_DelverVRC) and [AartHark](https://github.com/AartHauk) for help with PPG signal work.
 - [@wordweaver1001](https://twitter.com/wordweaver1001) for intial user testing.
 - [AtriusX](https://github.com/AtriusX) for helping create a parameter schema.
+- [Hosomi](https://twitter.com/FakeHosomi), [Eni](https://github.com/eni-808), [AtriusX](https://github.com/AtriusX), [Rantis](https://github.com/RantiMess) for development and testing of the action classification model and integration.
 
 ## Troubleshooting
 - I have broken Bluetooth adapter built into my pc and I would like to use a dongle instead. How can I connect my headband to that dongle?
