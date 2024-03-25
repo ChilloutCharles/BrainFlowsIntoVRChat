@@ -9,7 +9,7 @@ import keras
 
 @keras.saving.register_keras_serializable()
 class CNNGRUModel(Model):
-    def __init__(self, **kwargs):
+    def __init__(self, classes, **kwargs):
         super(CNNGRUModel, self).__init__(**kwargs)
         
         # CNN branch
@@ -31,7 +31,7 @@ class CNNGRUModel(Model):
         # Fully connected layer
         self.fc = Sequential()
         self.fc.add(Dropout(0.1))
-        self.fc.add(Dense(2, activation='softmax'))
+        self.fc.add(Dense(classes, activation='softmax'))
         
     def call(self, inputs):
         x_cnn = self.cnn(inputs)

@@ -67,7 +67,7 @@ def main():
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, shuffle=True)
 
     ## Compile the model
-    model = CNNGRUModel()
+    model = CNNGRUModel(len(processed_windows))
     model.compile(optimizer=Adam(learning_rate=0.001/2), loss='categorical_crossentropy')
 
     # Set up EarlyStopping
