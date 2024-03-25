@@ -74,9 +74,11 @@ def main():
     parser.add_argument("--debug", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to toggle debug mode on')
 
-    # toggle to enable MLAction
+    # arguments to configure MLAction
     parser.add_argument("--enable-action", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to enable ml action logic')
+    parser.add_argument("--action-ema-multiplier", type=float, required=False, default=5.0,
+                        help='multiplier to speed up or slow down the reactiveness of ml action logic')
     
     args = parser.parse_args()
 
@@ -144,7 +146,7 @@ def main():
         
         ### Add ml action to logics if enabled
         if args.enable_action:
-            logics.append(MLAction(board, ema_decay=ema_decay * 5)) # sped up for good feels
+            logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier))
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
         board.start_stream(streamer_params=args.streamer_params)

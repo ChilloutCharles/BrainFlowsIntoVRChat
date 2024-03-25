@@ -1,5 +1,5 @@
 # Action Classification
-This folder contains the code needed to record, train, and test a machine learning model that will predict a set of actions from your brainwaves. To go over the development details, read the `Notes.md` file.
+This folder contains the code needed to record, train, and test a machine learning model that will predict a single action from a set of actions from your brainwaves.
 
 ## Prerequisites
 1. Rerun this command at the base directory to install needed depedencies: `python -m pip install -r requirements.txt`
@@ -26,9 +26,11 @@ This folder contains the code needed to record, train, and test a machine learni
 ## Testing the model
 1. Execute command `python test.py --board-id <YOUR BOARD ID>`
 2. The list of numbers that appear will correspond to actions. The zeroth action will be the first score, first action the second, and so on.
-3. Test here to see how well it works in realtime. If it doesn't feel satisfactory,either retrain or re-record.
+3. The last number will correspond to the action index with the highest score.
+4. Test here to see how well it works in realtime. If it doesn't feel satisfactory,either retrain or re-record.
 
 ## Usage with BFiVRC
-To use the model within VRChat, add the launch argument `--enable-action` when running `main.py`. Here are the parameters that will be returned:
+To use the model within VRChat, add the launch argument `--enable-action` when running `main.py`. You can adjust how reactive the model is by adding another launch argument `--action-ema-multiplier <multiplier>`, where `<multiplier>` is defaulted to 5.0
+Here are the parameters that will be returned:
 - `BFI/MLAction/Action<ID>` (float [0.0, 1.0]) : The score of an action with the index `<ID>`. The higher the score, the higher chance the model thinks you are thinking this action. Example: `BFI/MLAction/Action7`
 - `BFI/MLAction/Action` (int) : The action index of the action that has the highest score.
