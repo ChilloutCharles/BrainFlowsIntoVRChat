@@ -3,7 +3,7 @@ from constants import BAND_POWERS
 import utils
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes
+from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
 
 import re
 import numpy as np
@@ -42,6 +42,7 @@ class PwrBands(BaseLogic):
         for eeg_chan in self.eeg_channels:
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
             DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
+            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5)
         
         # calculate band features for left, right, and overall
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)
