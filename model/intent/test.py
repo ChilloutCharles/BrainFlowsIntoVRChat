@@ -69,7 +69,8 @@ def main():
         eeg_data = data[eeg_channels]
         target_value = pipeline.predict(eeg_data, sampling_rate)
         current_value = current_value * (1 - ema_value) + target_value * ema_value
-        print(np.round(current_value, 3))
+        action_idx = np.argmax(current_value)
+        print(np.round(current_value, 3), action_idx)
 
         time.sleep(1/60)
 
