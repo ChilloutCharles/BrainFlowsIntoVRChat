@@ -3,7 +3,7 @@ from constants import BAND_POWERS
 import utils
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletDenoisingTypes, WaveletTypes
+from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
 
 import re
 import numpy as np
