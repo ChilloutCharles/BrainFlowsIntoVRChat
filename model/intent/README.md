@@ -30,5 +30,5 @@ This folder contains the code needed to record, train, and test a machine learni
 
 ## Usage with BFiVRC
 To use the model within VRChat, add the launch argument `--enable-action` when running `main.py`. Here are the parameters that will be returned:
-- `BFI/MLIntent/Action<ID>` (float [0.0, 1.0]) : The score of an action with the index `<ID>`. The higher the score, the higher chance the model thinks you are thinking this action. Example: `BFI/MLIntent/Action7`
-- `BFI/MLIntent/Action` (int) : The action index of the action that has the highest score.
+- `BFI/MLAction/Action<ID>` (float [0.0, 1.0]) : The score of an action with the index `<ID>`. The higher the score, the higher chance the model thinks you are thinking this action. Example: `BFI/MLAction/Action7`
+- `BFI/MLAction/Action` (int) : The action index of the action that has the highest score.
