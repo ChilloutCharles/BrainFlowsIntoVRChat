@@ -4,7 +4,10 @@ import pickle
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
-window_seconds = 10
+WINDOW_SECONDS = 7
+BUFFER_SECONDS = 1
+SAVE_FILENAME = 'recorded_eeg'
+SAVE_EXTENSION = '.pkl'
 
 def main():
     parser = argparse.ArgumentParser()
@@ -41,7 +44,7 @@ def main():
     params.file = args.file
 
     action_count = args.actions
-    sesesion_count = args.sessions
+    session_count = args.sessions
 
     ### Board Id selection ###
     try:
@@ -52,12 +55,12 @@ def main():
     board = BoardShim(master_board_id, params)
 
     sampling_rate = BoardShim.get_sampling_rate(master_board_id)
-    sampling_size = sampling_rate * window_seconds
+    sampling_size = sampling_rate * WINDOW_SECONDS
 
     action_dict = {action_idx:[] for action_idx in range(action_count)}
     record_data = {
         "board_id" : master_board_id,
-        "window_seconds" : window_seconds
+        "window_seconds" : WINDOW_SECONDS
     }
 
     board.prepare_session()
@@ -68,11 +71,11 @@ def main():
     print("Get ready in {} seconds".format(wait_seconds))
     time.sleep(wait_seconds)
 
-    for i in action_dict:
-        for _ in range(sesesion_count):
+    for _ in range(session_count):
+        for i in action_dict:
             input("Ready to record action {}. Press enter to continue".format(i))
-            print("Think Action {} for {} seconds".format(i, window_seconds))
-            time.sleep(window_seconds + 1)
+            print("Think Action {} for {} seconds".format(i, WINDOW_SECONDS + BUFFER_SECONDS))
+            time.sleep(WINDOW_SECONDS + BUFFER_SECONDS)
             data = board.get_current_board_data(sampling_size)
             action_dict[i].append(data)
     record_data["action_dict"] = action_dict
