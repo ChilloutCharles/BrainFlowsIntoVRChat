@@ -34,11 +34,10 @@ def segment_data(eeg_data, samples_per_window, overlap=0):
 
 def main():
     # Load and merge recorded data details of all present data files
-    # This code based off https://github.com/open-mmlab/mmaction2/issues/1431
-    # I removed the part that dumps the result. This is unoptimized for repeated trainings of large filesets. Which is rare?
+    # .pkl file merging code based off https://github.com/open-mmlab/mmaction2/issues/1431
+    # This is unoptimized for repeated trainings of large filesets. But that is rare.
     
-    # Start off by getting header data from the first file
-    print("Getting header information...")
+    # Start off by getting data from the first file
     with open( SAVE_FILENAME + SAVE_EXTENSION, 'rb') as f:
         initial_data = pickle.load(f)
         recorded_data = {
@@ -48,7 +47,7 @@ def main():
         }
         action_count = len( initial_data['action_dict'] )
     
-    # Then get the main data from all of them
+    # Then get the action_dict from all of them
     print("Finding data files...")
     for d in os.listdir():
         if d.endswith( SAVE_EXTENSION ):
@@ -60,6 +59,7 @@ def main():
                 current_data = pickle.load(f)
             action_dict = current_data['action_dict']
 
+            # Check the number of actions recorded, and give an error if they are different than the first file
             current_actions = len( action_dict )
             if( current_actions !=  action_count ):
                 # TODO: Use proper string formatting instead of concatenation?
@@ -72,7 +72,7 @@ def main():
                 continue
             
             for i in range( action_count ):
-                # This should coincide with a mismatched action count warning
+                # This creates a new entry in the action_dict. This should coincide with a warning in the console
                 if( not action_dict.get(i) ):
                     action_dict[i] = []
                     
