@@ -1,4 +1,5 @@
 import pickle
+import os
 
 from brainflow.board_shim import BoardShim
 import numpy as np
@@ -15,6 +16,9 @@ import matplotlib.pyplot as plt
 from model import CNNGRUModel
 from pipeline import preprocess_data, extract_features
 
+SAVE_FILENAME = "recorded_eeg"
+SAVE_EXTENSION = ".pkl"
+
 ## helper function to generate windows
 def segment_data(eeg_data, samples_per_window, overlap=0):
     _, total_samples = eeg_data.shape
@@ -29,17 +33,59 @@ def segment_data(eeg_data, samples_per_window, overlap=0):
     return np.array(windows)
 
 def main():
-    ## load recorded data details
-    with open("recorded_eeg.pkl", "rb") as f:
-        recorded_data = pickle.load(f)
+    # Load and merge recorded data details of all present data files
+    # This code based off https://github.com/open-mmlab/mmaction2/issues/1431
+    # I removed the part that dumps the result. This is unoptimized for repeated trainings of large filesets. Which is rare?
+    
+    # Start off by getting header data from the first file
+    print("Getting header information...")
+    with open( SAVE_FILENAME + SAVE_EXTENSION, 'rb') as f:
+        initial_data = pickle.load(f)
+        recorded_data = {
+            'board_id'       : initial_data['board_id'],
+            'window_seconds' : initial_data['window_seconds'],
+            'action_dict'    : initial_data['action_dict']
+        }
+        action_count = len( initial_data['action_dict'] )
+    
+    # Then get the main data from all of them
+    print("Finding data files...")
+    for d in os.listdir():
+        if d.endswith( SAVE_EXTENSION ):
+            print( "Opening " + d + "..." )
+            
+            # Get data from file
+            current_data = {}
+            with open( d, 'rb') as f:
+                current_data = pickle.load(f)
+            action_dict = current_data['action_dict']
 
-    board_id = recorded_data['board_id']
+            current_actions = len( action_dict )
+            if( current_actions !=  action_count ):
+                # TODO: Use proper string formatting instead of concatenation?
+                print("Warning: the amount of actions in " + d + " (" + str(current_actions) + ")" + " is different than the actions in " + SAVE_FILENAME + SAVE_EXTENSION + " (" + str(action_count)  + "). Did you mean to include this data?")
+
+            # Go action by action and combine the data
+            
+            # Ignore the first file, it was added already
+            if( d == SAVE_FILENAME + SAVE_EXTENSION ):
+                continue
+            
+            for i in range( action_count ):
+                # This should coincide with a mismatched action count warning
+                if( not action_dict.get(i) ):
+                    action_dict[i] = []
+                    
+                for action in action_dict[i]:
+                    recorded_data['action_dict'][i].append( action )
+        
+    board_id      = recorded_data['board_id']
     sampling_rate = BoardShim.get_sampling_rate(board_id)
-    eeg_channels = BoardShim.get_eeg_channels(board_id)
+    eeg_channels  = BoardShim.get_eeg_channels(board_id)
 
-    action_dict = recorded_data['action_dict']
-    window_size = int(1.0 * sampling_rate)
-    overlap = int(window_size * 0.93)
+    action_dict   = recorded_data['action_dict']
+    window_size   = int(1.0 * sampling_rate)
+    overlap       = int(window_size * 0.93)
 
     def windows_from_datas(datas):
         eegs = [data[eeg_channels] for data in datas]
