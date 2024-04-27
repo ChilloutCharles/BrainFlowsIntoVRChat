@@ -5,8 +5,8 @@ import os
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
-WINDOW_SECONDS = 7
-BUFFER_SECONDS = 1
+WINDOW_SECONDS = 10
+BUFFER_SECONDS = 2
 SAVE_FILENAME = 'recorded_eeg'
 SAVE_EXTENSION = '.pkl'
 
