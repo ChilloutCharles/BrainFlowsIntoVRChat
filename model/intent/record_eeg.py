@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--actions',        type=int, required=True,              help='number of actions to record')
     parser.add_argument('--sessions',       type=int, required=False, default=2,  help='number of sessions per action to record')
     parser.add_argument('--window-length',  type=int, required=False, default=10, help='length in seconds of eeg data pulled per session')
-    parser.add_argument('--window-buffer',  type=int, required=False, default=2,  help='length in seconds before eeg data is recorded each session')
+    parser.add_argument('--window-buffer',  type=int, required=False, default=2,  help='time in seconds before eeg data is recorded each session (delay after hitting enter)')
     parser.add_argument('--overwrite',      type=int, required=False, default=1,  help='1 to overwrite/remove old recordings, 0 to add results as an additional data file')
     parser.add_argument('--board-id',       type=str, required=True,              help='board id or name, check docs to get a list of supported boards. mu_02 is MUSE_2016_BOARD')
     args = parser.parse_args()
