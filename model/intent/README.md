@@ -5,7 +5,7 @@ This folder contains the code needed to record, train, and test a machine learni
 1. Rerun this command at the base directory to install needed depedencies: `python -m pip install -r requirements.txt`
 
 ## Recording your Brainwaves
-1. Determine the amount of actions you'd like to record (optional: sessions per action. Default is 2)
+1. Determine the amount of actions you'd like to record
 2. Determine the board id or name of your headband
 3. Within this directory, execute this command 
    - `python record_eeg.py --board-id <YOUR BOARD ID> --actions <ACTION COUNT>`
