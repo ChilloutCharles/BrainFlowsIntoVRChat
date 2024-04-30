@@ -15,8 +15,9 @@ This folder contains the code needed to record, train, and test a machine learni
       - `--window-buffer`  time in seconds before eeg data is recorded each session (delay after hitting enter)   (Default: 2)
 4. Follow on screen commands to completion. A file named `recorded_eeg.pkl` will be generated.
 
- * You may record multiple training sessions using the `--overwrite 0` argument. This disables overwriting any `.pkl` files, and will instead name them something else (`recorded_eeg1.pkl`, `recorded_eeg2.pkl`, etc.) 
- * By default this is set to 1, meaning that any `.pkl` files that exist will be deleted and replaced with the results from that session.
+* You may record multiple training sessions using the `--overwrite 0` argument. This disables overwriting any `.pkl` files, and will instead name them something else (`recorded_eeg1.pkl`, `recorded_eeg2.pkl`, etc.) 
+   * This means that you can combine several training sessions worth of data when training the model.
+* By default this is set to 1, meaning that any `.pkl` files that exist will be deleted and replaced with the results from that session.
 
 #### Some tips before starting
  - make sure to take care of your surroundings, particularly matching as close as possible to where you would be using this.
