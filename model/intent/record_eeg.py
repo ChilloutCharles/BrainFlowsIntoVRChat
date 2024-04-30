@@ -5,8 +5,6 @@ import os
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
-WINDOW_SECONDS = 10
-BUFFER_SECONDS = 2
 SAVE_FILENAME = 'recorded_eeg'
 SAVE_EXTENSION = '.pkl'
 
@@ -24,6 +22,8 @@ def main():
     parser.add_argument('--file',           type=str, required=False, default='', help='file',)
     parser.add_argument('--actions',        type=int, required=True,              help='number of actions to record')
     parser.add_argument('--sessions',       type=int, required=False, default=2,  help='number of sessions per action to record')
+    parser.add_argument('--window-length',  type=int, required=False, default=10, help='length in seconds of eeg data pulled per session')
+    parser.add_argument('--window-buffer',  type=int, required=False, default=2,  help='length in seconds before eeg data is recorded each session')
     parser.add_argument('--overwrite',      type=int, required=False, default=1,  help='1 to overwrite/remove old recordings, 0 to add results as an additional data file')
     parser.add_argument('--board-id',       type=str, required=True,              help='board id or name, check docs to get a list of supported boards. mu_02 is MUSE_2016_BOARD')
     args = parser.parse_args()
@@ -41,6 +41,8 @@ def main():
 
     action_count = args.actions
     session_count = args.sessions
+    window_length = args.window_length
+    window_buffer = args.window_buffer
     
     doOverwrite = True if args.overwrite == 1 else False
 
@@ -53,12 +55,12 @@ def main():
     board = BoardShim(master_board_id, params)
 
     sampling_rate = BoardShim.get_sampling_rate(master_board_id)
-    sampling_size = sampling_rate * WINDOW_SECONDS
+    sampling_size = sampling_rate * window_length
 
     action_dict = {action_idx:[] for action_idx in range(action_count)}
     record_data = {
         "board_id" : master_board_id,
-        "window_seconds" : WINDOW_SECONDS
+        "window_seconds" : window_length
     }
 
     board.prepare_session()
@@ -72,8 +74,8 @@ def main():
     for _ in range(session_count):
         for i in action_dict:
             input("Ready to record action {}. Press enter to continue".format(i))
-            print("Think Action {} for {} seconds".format(i, WINDOW_SECONDS + BUFFER_SECONDS))
-            time.sleep(WINDOW_SECONDS + BUFFER_SECONDS)
+            print("Think Action {} for {} seconds".format(i, window_length + window_buffer))
+            time.sleep(window_length + window_buffer)
             data = board.get_current_board_data(sampling_size)
             action_dict[i].append(data)
     record_data["action_dict"] = action_dict
