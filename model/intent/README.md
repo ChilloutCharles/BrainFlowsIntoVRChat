@@ -9,7 +9,7 @@ This folder contains the code needed to record, train, and test a machine learni
 2. Determine the board id or name of your headband
 3. Within this directory, execute this command 
    - `python record_eeg.py --board-id <YOUR BOARD ID> --actions <ACTION COUNT>`
-   - optional arguments
+   - optional arguments:
       - `--sessions`       number of sessions per action to record   (Default: 2)
       - `--window-length`  length in seconds of eeg data pulled per session   (Default: 10)
       - `--window-buffer`  time in seconds before eeg data is recorded each session (delay after hitting enter)   (Default: 2)
