@@ -10,14 +10,14 @@ This folder contains the code needed to record, train, and test a machine learni
 3. Within this directory, execute this command 
    - `python record_eeg.py --board-id <YOUR BOARD ID> --actions <ACTION COUNT>`
    - optional arguments
-      - `--sessions`       number of sessions per action to record
-      - `--window-length`  length in seconds of eeg data pulled per session
-      - `--window-buffer`  time in seconds before eeg data is recorded each session (delay after hitting enter)
+      - `--sessions`       number of sessions per action to record   (Default: 2)
+      - `--window-length`  length in seconds of eeg data pulled per session   (Default: 10)
+      - `--window-buffer`  time in seconds before eeg data is recorded each session (delay after hitting enter)   (Default: 2)
 4. Follow on screen commands to completion. A file named `recorded_eeg.pkl` will be generated.
 
  * You may record multiple training sessions using the `--overwrite 0` argument. This disables overwriting any `.pkl` files, and will instead name them something else (`recorded_eeg1.pkl`, `recorded_eeg2.pkl`, etc.) 
- * By default it is set to 1, meaning that any `.pkl` files that exist will be deleted and replaced with the results from that session.
- 
+ * By default this is set to 1, meaning that any `.pkl` files that exist will be deleted and replaced with the results from that session.
+
 #### Some tips before starting
  - make sure to take care of your surroundings, particularly matching as close as possible to where you would be using this.
  - when thinking of an action, pick something that really stands out to you either visually or conceptually.
