@@ -59,11 +59,12 @@ def main():
                 current_data = pickle.load(f)
             action_dict = current_data['action_dict']
 
-            # Check the number of actions recorded, and give an error if they are different than the first file
+            # Check the number of actions recorded, and give a warning and option to continue if they are different than the first file
             current_actions = len( action_dict )
             if( current_actions !=  action_count ):
-                # TODO: Use proper string formatting instead of concatenation?
-                print("Warning: the amount of actions in " + d + " (" + str(current_actions) + ")" + " is different than the actions in " + SAVE_FILENAME + SAVE_EXTENSION + " (" + str(action_count)  + "). Did you mean to include this data?")
+                warning_option = input("WARNING! The amount of current actions ({}) is different than actions in {} ({}). Would you like to continue including this data? (Y/n)".format(action_count, d, current_actions))
+                if warning_option != 'Y':
+                    exit()
 
             # Go action by action and combine the data
             
