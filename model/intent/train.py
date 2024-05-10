@@ -38,30 +38,30 @@ def main():
     # This is unoptimized for repeated trainings of large filesets. But that is rare.
     
     # Start off by getting data from the first file
-    with open( SAVE_FILENAME + SAVE_EXTENSION, 'rb') as f:
+    with open(SAVE_FILENAME + SAVE_EXTENSION, 'rb') as f:
         initial_data = pickle.load(f)
         recorded_data = {
-            'board_id'       : initial_data['board_id'],
+            'board_id' : initial_data['board_id'],
             'window_seconds' : initial_data['window_seconds'],
-            'action_dict'    : initial_data['action_dict']
+            'action_dict' : initial_data['action_dict']
         }
-        action_count = len( initial_data['action_dict'] )
+        action_count = len(initial_data['action_dict'])
     
     # Then get the action_dict from all of them
     print("Finding data files...")
     for d in os.listdir():
-        if d.endswith( SAVE_EXTENSION ):
-            print( "Opening " + d + "..." )
+        if d.endswith(SAVE_EXTENSION):
+            print("Opening " + d + "...")
             
             # Get data from file
             current_data = {}
-            with open( d, 'rb') as f:
+            with open(d, 'rb') as f:
                 current_data = pickle.load(f)
             action_dict = current_data['action_dict']
 
             # Check the number of actions recorded, and give a warning and option to continue if they are different than the first file
-            current_actions = len( action_dict )
-            if( current_actions !=  action_count ):
+            current_actions = len(action_dict)
+            if(current_actions !=  action_count):
                 warning_option = input("WARNING! The amount of current actions ({}) is different than actions in {} ({}). Would you like to continue including this data? (Y/n)".format(action_count, d, current_actions))
                 if warning_option != 'Y':
                     exit()
@@ -69,24 +69,24 @@ def main():
             # Go action by action and combine the data
             
             # Ignore the first file, it was added already
-            if( d == SAVE_FILENAME + SAVE_EXTENSION ):
+            if(d == SAVE_FILENAME + SAVE_EXTENSION):
                 continue
             
-            for i in range( action_count ):
+            for i in range(action_count):
                 # This creates a new entry in the action_dict. This should coincide with a warning in the console
-                if( not action_dict.get(i) ):
+                if(not action_dict.get(i)):
                     action_dict[i] = []
                     
                 for action in action_dict[i]:
-                    recorded_data['action_dict'][i].append( action )
+                    recorded_data['action_dict'][i].append(action)
         
-    board_id      = recorded_data['board_id']
+    board_id = recorded_data['board_id']
     sampling_rate = BoardShim.get_sampling_rate(board_id)
-    eeg_channels  = BoardShim.get_eeg_channels(board_id)
+    eeg_channels = BoardShim.get_eeg_channels(board_id)
 
-    action_dict   = recorded_data['action_dict']
-    window_size   = int(1.0 * sampling_rate)
-    overlap       = int(window_size * 0.93)
+    action_dict = recorded_data['action_dict']
+    window_size = int(1.0 * sampling_rate)
+    overlap = int(window_size * 0.93)
 
     def windows_from_datas(datas):
         eegs = [data[eeg_channels] for data in datas]
