@@ -66,7 +66,7 @@ def main():
     board.prepare_session()
     board.start_stream()
 
-    # 1. wait 5 seconds before starting
+    # Wait 5 seconds before starting
     wait_seconds = 2
     print("Get ready in {} seconds".format(wait_seconds))
     time.sleep(wait_seconds)
@@ -80,7 +80,7 @@ def main():
             action_dict[i].append(data)
     record_data["action_dict"] = action_dict
 
-    # save record data
+    # Save record data
     print("Saving Data")
     
     # If overwriting, delete any file with a .pkl extension
