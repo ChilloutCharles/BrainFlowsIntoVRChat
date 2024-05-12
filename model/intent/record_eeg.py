@@ -44,7 +44,7 @@ def main():
     window_length = args.window_length
     window_buffer = args.window_buffer
     
-    doOverwrite = True if args.overwrite == 1 else False
+    doOverwrite = args.overwrite == 1
 
     ### Board Id selection ###
     try:
@@ -91,7 +91,7 @@ def main():
         current_filename = create_filename(current_number)
             
         if(not os.path.isfile(current_filename)):
-            break;
+            break
         
         if(doOverwrite):
             os.remove(current_filename)
