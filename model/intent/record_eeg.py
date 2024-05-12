@@ -83,21 +83,25 @@ def main():
     # save record data
     print("Saving Data")
     
-    # Iterate over any existant save files, deleting them if doOverwrite is True
-    current_number = 0;
-    while(True):
-        
-        # Create the filenames that may exist in the directory, starting with record_eeg.pkl, then record_eeg1.pkl, etc.
-        current_filename = create_filename(current_number)
+    # If overwriting, delete any file with a .pkl extension
+    if(doOverwrite):
+        for d in os.listdir:
+            if SAVE_EXTENSION in d:
+                os.rmdir(d)
+        filename_target = SAVE_FILENAME + SAVE_EXTENSION
+    else:  
+        # If not overwriting, find the next available filename
+        current_number = 0;  
+        while(True):
             
-        if(not os.path.isfile(current_filename)):
-            break
-        
-        if(doOverwrite):
-            os.remove(current_filename)
-        current_number += 1
+            # Create the filenames that may exist in the directory, starting with record_eeg.pkl, then record_eeg1.pkl, etc.
+            current_filename = create_filename(current_number)
+                
+            if(not os.path.isfile(current_filename)):
+                break
+            current_number += 1
+        filename_target = current_filename
     
-    filename_target = SAVE_FILENAME + SAVE_EXTENSION if doOverwrite else current_filename
     with open(filename_target, 'wb') as f:
         pickle.dump(record_data, f)
     
