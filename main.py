@@ -1,10 +1,9 @@
 import argparse
 import time
-import constants
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, BoardIds
 from brainflow.data_filter import DataFilter
-from brainflow.exit_codes import BrainFlowError
+from brainflow.exit_codes import BrainFlowError, BrainFlowExitCodes
 
 from logic.telemetry import Info
 from logic.power_bands import PwrBands
@@ -155,53 +154,60 @@ def main():
 
         return board, logics, refresh_rate_hz
 
-    try:
-        # Initialize board and logics
-        board, logics, refresh_rate_hz = BoardInit(args)
+    while True:
+        try:
+            # Initialize board and logics
+            board, logics, refresh_rate_hz = BoardInit(args)
+            break
+        except KeyboardInterrupt:
+            BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
+            return
+        except BrainFlowError as board_init_error:
+            if board_init_error.exit_code == BrainFlowExitCodes.BOARD_NOT_READY_ERROR:
+                BoardShim.log_message(LogLevels.LEVEL_WARN.value, 'Board not ready, retrying...')
 
-        while True:
-            try:
-                # get execution start time for time delay
-                start_time = time.time()
-                
-                # Execute all logic
-                BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Execute all Logic")
-                data_dict = {type(logic).__name__ : logic.get_data_dict() for logic in logics}
+    while True:
+        try:
+            # get execution start time for time delay
+            start_time = time.time()
+            
+            # Execute all logic
+            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Execute all Logic")
+            data_dict = {type(logic).__name__ : logic.get_data_dict() for logic in logics}
 
-                # Send messages from executed logic
-                BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
-                send_pairs = reporter.send(data_dict)
-                for param_path, param_value in send_pairs:
-                    BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
-                
-                # sleep based on refresh_rate
-                BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
-                execution_time = time.time() - start_time
-                sleep_time = 1.0 / refresh_rate_hz - execution_time
-                sleep_time = sleep_time if sleep_time > 0 else 0
-                time.sleep(sleep_time)
+            # Send messages from executed logic
+            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sending")
+            send_pairs = reporter.send(data_dict)
+            for param_path, param_value in send_pairs:
+                BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "{}:\t{:.3f}".format(param_path, param_value))
+            
+            # sleep based on refresh_rate
+            BoardShim.log_message(LogLevels.LEVEL_DEBUG.value, "Sleeping")
+            execution_time = time.time() - start_time
+            sleep_time = 1.0 / refresh_rate_hz - execution_time
+            sleep_time = sleep_time if sleep_time > 0 else 0
+            time.sleep(sleep_time)
 
-            except TimeoutError as e:
-                # display disconnect and release old session
-                reporter.send({Info.__name__ : {Info.CONNECTED:False}})
-                board.release_session()
+        except TimeoutError as e:
+            # display disconnect and release old session
+            reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+            board.release_session()
 
-                BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
+            BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Biosensor board error: ' + str(e))
 
-                # attempt reinitialize 3 times
-                for i in range(args.retry_count):
-                    try: 
-                        board, logics, refresh_rate_hz = BoardInit(args)
-                        break
-                    except BrainFlowError as e:
-                        BoardShim.log_message(LogLevels.LEVEL_ERROR.value, 'Retry {} Biosensor board error: {}'.format(i, str(e)))
-
-    except KeyboardInterrupt:
-        BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
-        board.stop_stream()
-    finally:
-        reporter.send({Info.__name__ : {Info.CONNECTED:False}})
-        board.release_session()
+            # attempt reinitialize 3 times
+            for i in range(args.retry_count):
+                try: 
+                    board, logics, refresh_rate_hz = BoardInit(args)
+                    break
+                except BrainFlowError as e:
+                    BoardShim.log_message(LogLevels.LEVEL_ERROR.value, 'Retry {} Biosensor board error: {}'.format(i, str(e)))
+        except KeyboardInterrupt:
+            BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Shutting down')
+            board.stop_stream()
+        finally:
+            reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+            board.release_session()
 
 
 if __name__ == "__main__":
