@@ -22,8 +22,9 @@ def enable_loggers():
     DataFilter.enable_data_logger()
 
 def parse_args() -> argparse.Namespace:
-### Paramater Setting ###
+    ### Paramater Setting ###
     parser = argparse.ArgumentParser()
+
     # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
     parser.add_argument('--timeout', type=int, help='timeout for device discovery or connection', required=False,
                         default=0)
@@ -174,8 +175,9 @@ def main():
     
     ### Reporter Setup ###
     reporter = setup_reporter(args)
+    #endregion Configure
 
-    #region init
+    #region Init
     max_retries = args.retry_count
     while True:
         try:
@@ -192,8 +194,9 @@ def main():
             else:
                 BoardShim.log_message(LogLevels.LEVEL_ERROR.value, f'Biosensor board error: {board_init_error}')
                 return
+    #endregion init
 
-    #region main loop
+    #region Main loop
     try:
         while True:
             # get execution start time for time delay
@@ -228,6 +231,7 @@ def main():
     finally:
         reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
+    #endregion Main loop
 
 
 if __name__ == "__main__":
