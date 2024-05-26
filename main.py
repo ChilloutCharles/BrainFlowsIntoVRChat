@@ -177,6 +177,11 @@ def main():
     reporter = setup_reporter(args)
     #endregion Configure
 
+    main_loop(args, reporter)
+
+
+def main_loop(args: argparse.Namespace, reporter: Reporter):
+
     #region Init
     max_retries = args.retry_count
     while True:
@@ -221,13 +226,17 @@ def main():
             
     except TimeoutError as e:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, f'Biosensor board error: {e}')
+        reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+        board.release_session()
+
+        return main_loop(args, reporter) # Reconnect and resume operation
     except KeyboardInterrupt:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Received interrupt signal! Shutting down...')
         board.stop_stream()
-    finally:
-        # display disconnect and release old session
-        reporter.send({Info.__name__ : {Info.CONNECTED:False}})
-        board.release_session()
+    
+    # display disconnect and release old session
+    reporter.send({Info.__name__ : {Info.CONNECTED:False}})
+    board.release_session()
     #endregion Main loop
 
 
