@@ -220,15 +220,12 @@ def main():
             time.sleep(sleep_time)
             
     except TimeoutError as e:
-        # display disconnect and release old session
-        reporter.send({Info.__name__ : {Info.CONNECTED:False}})
-        board.release_session()
-
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, f'Biosensor board error: {e}')
     except KeyboardInterrupt:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Received interrupt signal! Shutting down...')
         board.stop_stream()
     finally:
+        # display disconnect and release old session
         reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
     #endregion Main loop
