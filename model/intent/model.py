@@ -1,49 +1,69 @@
-from keras.models import Model, Sequential
-from keras.layers import GRU, SeparableConv1D, GlobalAveragePooling1D, BatchNormalization, Dense, Dropout, concatenate
+import tensorflow as tf
 import keras
 
-## Define the model
-# cnn branch inspired by thin mobilenet 
-# https://scholarworks.iupui.edu/server/api/core/bitstreams/a7fbc815-0f25-480a-bce1-0cb231238b66/content
-# adding GRU branch to have temporal details
+from keras.models import Sequential
+from keras.layers import Dense, MaxPooling1D, Activation, Flatten, Layer, Multiply, BatchNormalization
+from keras.layers import SeparableConv1D, Conv1D, UpSampling1D, Conv1DTranspose, UpSampling1D, AveragePooling1D, GlobalAveragePooling1D
 
+## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
-class CNNGRUModel(Model):
-    def __init__(self, classes, **kwargs):
-        super(CNNGRUModel, self).__init__(**kwargs)
-        
-        # config to be saved
-        self.classes = classes
-        
-        # CNN branch
-        self.cnn = Sequential()
-        self.cnn.add(SeparableConv1D(8, 3, activation='relu'))
-        self.cnn.add(BatchNormalization())
-        self.cnn.add(SeparableConv1D(16, 3, activation='relu'))
-        self.cnn.add(BatchNormalization())
-        self.cnn.add(SeparableConv1D(32, 3, activation='relu'))
-        self.cnn.add(BatchNormalization())
-        self.cnn.add(GlobalAveragePooling1D())
-        
-        # GRU branch
-        self.gru = Sequential()
-        self.gru.add(GRU(16, return_sequences=True))
-        self.gru.add(GRU(32))
-        self.gru.add(BatchNormalization())
-        
-        # Fully connected layer
-        self.fc = Sequential()
-        self.fc.add(Dropout(0.1))
-        self.fc.add(Dense(self.classes, activation='softmax'))
-        
-    def call(self, inputs):
-        x_cnn = self.cnn(inputs)
-        x_gru = self.gru(inputs)
-        x_combined = concatenate([x_cnn, x_gru], axis=-1)
-        return self.fc(x_combined)
+class SpatialAttention(Layer):
+    def __init__(self, kernel_size=3, **kwargs):
+        super(SpatialAttention, self).__init__(**kwargs)
+        self.kernel_size = kernel_size
+        self.conv = Conv1D(1, self.kernel_size, padding='same', activation='sigmoid', use_bias=False)
     
-    # overriden get_config method to save classes count
-    def get_config(self):
-        config = super().get_config()
-        config.update({'classes': self.classes})
-        return config
+    def call(self, inputs):
+        avg_out = tf.reduce_mean(inputs, axis=-1, keepdims=True)
+        max_out = tf.reduce_max(inputs, axis=-1, keepdims=True)
+        x = tf.concat([avg_out, max_out], axis=2)
+        x = self.conv(x)
+        return Multiply()([inputs, x])
+
+## Encoder and Decoder Trained on the physionet motor imagery dataset
+## https://www.physionet.org/content/eegmmidb/1.0.0/
+## Thanks again to Summer, Programmerboi, Hosomi
+k1 = 7
+k2 = 3
+act = 'leaky_relu'
+
+encoder = Sequential([ # Input Shape: (160, 64) => 10,240
+    SeparableConv1D(32, k1, padding='same'), 
+    SeparableConv1D(32, k2, padding='same'), 
+    Activation(act),
+    MaxPooling1D(2), # Length: 160 / 2 = 80
+
+    SeparableConv1D(64, k1, padding='same'), 
+    SeparableConv1D(64, k2, padding='same'), 
+    Activation(act),
+
+    SpatialAttention(k1) # Output Shape: (80, 64) => 5,120
+])
+
+decoder = Sequential([
+    Conv1DTranspose(64, k2, padding='same'), 
+    Conv1DTranspose(64, k1, padding='same'), 
+    Activation(act),
+
+    UpSampling1D(2),
+    Conv1DTranspose(32, k2, padding='same'), 
+    Conv1DTranspose(32, k1, padding='same'), 
+    Activation(act),
+
+    # Reconstruct 64 channels from original input
+    Conv1D(64, 1, activation='sigmoid', padding='valid')
+])
+
+## First Layer to convert any channels to 64 ranged [0, 1]
+def create_first_layer(channels):
+    return Sequential([
+        Conv1DTranspose(64, channels, padding='same'),
+        Activation('sigmoid'),
+    ])
+
+## Last Layer to map latent space to custom classes
+def create_last_layer(classes):
+    return Sequential([
+        Flatten(),
+        Dense(classes, activation='softmax')
+    ])

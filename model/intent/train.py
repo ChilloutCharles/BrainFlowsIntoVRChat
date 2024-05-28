@@ -2,17 +2,17 @@ import pickle
 
 from brainflow.board_shim import BoardShim
 import numpy as np
+import matplotlib.pyplot as plt
+import random
 
+import keras
+from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
 
-
-import matplotlib.pyplot as plt
-
-from model import CNNGRUModel
+from model import create_first_layer, create_last_layer
 from pipeline import preprocess_data, extract_features
 
 ## helper function to generate windows
@@ -41,12 +41,15 @@ def main():
     window_size = int(1.0 * sampling_rate)
     overlap = int(window_size * 0.93)
 
+    # train and test windows seperated out to prevent overlap
     def windows_from_datas(datas):
         eegs = [data[eeg_channels] for data in datas]
         windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
-        windows = np.concatenate(windows_per_session)
-        return windows
+        random.shuffle(windows_per_session)
+        windows, windows_test = windows_per_session[1:], [windows_per_session[0]]
+        return np.concatenate(windows), np.concatenate(windows_test)
     
+    # dictionary of tuples containing train and test windows
     action_windows = {k:windows_from_datas(datas) for k, datas in action_dict.items()}
 
     ## extract the features from the windows
@@ -58,30 +61,52 @@ def main():
             feature_windows.append(features)
         return feature_windows
     
-    processed_windows = {k:process_windows(windows) for k, windows in action_windows.items()}
+    processed_windows = {k:(process_windows(train),process_windows(test)) for k, (train, test) in action_windows.items()}
     
     ## create train and test sets and labels
-    indices = np.concatenate([[k] * len(v) for k, v in processed_windows.items()])
-    X = np.concatenate(list(processed_windows.values()))
-    y = to_categorical(indices, num_classes=len(processed_windows))
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, shuffle=True)
+    i_train = np.concatenate([[k] * len(windows_train) for k, (windows_train, _) in processed_windows.items()])
+    shuffle_indexes = list(range(len(i_train)))
+    random.shuffle(shuffle_indexes)
+    X_train = np.concatenate([windows_train for windows_train, _ in processed_windows.values()])[shuffle_indexes]
+    y_train = to_categorical(i_train, num_classes=len(processed_windows))[shuffle_indexes]
+
+    i_test = np.concatenate([[k] * len(windows_test) for k, (_, windows_test) in processed_windows.items()])
+    X_test = np.concatenate([windows_test for windows_test, _ in processed_windows.values()])
+    y_test = to_categorical(i_test, num_classes=len(processed_windows))
+
+    print(X_train.shape)
 
     ## Compile the model
-    model = CNNGRUModel(len(processed_windows))
-    model.compile(optimizer=Adam(learning_rate=0.001/2), loss='categorical_crossentropy')
+    classes = len(processed_windows)
+    channels = len(eeg_channels)
 
-    # Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True, verbose=0)
+    # load pretrained encoder and keep it static
+    pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
+    pretrained_encoder.trainable = False
+    
+    model = Sequential([
+        create_first_layer(channels),
+        pretrained_encoder,
+        create_last_layer(classes)
+    ])
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
+
+    ## Set up EarlyStopping
+    early_stopping = EarlyStopping(monitor='val_loss', patience=16, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
-    epochs = X_train.shape[0]
+    epochs = X_train.shape[0] * 2
     fit_history = model.fit(
         X_train, y_train, 
         epochs=epochs, batch_size=batch_size, 
         validation_data=(X_test, y_test), 
-        callbacks=[early_stopping], verbose=1
+        callbacks=[early_stopping], 
+        verbose=1
     )
+
+    # print out model summary
+    model.summary()
 
     ## Evaluate the model on the test set
     predictions_prob = model.predict(X_test)

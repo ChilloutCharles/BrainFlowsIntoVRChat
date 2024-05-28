@@ -11,7 +11,6 @@ from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
 from logic.addons import Addons
-from logic.ml_action import MLAction
 
 from reporters.osc_reporter import OSC_Reporter
 from reporters.debug_osc_reporter import Debug_Reporter
@@ -146,6 +145,7 @@ def main():
         
         ### Add ml action to logics if enabled
         if args.enable_action:
+            from logic.ml_action import MLAction
             logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier))
 
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
