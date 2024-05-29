@@ -25,7 +25,7 @@ def extract_features(preprocessed_data):
     for eeg_row in preprocessed_data:
         # resample and reshape to match physionet dataset
         feature = signal.resample(eeg_row, 160)
-        feature = scaler.transform(feature.reshape(-1, 1)).reshape(feature.shape)
+        # feature = scaler.transform(feature.reshape(-1, 1)).reshape(feature.shape)
         features.append(feature)
     return np.stack(features, axis=-1)
 
