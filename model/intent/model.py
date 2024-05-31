@@ -51,14 +51,13 @@ def create_first_layer(channels):
     return Sequential([
         Conv1D(64, channels, padding='same'),
         BatchNormalization(),
-        Activation('sigmoid'),
+        Activation('silu'),
     ])
 
 ## Last Layer to map latent space to custom classes
 def create_last_layer(classes):
     return Sequential([
-        BatchNormalization(),
+        SpatialAttention(),
         GlobalAveragePooling1D(),
-        Dropout(0.1),
         Dense(classes, activation='softmax')
     ])

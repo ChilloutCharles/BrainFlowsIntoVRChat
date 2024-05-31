@@ -81,10 +81,10 @@ def main():
         pretrained_encoder,
         create_last_layer(classes)
     ])
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='binary_crossentropy')
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=16, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2*5, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
