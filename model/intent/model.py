@@ -59,5 +59,6 @@ def create_last_layer(classes):
     return Sequential([
         SpatialAttention(),
         GlobalAveragePooling1D(),
+        Dropout(0.2),
         Dense(classes, activation='softmax')
     ])
