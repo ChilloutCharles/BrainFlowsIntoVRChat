@@ -54,7 +54,7 @@ def main():
         exclude_idxs = set()
         for idx in all_idxs:
             for test_idx in test_idxs:
-                if idx in range(test_idx - 1, test_idx + 1):
+                if idx in range(test_idx - 1, test_idx + 2):
                     exclude_idxs.add(idx)
                     break
         
