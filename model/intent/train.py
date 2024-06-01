@@ -40,14 +40,32 @@ def main():
 
     action_dict = recorded_data['action_dict']
     window_size = int(1.0 * sampling_rate)
-    overlap = int(window_size * 0.9)
+    overlap = int(window_size * 0.95)
 
-    def windows_from_datas(datas):
+    def windows_from_datas(datas, test_size=0.2):
+
         eegs = [data[eeg_channels] for data in datas]
         windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
-        windows = np.concatenate(windows_per_session)
-        return windows
-    
+        all_windows = np.concatenate(windows_per_session)
+        
+        # removes train test overlap by index
+        all_idxs = set(range(len(all_windows)))
+        test_idxs = set(random.sample(list(all_idxs), k=int(test_size*len(all_idxs))))
+        exclude_idxs = set()
+        for idx in all_idxs:
+            for test_idx in test_idxs:
+                if idx in range(test_idx - 1, test_idx + 1):
+                    exclude_idxs.add(idx)
+                    break
+        
+        train_idxs = list(all_idxs - exclude_idxs)
+        test_idxs = list(test_idxs)
+
+        windows_train = all_windows[train_idxs]
+        windows_test = all_windows[test_idxs]
+
+        return windows_train, windows_test
+
     action_windows = {k:windows_from_datas(datas) for k, datas in action_dict.items()}
 
     ## extract the features from the windows
@@ -59,13 +77,18 @@ def main():
             feature_windows.append(features)
         return feature_windows
     
-    processed_windows = {k:process_windows(windows) for k, windows in action_windows.items()}
+    processed_windows = {k:(process_windows(windows_train),process_windows(windows_test)) for k, (windows_train, windows_test) in action_windows.items()}
     
     ## create train and test sets and labels
-    indices = np.concatenate([[k] * len(v) for k, v in processed_windows.items()])
-    X = np.concatenate(list(processed_windows.values()))
-    y = to_categorical(indices, num_classes=len(processed_windows))
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, shuffle=True)
+    i_train = np.concatenate([[k] * len(windows_train) for k, (windows_train, _) in processed_windows.items()])
+    shuffle_indexes = list(range(len(i_train)))
+    random.shuffle(shuffle_indexes)
+    X_train = np.concatenate([windows_train for windows_train, _ in processed_windows.values()])[shuffle_indexes]
+    y_train = to_categorical(i_train, num_classes=len(processed_windows))[shuffle_indexes]
+
+    i_test = np.concatenate([[k] * len(windows_test) for k, (_, windows_test) in processed_windows.items()])
+    X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
+    y_test = to_categorical(i_test, num_classes=len(processed_windows))
 
 
     ## Compile the model
@@ -84,7 +107,7 @@ def main():
     model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2*3, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
