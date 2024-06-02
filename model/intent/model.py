@@ -52,9 +52,9 @@ decoder = Sequential([
 ## First Layer to convert any channels to 64 ranged [0, 1]
 def create_first_layer(channels):
     return Sequential([
-        Conv1D(64, channels, padding='same'),
-        BatchNormalization(),
-        Activation('sigmoid'),
+        SeparableConv1D(64, channels, padding='same'),
+        BatchNormalization(), Activation('sigmoid'),
+        Dropout(0.1),
     ])
 
 ## Last Layer to map latent space to custom classes
