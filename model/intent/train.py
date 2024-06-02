@@ -119,6 +119,9 @@ def main():
 
     ## Print out model summary
     model.summary()
+    
+    ## Save models for realtime use
+    model.save('shallow.keras')
 
     ## Evaluate the model on the test set
     predictions_prob = model.predict(X_test)
@@ -134,9 +137,6 @@ def main():
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper left')
     plt.show()
-
-    ## Save models for realtime use
-    model.save('shallow.keras')
 
 
 if __name__ == "__main__":
