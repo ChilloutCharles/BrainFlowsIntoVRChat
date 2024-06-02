@@ -3,6 +3,7 @@ This folder contains the code needed to record, train, and test a machine learni
 
 ## Prerequisites
 1. Rerun this command at the base directory to install needed depedencies: `python -m pip install -r requirements.txt`
+2. Change to directory `model/intent` while doing the next steps.
 
 ## Recording your Brainwaves
 1. Determine the amount of actions you'd like to record (optional: sessions per action. Default is 2)
