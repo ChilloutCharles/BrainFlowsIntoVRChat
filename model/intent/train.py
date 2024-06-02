@@ -40,29 +40,18 @@ def main():
 
     action_dict = recorded_data['action_dict']
     window_size = int(1.0 * sampling_rate)
-    overlap = int(window_size * 0.95)
+    overlap = window_size - 1 # maximum overlap!
 
-    def windows_from_datas(datas, test_size=0.2):
+    def windows_from_datas(datas, test_size=0.1):
 
         eegs = [data[eeg_channels] for data in datas]
         windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
         all_windows = np.concatenate(windows_per_session)
-        
-        # removes train test overlap by index
-        all_idxs = set(range(len(all_windows)))
-        test_idxs = set(random.sample(list(all_idxs), k=int(test_size*len(all_idxs))))
-        exclude_idxs = set()
-        for idx in all_idxs:
-            for test_idx in test_idxs:
-                if idx in range(test_idx - 1, test_idx + 2):
-                    exclude_idxs.add(idx)
-                    break
-        
-        train_idxs = list(all_idxs - exclude_idxs)
-        test_idxs = list(test_idxs)
 
-        windows_train = all_windows[train_idxs]
-        windows_test = all_windows[test_idxs]
+        # time based split: last windows used for validation 
+        split_idx = int(len(all_windows) * (1 - test_size))
+        windows_train = all_windows[:split_idx - overlap]
+        windows_test = all_windows[split_idx:]
 
         return windows_train, windows_test
 
@@ -111,7 +100,7 @@ def main():
 
     ## Train the model
     batch_size = 128
-    epochs = X_train.shape[0] * 2
+    epochs = 128
     fit_history = model.fit(
         X_train, y_train, 
         epochs=epochs, batch_size=batch_size, 
