@@ -2,7 +2,7 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, MaxPooling1D, Activation, Flatten, Layer, Multiply, BatchNormalization, Dropout
+from keras.layers import Dense, MaxPooling1D, Activation, Flatten, Multiply, BatchNormalization, Dropout, Layer
 from keras.layers import SeparableConv1D, Conv1D, UpSampling1D, Conv1DTranspose, UpSampling1D, AveragePooling1D, GlobalAveragePooling1D
 
 ## Spatial Attention (Thanks Summer!)
@@ -12,6 +12,9 @@ class SpatialAttention(Layer):
         super(SpatialAttention, self).__init__(**kwargs)
         self.kernel_size = kernel_size
         self.conv = Conv1D(1, self.kernel_size, padding='same', activation='sigmoid', use_bias=False)
+    
+    def build(self, input_shape):
+        super(SpatialAttention, self).build(input_shape)
     
     def call(self, inputs):
         avg_out = tf.reduce_mean(inputs, axis=-1, keepdims=True)
