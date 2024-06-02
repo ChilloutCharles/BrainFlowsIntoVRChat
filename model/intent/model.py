@@ -2,8 +2,8 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, MaxPooling1D, Activation, Flatten, Multiply, BatchNormalization, Dropout, Layer
-from keras.layers import SeparableConv1D, Conv1D, UpSampling1D, Conv1DTranspose, UpSampling1D, AveragePooling1D, GlobalAveragePooling1D
+from keras.layers import Dense, Activation, Flatten, Multiply, BatchNormalization, Dropout, Layer
+from keras.layers import SeparableConv1D, Conv1D, UpSampling1D, MaxPooling1D
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -50,9 +50,9 @@ decoder = Sequential([
 ])
 
 ## First Layer to convert any channels to 64 ranged [0, 1]
-def create_first_layer(channels):
+def create_first_layer(channels, expanded_channels=64):
     return Sequential([
-        SeparableConv1D(64, channels, padding='same'),
+        SeparableConv1D(expanded_channels, channels, padding='same'),
         BatchNormalization(), Activation('sigmoid'),
         Dropout(0.1),
     ])

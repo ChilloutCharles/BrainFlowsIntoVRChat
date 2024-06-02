@@ -4,13 +4,9 @@ import numpy as np
 from scipy import signal
 
 from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, FilterTypes
-import pickle
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
-
-with open(os.path.join(abs_script_dir, 'physionet_scaler.pkl'), 'rb') as f:
-    scaler = pickle.load(f)
 
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
@@ -23,9 +19,8 @@ def preprocess_data(session_data, sampling_rate):
 def extract_features(preprocessed_data):
     features  = []
     for eeg_row in preprocessed_data:
-        # resample and reshape to match physionet dataset
+        # resample to match physionet dataset
         feature = signal.resample(eeg_row, 160)
-        # feature = scaler.transform(feature.reshape(-1, 1)).reshape(feature.shape)
         features.append(feature)
     return np.stack(features, axis=-1)
 

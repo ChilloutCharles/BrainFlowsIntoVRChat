@@ -1,4 +1,3 @@
-import tensorflow as tf
 import numpy as np
 from keras.optimizers import Adam
 from keras.models import Sequential
@@ -16,8 +15,6 @@ data = np.load('dataset.pkl')
 # Normalize the data
 scaler = Scaler()
 data = scaler.fit_transform(data.reshape(-1, 1)).reshape(data.shape)
-with open('physionet_scaler.pkl', 'wb') as f:
-    pickle.dump(scaler, f)
 
 # Remove the last sample from each sequence, 161 -> 160
 data = data[:, :, :-1]
