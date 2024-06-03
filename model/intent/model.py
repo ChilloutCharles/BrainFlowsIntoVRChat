@@ -53,7 +53,7 @@ decoder = Sequential([
 def create_first_layer(channels, expanded_channels=64):
     return Sequential([
         SeparableConv1D(expanded_channels, channels, padding='same'),
-        BatchNormalization(), Activation('sigmoid'),
+        BatchNormalization(), Activation('gelu'),
         Dropout(0.1),
     ])
 
