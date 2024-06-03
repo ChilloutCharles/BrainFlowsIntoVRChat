@@ -68,17 +68,14 @@ def main():
     processed_windows = {action_label:(process_windows(windows_train),process_windows(windows_test)) for action_label, (windows_train, windows_test) in action_windows.items()}
     
     ## create train and test sets and labels
-    action_labels = list(processed_windows.keys())
-    windows_train, windows_test = zip(*list(processed_windows.values()))
-
-    i_train = np.concatenate([[action_label] * len(windows) for action_label, windows in zip(action_labels, windows_train)])
+    i_train = np.concatenate([[action_label] * len(windows_train) for action_label, (windows_train, _) in processed_windows.items()])
     shuffle_indexes = list(range(len(i_train)))
     random.shuffle(shuffle_indexes)
-    X_train = np.concatenate(windows_train)[shuffle_indexes]
+    X_train = np.concatenate([windows_train for windows_train, _ in processed_windows.values()])[shuffle_indexes]
     y_train = to_categorical(i_train, num_classes=len(processed_windows))[shuffle_indexes]
 
-    i_test = np.concatenate([[action_label] * len(windows) for action_label, windows in zip(action_labels, windows_test)])
-    X_test = np.concatenate(windows_test)
+    i_test = np.concatenate([[action_label] * len(windows_test) for action_label, (_, windows_test) in processed_windows.items()])
+    X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
     y_test = to_categorical(i_test, num_classes=len(processed_windows))
 
     ## load pretrained encoder and keep it static
