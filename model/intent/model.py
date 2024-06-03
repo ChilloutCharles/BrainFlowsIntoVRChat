@@ -12,8 +12,8 @@ class SpatialAttention(Layer):
         super(SpatialAttention, self).__init__(**kwargs)
         self.kernel_size = kernel_size
         self.classes = classes
-        self.conv1 = SeparableConv1D(self.classes, self.kernel_size, padding='same', activation='silu', use_bias=False)
-        self.conv2 = SeparableConv1D(1, self.kernel_size, padding='same', activation='sigmoid', use_bias=False)
+        self.conv1 = Conv1D(self.classes, self.kernel_size, padding='same', activation='silu', use_bias=False)
+        self.conv2 = Conv1D(1, self.kernel_size, padding='same', activation='sigmoid', use_bias=False)
     
     def build(self, input_shape):
         super(SpatialAttention, self).build(input_shape)
@@ -55,8 +55,10 @@ decoder = Sequential([
 ## First Layer to convert any channels to 64 ranged [0, 1]
 def create_first_layer(channels, expanded_channels=64):
     return Sequential([
-        SeparableConv1D(expanded_channels, channels, padding='same'),
-        Activation('gelu'),
+        SeparableConv1D(expanded_channels, channels, padding='same', use_bias=False),
+        BatchNormalization(),
+        Activation('sigmoid'),
+        Dropout(0.1),
     ])
 
 ## Last Layer to map latent space to custom classes
