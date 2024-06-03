@@ -8,10 +8,12 @@ from keras.layers import SeparableConv1D, Conv1D, UpSampling1D, MaxPooling1D
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
 class SpatialAttention(Layer):
-    def __init__(self, kernel_size=7, **kwargs):
+    def __init__(self, classes, kernel_size=7, **kwargs):
         super(SpatialAttention, self).__init__(**kwargs)
         self.kernel_size = kernel_size
-        self.conv = Conv1D(1, self.kernel_size, padding='same', activation='sigmoid', use_bias=False)
+        self.classes = classes
+        self.conv1 = SeparableConv1D(self.classes, self.kernel_size, padding='same', activation='silu', use_bias=False)
+        self.conv2 = SeparableConv1D(1, self.kernel_size, padding='same', activation='sigmoid', use_bias=False)
     
     def build(self, input_shape):
         super(SpatialAttention, self).build(input_shape)
@@ -20,7 +22,8 @@ class SpatialAttention(Layer):
         avg_out = tf.reduce_mean(inputs, axis=-1, keepdims=True)
         max_out = tf.reduce_max(inputs, axis=-1, keepdims=True)
         x = tf.concat([avg_out, max_out], axis=2)
-        x = self.conv(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
         return Multiply()([inputs, x])
 
 ## Encoder and Decoder Trained on the physionet motor imagery dataset
@@ -53,15 +56,14 @@ decoder = Sequential([
 def create_first_layer(channels, expanded_channels=64):
     return Sequential([
         SeparableConv1D(expanded_channels, channels, padding='same'),
-        BatchNormalization(), Activation('gelu'),
-        Dropout(0.1),
+        Activation('gelu'),
     ])
 
 ## Last Layer to map latent space to custom classes
 def create_last_layer(classes):
     return Sequential([
-        SpatialAttention(3),
+        SpatialAttention(classes, 5),
         Flatten(),
         Dropout(0.1),
-        Dense(classes, activation='softmax')
+        Dense(classes, activation='softmax', kernel_regularizer='l2')
     ])
