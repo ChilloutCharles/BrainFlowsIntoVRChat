@@ -97,6 +97,10 @@ def configure_brainflow_params(args: argparse.Namespace) -> BrainFlowInputParams
     return params
 
 def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list, int]:
+    ### Only Import MLAction if activated ###
+    if args.enable_action:
+        from logic.ml_action import MLAction
+
     ### Board Id selection ###
     try:
         master_board_id = int(args.board_id)
@@ -139,7 +143,6 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list, int]:
     
     ### Add ml action to logics if enabled
     if args.enable_action:
-        from logic.ml_action import MLAction # only import if activated
         logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier))
 
     BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
