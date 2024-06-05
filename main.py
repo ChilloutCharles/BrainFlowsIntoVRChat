@@ -177,25 +177,25 @@ def main():
     reporter = setup_reporter(args)
     #endregion Configure
 
-    main_loop(args, reporter)
+    # start main loop with all retries
+    main_loop(args, reporter, args.retry_count)
 
 
-def main_loop(args: argparse.Namespace, reporter: Reporter):
-
+def main_loop(args: argparse.Namespace, reporter: Reporter, retries: int):
     #region Init
-    max_retries = args.retry_count
     while True:
         try:
             # Initialize board and logics
             board, logics, refresh_rate_hz = BoardInit(args)
+            retries = args.retry_count # reset retry count on success
             break
         except KeyboardInterrupt:
             BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Received interrupt signal! Shutting down...')
             return
         except BrainFlowError as board_init_error:
-            if board_init_error.exit_code == BrainFlowExitCodes.BOARD_NOT_READY_ERROR and max_retries > 0:
-                BoardShim.log_message(LogLevels.LEVEL_WARN.value, f'Biosensor board not ready! (Retries left: {max_retries})')
-                max_retries -= 1
+            if board_init_error.exit_code == BrainFlowExitCodes.BOARD_NOT_READY_ERROR and retries > 0:
+                BoardShim.log_message(LogLevels.LEVEL_WARN.value, f'Biosensor board not ready! (Retries left: {retries})')
+                return main_loop(args, reporter, retries - 1) # Reconnect, resume operation, decrement retries
             else:
                 BoardShim.log_message(LogLevels.LEVEL_ERROR.value, f'Biosensor board error: {board_init_error}')
                 return
@@ -228,8 +228,7 @@ def main_loop(args: argparse.Namespace, reporter: Reporter):
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, f'Biosensor board error: {e}')
         reporter.send({Info.__name__ : {Info.CONNECTED:False}})
         board.release_session()
-
-        return main_loop(args, reporter) # Reconnect and resume operation
+        return main_loop(args, reporter, retries) # Reconnect and start retry loop
     except KeyboardInterrupt:
         BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Received interrupt signal! Shutting down...')
         board.stop_stream()
