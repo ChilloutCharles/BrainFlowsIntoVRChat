@@ -57,7 +57,7 @@ def create_first_layer(channels, expanded_channels=64):
     return Sequential([
         SeparableConv1D(expanded_channels, channels, padding='same', use_bias=False),
         BatchNormalization(),
-        Activation('gelu'),
+        Activation('sigmoid'),
         Dropout(0.1),
     ])
 
