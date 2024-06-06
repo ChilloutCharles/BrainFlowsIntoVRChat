@@ -71,8 +71,8 @@ def main():
     print("Get ready in {} seconds".format(wait_seconds))
     time.sleep(wait_seconds)
 
-    for _ in range(session_count):
-        for i in action_dict:
+    for i in action_dict:
+        for _ in range(session_count):
             input("Ready to record action {}. Press enter to continue".format(i))
             print("Think Action {} for {} seconds".format(i, window_length + window_buffer))
             time.sleep(window_length + window_buffer)
@@ -83,11 +83,11 @@ def main():
     # Save record data
     print("Saving Data")
     
-    # If overwriting, delete any file with a .pkl extension
+    # If overwriting, delete any recording file with a .pkl extension
     if(doOverwrite):
-        for d in os.listdir:
-            if SAVE_EXTENSION in d:
-                os.rmdir(d)
+        for filename in os.listdir():
+            if filename.startswith(SAVE_FILENAME) and filename.endswith(SAVE_EXTENSION):
+                os.remove(filename)
         filename_target = SAVE_FILENAME + SAVE_EXTENSION
     else:  
         # If not overwriting, find the next available filename

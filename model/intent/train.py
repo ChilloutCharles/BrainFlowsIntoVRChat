@@ -50,7 +50,7 @@ def main():
     # Then get the action_dict from all of them
     print("Finding data files...")
     for d in os.listdir():
-        if d.endswith(SAVE_EXTENSION):
+        if d.startswith(SAVE_FILENAME) and d.endswith(SAVE_EXTENSION):
             print("Opening " + d + "...")
             
             # Get data from file
