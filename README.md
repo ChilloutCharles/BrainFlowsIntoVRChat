@@ -205,7 +205,7 @@ Thanks to
 - [@wordweaver1001](https://twitter.com/wordweaver1001) for intial user testing.
 - [AtriusX](https://github.com/AtriusX) for helping create a parameter schema.
 - [sync1211](https://github.com/sync1211) for enhancing the reconnect retry logic
-- [Hosomi](https://twitter.com/FakeHosomi), [Eni](https://github.com/eni-808), [AtriusX](https://github.com/AtriusX), [Rantis](https://github.com/RantiMess) for development and testing of the action classification model and integration.
+- [Hosomi](https://twitter.com/FakeHosomi), [Eni](https://github.com/eni-808), [AtriusX](https://github.com/AtriusX), [Rantis](https://github.com/RantiMess), [DeliciousSalad](https://github.com/DeliciousSalad) for development and testing of the action classification model and integration.
 - [Summer](https://x.com/TheGoodAI1) and Programmerboi for the development of the self-supervised model.
 - [Scapsters](https://github.com/Scapsters) for adding the ability to use multiple recorded sessions for train data gathering
 
