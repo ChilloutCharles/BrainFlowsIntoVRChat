@@ -3,17 +3,17 @@ import os
 
 from brainflow.board_shim import BoardShim
 import numpy as np
+import matplotlib.pyplot as plt
+import random
 
+import keras
+from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
 
-
-import matplotlib.pyplot as plt
-
-from model import CNNGRUModel
+from model import create_first_layer, create_last_layer
 from pipeline import preprocess_data, extract_features
 
 SAVE_FILENAME = "recorded_eeg"
@@ -50,7 +50,7 @@ def main():
     # Then get the action_dict from all of them
     print("Finding data files...")
     for d in os.listdir():
-        if d.endswith(SAVE_EXTENSION):
+        if d.startswith(SAVE_FILENAME) and d.endswith(SAVE_EXTENSION):
             print("Opening " + d + "...")
             
             # Get data from file
@@ -86,15 +86,22 @@ def main():
 
     action_dict = recorded_data['action_dict']
     window_size = int(1.0 * sampling_rate)
-    overlap = int(window_size * 0.93)
+    overlap = window_size - 1 # maximum overlap!
 
-    def windows_from_datas(datas):
+    ## Segment time series data and split for train test sets
+    def windows_from_datas(datas, test_size):
         eegs = [data[eeg_channels] for data in datas]
         windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
-        windows = np.concatenate(windows_per_session)
-        return windows
-    
-    action_windows = {k:windows_from_datas(datas) for k, datas in action_dict.items()}
+        all_windows = np.concatenate(windows_per_session)
+
+        # time based split: last windows used for validation 
+        split_idx = int(len(all_windows) * (1 - test_size))
+        windows_train = all_windows[:split_idx - overlap]
+        windows_test = all_windows[split_idx:]
+
+        return windows_train, windows_test
+
+    action_windows = {action_label:windows_from_datas(datas, test_size=0.1) for action_label, datas in action_dict.items()}
 
     ## extract the features from the windows
     def process_windows(windows):
@@ -105,30 +112,60 @@ def main():
             feature_windows.append(features)
         return feature_windows
     
-    processed_windows = {k:process_windows(windows) for k, windows in action_windows.items()}
+    processed_windows = {action_label:(process_windows(windows_train),process_windows(windows_test)) for action_label, (windows_train, windows_test) in action_windows.items()}
     
     ## create train and test sets and labels
-    indices = np.concatenate([[k] * len(v) for k, v in processed_windows.items()])
-    X = np.concatenate(list(processed_windows.values()))
-    y = to_categorical(indices, num_classes=len(processed_windows))
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, shuffle=True)
+    i_train = np.concatenate([[action_label] * len(windows_train) for action_label, (windows_train, _) in processed_windows.items()])
+    shuffle_indexes = list(range(len(i_train)))
+    random.shuffle(shuffle_indexes)
+    X_train = np.concatenate([windows_train for windows_train, _ in processed_windows.values()])[shuffle_indexes]
+    y_train = to_categorical(i_train, num_classes=len(processed_windows))[shuffle_indexes]
+
+    i_test = np.concatenate([[action_label] * len(windows_test) for action_label, (_, windows_test) in processed_windows.items()])
+    X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
+    y_test = to_categorical(i_test, num_classes=len(processed_windows))
+
+    ## load pretrained encoder and keep it static
+    pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
+    pretrained_encoder.trainable = False
+
+    ## create channel expander/normalizer and classification layer
+    classes = len(processed_windows)
+    user_channels = len(eeg_channels)
+    encoder_channels = pretrained_encoder.input_shape[-1]
+
+    expandalizer = create_first_layer(user_channels, encoder_channels)
+    classifier = create_last_layer(classes)
+    
+    ## Create Model
+    model = Sequential([
+        expandalizer,
+        pretrained_encoder,
+        classifier
+    ])
 
     ## Compile the model
-    model = CNNGRUModel(len(processed_windows))
-    model.compile(optimizer=Adam(learning_rate=0.001/2), loss='categorical_crossentropy')
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
 
-    # Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True, verbose=0)
+    ## Set up EarlyStopping
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2*3, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
-    epochs = X_train.shape[0]
+    epochs = 128
     fit_history = model.fit(
         X_train, y_train, 
         epochs=epochs, batch_size=batch_size, 
         validation_data=(X_test, y_test), 
-        callbacks=[early_stopping], verbose=1
+        callbacks=[early_stopping], 
+        verbose=1
     )
+
+    ## Print out model summary
+    model.summary()
+    
+    ## Save models for realtime use
+    model.save('shallow.keras')
 
     ## Evaluate the model on the test set
     predictions_prob = model.predict(X_test)
@@ -144,9 +181,6 @@ def main():
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper left')
     plt.show()
-
-    ## Save models for realtime use
-    model.save('shallow.keras')
 
 
 if __name__ == "__main__":

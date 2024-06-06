@@ -6,7 +6,7 @@ import numpy as np
 from brainflow.board_shim import BoardShim
 
 # imported so decorator can recognize loaded model
-from model.intent.model import CNNGRUModel
+from model.intent.model import SpatialAttention
 
 class MLAction(BaseLogic):
     def __init__(self, board, ema_decay=1/60):

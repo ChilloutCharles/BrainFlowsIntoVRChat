@@ -1,6 +1,12 @@
-**/*.keras
 *.data
 **/*.pyc
 *.bat
-**/*.pkl
 **/dataset/
+**/*.zip
+**/*.tmp
+
+**/*.pkl
+!**/physionet_scaler.pkl
+
+**/*.keras
+!**/physionet_*.keras
