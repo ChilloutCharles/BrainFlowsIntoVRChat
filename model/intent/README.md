@@ -1,15 +1,21 @@
 # Action Classification
-This folder contains the code needed to record, train, and test a machine learning model that will predict a single action from a set of actions from your brainwaves.
+This folder contains the code needed to record, train, and test a machine learning model that will predict a single action from a set of actions from your brainwaves. **NEW**: You can now record and combine multiple recording sessions to be used during the training session. 
 
 ## Prerequisites
 1. Rerun this command at the base directory to install needed depedencies: `python -m pip install -r requirements.txt`
 
 ## Recording your Brainwaves
-1. Determine the amount of actions you'd like to record (optional: sessions per action. Default is 2)
+1. Determine the amount of actions you'd like to record
 2. Determine the board id or name of your headband
 3. Within this directory, execute this command 
-   - `python record_eeg.py --board-id <YOUR BOARD ID> --actions <ACTION COUNT> --sessions <OPTIONAL SESSION COUNT>`
-4. Follow on screen commands to completion. A file named `recorded_eeg.pkl` will be generated.
+   - `python record_eeg.py --board-id <YOUR BOARD ID> --actions <ACTION COUNT>`
+   - optional arguments:
+      - `--sessions`       number of sessions per action to record   (Default: 2)
+      - `--window-length`  length in seconds of eeg data pulled per session   (Default: 10)
+      - `--window-buffer`  time in seconds before eeg data is recorded each session (delay after hitting enter)   (Default: 2)
+      - `--overwrite`      option to overwrite existing recorded data. When set to `0`, new recorded data will be created side by side and will be used **collectively** during the training phase. `1` will delete existing recorded data and replace it with new. (Default: 1)
+4. Follow on screen commands to completion. A file containing the recording will be generated.
+   * Ex: `recorded_eeg.pkl`, `recorded_eeg1.pkl`, `recorded_eeg2.pkl`, etc.
 
 #### Some tips before starting
  - make sure to take care of your surroundings, particularly matching as close as possible to where you would be using this.
