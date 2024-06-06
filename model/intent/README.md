@@ -6,12 +6,6 @@ This folder contains the code needed to record, train, and test a machine learni
 ## Instructions 
 Instructions have been moved to this wiki page: [Action-Classification-Instructions](https://github.com/ChilloutCharles/BrainFlowsIntoVRChat/wiki/Action-Classification-Instructions)
 
-## Thanks
-
-Thanks to
-- [Hosomi](https://twitter.com/FakeHosomi), [Eni](https://github.com/eni-808), [AtriusX](https://github.com/AtriusX), [Rantis](https://github.com/RantiMess) for development and testing of the action classification model and integration.
-- [Summer](https://x.com/TheGoodAI1) and Programmerboi for the development of the semi-supervised model.
-
 ## Citations
 - [Schalk, G., McFarland, D.J., Hinterberger, T., Birbaumer, N., Wolpaw, J.R. BCI2000: A General-Purpose Brain-Computer Interface (BCI) System. IEEE Transactions on Biomedical Engineering 51(6):1034-1043, 2004.](http://www.ncbi.nlm.nih.gov/pubmed/15188875)
 - Goldberger, A., Amaral, L., Glass, L., Hausdorff, J., Ivanov, P. C., Mark, R., ... & Stanley, H. E. (2000). PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals. Circulation [Online]. 101 (23), pp. e215–e220.

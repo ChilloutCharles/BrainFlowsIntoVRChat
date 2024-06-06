@@ -204,7 +204,10 @@ Thanks to
 - [@Mitzi_DelverVRC](https://twitter.com/Mitzi_DelverVRC) and [AartHark](https://github.com/AartHauk) for help with PPG signal work.
 - [@wordweaver1001](https://twitter.com/wordweaver1001) for intial user testing.
 - [AtriusX](https://github.com/AtriusX) for helping create a parameter schema.
+- [sync1211](https://github.com/sync1211) for enhancing the reconnect retry logic
 - [Hosomi](https://twitter.com/FakeHosomi), [Eni](https://github.com/eni-808), [AtriusX](https://github.com/AtriusX), [Rantis](https://github.com/RantiMess) for development and testing of the action classification model and integration.
+- [Summer](https://x.com/TheGoodAI1) and Programmerboi for the development of the self-supervised model.
+- [Scapsters](https://github.com/Scapsters) for adding the ability to use multiple recorded sessions for train data gathering
 
 ## Troubleshooting
 - I have broken Bluetooth adapter built into my pc and I would like to use a dongle instead. How can I connect my headband to that dongle?
