@@ -1,5 +1,6 @@
 import pickle
 import os
+import argparse
 
 from brainflow.board_shim import BoardShim
 import numpy as np
@@ -33,6 +34,12 @@ def segment_data(eeg_data, samples_per_window, overlap=0):
     return np.array(windows)
 
 def main():
+    ## Parse arguments for test and sample sizes
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--sample_size', type=float, required=False, default=1.0, help='random sample proportion of recorded data to use')
+    parser.add_argument('--test_size', type=float, required=False, default=0.1, help='proportion of sampled data to reserve for validation')
+    args = parser.parse_args()
+    
     # Load and merge recorded data details of all present data files
     # .pkl file merging code based off https://github.com/open-mmlab/mmaction2/issues/1431
     # This is unoptimized for repeated trainings of large filesets. But that is rare.
@@ -89,19 +96,23 @@ def main():
     overlap = window_size - 1 # maximum overlap!
 
     ## Segment time series data and split for train test sets
-    def windows_from_datas(datas, test_size):
+    def windows_from_datas(datas, test_size, sample_size):
         eegs = [data[eeg_channels] for data in datas]
         windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
         all_windows = np.concatenate(windows_per_session)
 
         # time based split: last windows used for validation 
         split_idx = int(len(all_windows) * (1 - test_size))
-        windows_train = all_windows[:split_idx - overlap]
-        windows_test = all_windows[split_idx:]
+        windows_train = list(all_windows[:split_idx - overlap])
+        windows_test = list(all_windows[split_idx:])
+
+        # random sample windows for faster training
+        windows_train = random.sample(windows_train, k=int(len(windows_train) * sample_size))
+        windows_test = random.sample(windows_test, k=int(len(windows_test) * sample_size))
 
         return windows_train, windows_test
 
-    action_windows = {action_label:windows_from_datas(datas, test_size=0.1) for action_label, datas in action_dict.items()}
+    action_windows = {action_label:windows_from_datas(datas, test_size=args.test_size, sample_size=args.sample_size) for action_label, datas in action_dict.items()}
 
     ## extract the features from the windows
     def process_windows(windows):
