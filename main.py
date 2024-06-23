@@ -5,6 +5,7 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams, LogLevels, Boa
 from brainflow.data_filter import DataFilter
 from brainflow.exit_codes import BrainFlowError, BrainFlowExitCodes
 
+from logic.base_logic import BaseLogic
 from logic.telemetry import Info
 from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
@@ -96,7 +97,7 @@ def configure_brainflow_params(args: argparse.Namespace) -> BrainFlowInputParams
 
     return params
 
-def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list, int]:
+def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int]:
     ### Only Import MLAction if activated ###
     if args.enable_action:
         from logic.ml_action import MLAction
