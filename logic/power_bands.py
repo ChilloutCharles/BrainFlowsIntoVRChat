@@ -34,15 +34,27 @@ class PwrBands(BaseLogic):
         self.current_dict = {}
         self.ema_decay = ema_decay
 
+        # adaptive filter
+        self.mu = 0.001  # Step size
+        self.n_order = 20  # Filter order
+        self.filter_weights = [np.zeros(self.n_order) for _ in range(len(self.eeg_channels))]
+
     def get_data_dict(self):
         # get current data from board
+        buffer_samples = self.board.get_board_data_count()
+        buffer_data = self.board.get_current_board_data(buffer_samples)
         data = self.board.get_current_board_data(self.max_sample_size)
 
-        # denoise and detrend data
-        for eeg_chan in self.eeg_channels:
-            DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-            DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
-            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5)
+        # denoise, detrend, adapt filter data
+        for i, eeg_chan in enumerate(self.eeg_channels):
+            DataFilter.remove_environmental_noise(buffer_data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
+            DataFilter.detrend(buffer_data[eeg_chan], DetrendOperations.LINEAR)
+
+            buffer = buffer_data[eeg_chan]
+            input_signal = buffer[-self.max_sample_size:]
+            filtered_sample, self.filter_weights[i] = utils.lms_filter(input_signal, self.mu, self.n_order, self.filter_weights[i], buffer)
+            data[eeg_chan] = filtered_sample
+
         
         # calculate band features for left, right, and overall
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)

@@ -12,3 +12,15 @@ def smooth(current_value, target_value, weight):
 
 def map2dto1d(x, y, n):
     return x * n + y
+
+
+def lms_filter(input_signal, mu, n_order, weights, buffer):
+    filtered_output = np.zeros_like(input_signal)
+    for i, sample in enumerate(input_signal):
+        x = np.array(buffer[-n_order:])     # Get the last n_order samples from the buffer
+        y = np.dot(weights, x)              # Filter output (predict noise)
+        filtered_sample = sample - y        # Remove predicted noise from the input signal
+        e = sample - filtered_sample        # Error signal
+        weights += 2 * mu * e * x           # Update filter weights
+        filtered_output[i] = filtered_sample
+    return filtered_output, weights
