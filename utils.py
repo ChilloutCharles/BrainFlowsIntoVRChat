@@ -1,5 +1,4 @@
 import numpy as np
-from pprint import pprint
 
 def tanh_normalize(data, scale, offset):
     return np.tanh(scale * (data + offset))
