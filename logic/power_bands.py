@@ -35,14 +35,13 @@ class PwrBands(BaseLogic):
         self.ema_decay = ema_decay
 
         # adaptive filter
-        self.mu = 0.001  # Step size
-        self.n_order = 20  # Filter order
+        self.mu = 0.001 / self.sampling_rate # Step size
+        self.n_order = int(0.2 * self.sampling_rate)  # Filter order
         self.filter_weights = [np.zeros(self.n_order) for _ in range(len(self.eeg_channels))]
 
     def get_data_dict(self):
         # get current data from board
-        buffer_samples = self.board.get_board_data_count()
-        buffer_data = self.board.get_current_board_data(buffer_samples)
+        buffer_data = self.board.get_current_board_data(self.max_sample_size + self.n_order)
         data = self.board.get_current_board_data(self.max_sample_size)
 
         # denoise, detrend, adapt filter data
