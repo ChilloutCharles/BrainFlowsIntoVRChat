@@ -145,6 +145,9 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list, int]:
     if args.enable_action:
         logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier))
 
+    ### Adding one second to startup time for adaptive filters ###
+    startup_time += 1
+
     BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
     board.start_stream(streamer_params=args.streamer_params)
     time.sleep(startup_time)
