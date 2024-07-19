@@ -182,7 +182,7 @@ These Parameters give the power value for the common frequency bands used in EEG
 These Parameters are additional functions of BFiVRC
 | Parameter | Description | Type | Range |
 | ------ | ----- | ----- | ----- |
-| BFI/Addons/Hueshift | This Parameter uses combinations of relax/focus to drive a single float Parameter for material fx | Float | [0.0, 1.0] |
+| BFI/Addons/HueShift | This Parameter uses combinations of relax/focus to drive a single float Parameter for material fx | Float | [0.0, 1.0] |
 
 ### Biometrics
 These Parameters read other biometric data from your device if supported by your hardware
