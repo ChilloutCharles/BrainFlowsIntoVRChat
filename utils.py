@@ -12,34 +12,38 @@ def smooth(current_value, target_value, weight):
 def map2dto1d(x, y, n):
     return x * n + y
 
+def compute_snr(original_signal, filtered_signal):
+    signal_power = np.var(filtered_signal)
+    noise_power = np.var(original_signal - filtered_signal)
+    snr = 10 * np.log10(signal_power / noise_power)
+    return np.round(snr, 4)
 
-def lms_filter(input_signal, mu, n_order, weights, buffer, clip=1):
-    # Ensure buffer length is at least n_order + len(input_signal)
-    assert len(buffer) >= n_order + len(input_signal), "Buffer length is insufficient"
-    
-    # Extract the relevant part of the buffer for processing
-    buffer_segment = np.array(buffer[-(n_order + len(input_signal)):])
+class RealTimeLMSFilter:
+    def __init__(self, num_taps=5, mu=0.01):
+        self.num_taps = num_taps
+        self.mu = mu
+        self.weights = np.zeros(num_taps)
 
-    # Matrix form of the buffer segments using sliding window view
-    X = np.lib.stride_tricks.sliding_window_view(buffer_segment, window_shape=n_order)
+    def filter_sample(self, sample):
+        if len(self.signal_buffer) < self.num_taps:
+            self.signal_buffer.append(sample)
+            return sample
+        else:
+            x = np.array(self.signal_buffer[-self.num_taps:][::-1])
+            y = np.dot(self.weights, x)
+            e = sample - y
+            
+            # Calculate the gradient and apply clipping
+            gradient = 2 * self.mu * e * x
+            
+            # Update weights
+            self.weights += gradient
+            self.signal_buffer.append(sample)
+            return e
 
-    # Only take the first len(input_signal) rows
-    X = X[:len(input_signal)]
-    
-    # Predicted noise
-    Y = np.dot(X, weights)
-    
-    # Error signal
-    E = input_signal - Y
-
-    # Gradient clipping to prevent excessively large updates
-    gradient = 2 * mu * np.dot(E, X)
-    gradient = np.clip(gradient, -clip, clip)  # Clip gradients to prevent large updates
-
-    # Update weights
-    weights += gradient
-    
-    # Filtered signal
-    filtered_output = input_signal - Y
-
-    return filtered_output, weights
+    def process_signal(self, signal):
+        self.signal_buffer = []
+        filtered_signal = np.zeros_like(signal)
+        for i, sample in enumerate(signal):
+            filtered_signal[i] = self.filter_sample(sample)
+        return filtered_signal

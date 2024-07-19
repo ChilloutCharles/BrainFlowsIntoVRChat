@@ -1,12 +1,16 @@
 from logic.base_logic import BaseLogic
 from constants import BAND_POWERS
+
 import utils
+from utils import RealTimeLMSFilter
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
+from brainflow.data_filter import DataFilter
 
 import re
 import numpy as np
+
+import mne
 
 class PwrBands(BaseLogic):
     LEFT = 'Left'
@@ -30,30 +34,28 @@ class PwrBands(BaseLogic):
         self.left_chans = [eeg_chan for eeg_chan, eeg_num in chan_num_pairs if eeg_num % 2 != 0]
         self.right_chans = [eeg_chan for eeg_chan, eeg_num in chan_num_pairs if eeg_num % 2 == 0]
 
+        # mne params
+        mne.set_log_level('ERROR')
+        self.info = mne.create_info(eeg_names, self.sampling_rate, 'eeg')
+        self.montage = mne.channels.make_standard_montage('standard_1020')
+
         # ema smoothing variables
         self.current_dict = {}
         self.ema_decay = ema_decay
 
         # adaptive filter
-        self.mu = 0.001 / self.sampling_rate # Step size
-        self.n_order = int(0.2 * self.sampling_rate)  # Filter order
-        self.filter_weights = [np.zeros(self.n_order) for _ in range(len(self.eeg_channels))]
+        self.lms_adaptive = RealTimeLMSFilter(num_taps=20)
 
     def get_data_dict(self):
         # get current data from board
-        buffer_data = self.board.get_current_board_data(self.max_sample_size + self.n_order)
         data = self.board.get_current_board_data(self.max_sample_size)
 
-        # denoise, detrend, adapt filter data
-        for i, eeg_chan in enumerate(self.eeg_channels):
-            DataFilter.remove_environmental_noise(buffer_data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-            DataFilter.detrend(buffer_data[eeg_chan], DetrendOperations.LINEAR)
-
-            buffer = buffer_data[eeg_chan]
-            input_signal = buffer[-self.max_sample_size:]
-            filtered_sample, self.filter_weights[i] = utils.lms_filter(input_signal, self.mu, self.n_order, self.filter_weights[i], buffer)
-            data[eeg_chan] = filtered_sample
-
+        mne_data = data[self.eeg_channels]
+        raw = mne.io.RawArray(mne_data, self.info, verbose=None)
+        raw.set_montage(self.montage)
+        raw.notch_filter(freqs=(50, 60), fir_design='firwin')
+        raw.filter(l_freq=2., h_freq=45., fir_design='firwin')
+        data[self.eeg_channels] = self.lms_adaptive.process_signal(raw.get_data())
         
         # calculate band features for left, right, and overall
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)
