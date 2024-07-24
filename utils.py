@@ -1,4 +1,5 @@
 import numpy as np
+from padasip.filters import FilterGMCC as filter
 
 def tanh_normalize(data, scale, offset):
     return np.tanh(scale * (data + offset))
@@ -18,32 +19,32 @@ def compute_snr(original_signal, filtered_signal):
     snr = 10 * np.log10(signal_power / noise_power)
     return np.round(snr, 4)
 
-class RealTimeLMSFilter:
-    def __init__(self, num_taps=5, mu=0.01):
-        self.num_taps = num_taps
+class AdaptiveFilter:
+    def __init__(self, window_size=4, mu=0.1):
+        self.window_size = window_size
         self.mu = mu
-        self.weights = np.zeros(num_taps)
-
-    def filter_sample(self, sample):
-        if len(self.signal_buffer) < self.num_taps:
-            self.signal_buffer.append(sample)
-            return sample
-        else:
-            x = np.array(self.signal_buffer[-self.num_taps:][::-1])
-            y = np.dot(self.weights, x)
-            e = sample - y
-            
-            # Calculate the gradient and apply clipping
-            gradient = 2 * self.mu * e * x
-            
-            # Update weights
-            self.weights += gradient
-            self.signal_buffer.append(sample)
-            return e
-
-    def process_signal(self, signal):
-        self.signal_buffer = []
-        filtered_signal = np.zeros_like(signal)
-        for i, sample in enumerate(signal):
-            filtered_signal[i] = self.filter_sample(sample)
+        self.filter = filter(n=window_size, mu=mu)
+        
+    def create_sliding_window(self, data):
+        shape = (data.size - self.window_size + 1, self.window_size)
+        strides = (data.strides[0], data.strides[0])
+        return np.lib.stride_tricks.as_strided(data, shape=shape, strides=strides)
+    
+    def filter_signal(self, eeg_signal, desired_signal):
+        # Pad the EEG signal before creating the sliding window
+        eeg_signal_padded = np.pad(eeg_signal, (self.window_size - 1, 0), 'constant')
+        
+        # Create sliding window input matrix
+        input_matrix = self.create_sliding_window(eeg_signal_padded)
+        
+        # Apply the filter to the EEG data
+        filtered_signal = np.zeros(desired_signal.shape)
+        for i in range(input_matrix.shape[0]):
+            output = self.filter.predict(input_matrix[i, :])
+            self.filter.adapt(desired_signal[i], input_matrix[i, :])
+            filtered_signal[i] = output
+        
         return filtered_signal
+
+
+
