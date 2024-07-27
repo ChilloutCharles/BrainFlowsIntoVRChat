@@ -5,12 +5,10 @@ import utils
 from utils import AdaptiveFilter
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes, FilterTypes
+from brainflow.data_filter import DataFilter, NoiseTypes, WaveletTypes, FilterTypes, NoiseEstimationLevelTypes 
 
 import re
 import numpy as np
-
-import mne
 
 class PwrBands(BaseLogic):
     LEFT = 'Left'
@@ -34,35 +32,26 @@ class PwrBands(BaseLogic):
         self.left_chans = [eeg_chan for eeg_chan, eeg_num in chan_num_pairs if eeg_num % 2 != 0]
         self.right_chans = [eeg_chan for eeg_chan, eeg_num in chan_num_pairs if eeg_num % 2 == 0]
 
-        # mne params
-        mne.set_log_level('ERROR')
-        self.info = mne.create_info(eeg_names, self.sampling_rate, 'eeg')
-        self.montage = mne.channels.make_standard_montage('standard_1020')
-
         # ema smoothing variables
         self.current_dict = {}
         self.ema_decay = ema_decay
 
         # adaptive filter
-        mu = 0.01
-        taps = int(self.sampling_rate / 10)
+        mu = 0.02
+        taps = int(self.sampling_rate / 32)
         self.adaptive_filters = [AdaptiveFilter(taps, mu) for _ in range(len(self.eeg_channels))]
 
     def get_data_dict(self):
         # get current data from board
         data = self.board.get_current_board_data(self.max_sample_size)
 
-        # denoise and detrend data
-        # original_signal = data[self.eeg_channels].copy()
-
+        # denoise and filter data
+        original_signal = data[self.eeg_channels].copy()
         for i, eeg_chan in enumerate(self.eeg_channels):
-            DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
             DataFilter.perform_bandpass(data[eeg_chan], self.sampling_rate, 2, 45, 4, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
-            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5)
-            data[eeg_chan] = self.adaptive_filters[i].filter_signal(data[eeg_chan], data[eeg_chan])
-
-        # print(utils.compute_snr(original_signal, data[self.eeg_channels]))
+            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, noise_level=NoiseEstimationLevelTypes.ALL_LEVELS)
+            data[eeg_chan] = self.adaptive_filters[i].filter_signal(original_signal[i], data[eeg_chan])
 
         
         # calculate band features for left, right, and overall

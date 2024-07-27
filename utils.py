@@ -1,5 +1,5 @@
 import numpy as np
-from padasip.filters import FilterGMCC as filter
+from padasip.filters import FilterNSSLMS as filter
 
 def tanh_normalize(data, scale, offset):
     return np.tanh(scale * (data + offset))
