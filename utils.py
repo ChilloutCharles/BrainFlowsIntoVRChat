@@ -1,5 +1,5 @@
 import numpy as np
-from padasip.filters import FilterNSSLMS as filter
+from padasip.filters import FilterNSSLMS as Filter
 
 def tanh_normalize(data, scale, offset):
     return np.tanh(scale * (data + offset))
@@ -23,16 +23,16 @@ class AdaptiveFilter:
     def __init__(self, window_size=4, mu=0.1):
         self.window_size = window_size
         self.mu = mu
-        self.filter = filter(n=window_size, mu=mu)
+        self.filter = Filter(n=window_size, mu=mu)
         
     def create_sliding_window(self, data):
         shape = (data.size - self.window_size + 1, self.window_size)
         strides = (data.strides[0], data.strides[0])
         return np.lib.stride_tricks.as_strided(data, shape=shape, strides=strides)
     
-    def filter_signal(self, eeg_signal, desired_signal):
+    def filter_signal(self, noisy_signal, desired_signal):
         # Pad the EEG signal before creating the sliding window
-        eeg_signal_padded = np.pad(eeg_signal, (self.window_size - 1, 0), 'constant')
+        eeg_signal_padded = np.pad(noisy_signal, (self.window_size - 1, 0), 'constant')
         
         # Create sliding window input matrix
         input_matrix = self.create_sliding_window(eeg_signal_padded)
