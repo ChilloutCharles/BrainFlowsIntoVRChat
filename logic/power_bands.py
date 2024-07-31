@@ -1,9 +1,11 @@
 from logic.base_logic import BaseLogic
 from constants import BAND_POWERS
+
 import utils
+from utils import AdaptiveFilter
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, WaveletTypes
+from brainflow.data_filter import DataFilter, NoiseTypes, WaveletTypes, FilterTypes, NoiseEstimationLevelTypes 
 
 import re
 import numpy as np
@@ -34,20 +36,28 @@ class PwrBands(BaseLogic):
         self.current_dict = {}
         self.ema_decay = ema_decay
 
+        # adaptive filter
+        mu = 0.02
+        taps = int(self.sampling_rate / 32)
+        self.adaptive_filters = [AdaptiveFilter(taps, mu) for _ in range(len(self.eeg_channels))]
+
     def get_data_dict(self):
         # get current data from board
         data = self.board.get_current_board_data(self.max_sample_size)
 
-        # denoise and detrend data
-        for eeg_chan in self.eeg_channels:
+        # denoise and filter data
+        original_signal = data[self.eeg_channels].copy()
+        for i, eeg_chan in enumerate(self.eeg_channels):
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-            DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
-            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5)
+            DataFilter.perform_bandpass(data[eeg_chan], self.sampling_rate, 2, 45, 4, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
+            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, noise_level=NoiseEstimationLevelTypes.ALL_LEVELS)
+            data[eeg_chan] = self.adaptive_filters[i].filter_signal(original_signal[i], data[eeg_chan])
+
         
         # calculate band features for left, right, and overall
-        left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)
-        right_powers, _ = DataFilter.get_avg_band_powers(data, self.right_chans, self.sampling_rate, True)
-        avg_powers, _ = DataFilter.get_avg_band_powers(data, self.eeg_channels, self.sampling_rate, True)
+        left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, False)
+        right_powers, _ = DataFilter.get_avg_band_powers(data, self.right_chans, self.sampling_rate, False)
+        avg_powers, _ = DataFilter.get_avg_band_powers(data, self.eeg_channels, self.sampling_rate, False)
 
         # create location dict
         location_dict = {
