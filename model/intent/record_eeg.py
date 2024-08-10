@@ -5,6 +5,8 @@ import os
 
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 
+from sound_helper import SoundHelper
+
 SAVE_FILENAME = 'recorded_eeg'
 SAVE_EXTENSION = '.pkl'
 
@@ -26,6 +28,8 @@ def main():
     parser.add_argument('--window-buffer', type=int, required=False, default=2, help='time in seconds before eeg data is recorded each session (delay after hitting enter)')
     parser.add_argument('--overwrite', type=int, required=False, default=1, help='1 to overwrite/remove old recordings, 0 to add results as an additional data file')
     parser.add_argument('--board-id', type=str, required=True, help='board id or name, check docs to get a list of supported boards')
+    parser.add_argument('--start-delay', type=int, required=False, help='delay between pressing enter and recording start', default=3)
+    parser.add_argument('--enable-sounds', type=bool, required=False, help='enables sound indicators for starting / stopping a recording', default=True)
     args = parser.parse_args()
 
     params = BrainFlowInputParams()
@@ -43,6 +47,11 @@ def main():
     session_count = args.sessions
     window_length = args.window_length
     window_buffer = args.window_buffer
+
+    recording_delay = args.start_delay
+    sounds_enabled = args.enable_sounds
+
+    sound_helper = SoundHelper(sounds_enabled)
     
     doOverwrite = args.overwrite == 1
 
@@ -74,10 +83,22 @@ def main():
     for i in action_dict:
         for _ in range(session_count):
             input("Ready to record action {}. Press enter to continue".format(i))
+            
+            # Wait j seconds before starting
+            j = recording_delay
+            while j > 0:
+                sound_helper.play_sound(u"sounds/boop.wav")
+                print(f"Recording in {j}...", end="\r")
+                time.sleep(1)
+                j -= 1
+            sound_helper.play_sound(u"sounds/start.wav")
+                
             print("Think Action {} for {} seconds".format(i, window_length + window_buffer))
             time.sleep(window_length + window_buffer)
             data = board.get_current_board_data(sampling_size)
             action_dict[i].append(data)
+
+            sound_helper.play_sound(u"sounds/done.wav")
     record_data["action_dict"] = action_dict
 
     # Save record data
