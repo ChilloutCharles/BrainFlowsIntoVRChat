@@ -20,9 +20,12 @@ if __name__ == '__main__':
 
     datadir = "dataset"
     paths = find_edf_files(datadir)
-    raw_list = list(p.map(mne.io.read_raw_edf, paths))
+    raw_list = list(p.map(lambda p: mne.io.read_raw_edf(p, preload=True), paths))
 
     def get_windows(raw):
+        raw.notch_filter((50, 60))
+        raw.filter(l_freq=2.0, h_freq=45.0)
+
         events, event_id = mne.events_from_annotations(raw)
         if len(event_id) != 3:
             return None
