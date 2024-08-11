@@ -41,20 +41,21 @@ class Biometrics(OptionalBaseLogic):
         lowcut = 0.5
         highcut = 4.25
         order = 4
+        min_distance = 1 / highcut * self.ppg_sampling_rate
 
         # remove ambient light
         hr_ir = np.clip(hr_ir - hr_ambient, 0, None)
         hr_red = np.clip(hr_red - hr_ambient, 0, None)
 
         # detrend and filter down to possible heart rates
-        DataFilter.detrend(hr_red, DetrendOperations.LINEAR)
-        DataFilter.detrend(hr_ir, DetrendOperations.LINEAR)
         DataFilter.perform_bandpass(hr_red, self.ppg_sampling_rate, lowcut, highcut, order, FilterTypes.BUTTERWORTH, 0)
         DataFilter.perform_bandpass(hr_ir, self.ppg_sampling_rate, lowcut, highcut, order, FilterTypes.BUTTERWORTH, 0)
+        DataFilter.detrend(hr_red, DetrendOperations.LINEAR)
+        DataFilter.detrend(hr_ir, DetrendOperations.LINEAR)
         
         # find peaks in signal
-        red_peaks, _ = find_peaks(hr_red, distance=self.ppg_sampling_rate/2)
-        ir_peaks, _ = find_peaks(hr_ir, distance=self.ppg_sampling_rate/2)
+        red_peaks, _ = find_peaks(hr_red, distance=min_distance)
+        ir_peaks, _ = find_peaks(hr_ir, distance=min_distance)
 
         # get inter-peak intervals
         red_ipis = np.diff(red_peaks) / self.ppg_sampling_rate
