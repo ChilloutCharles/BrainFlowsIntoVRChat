@@ -1,7 +1,7 @@
 from logic.base_logic import OptionalBaseLogic
 
 from brainflow.board_shim import BoardShim, BrainFlowPresets
-from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterTypes, DetrendOperations, WindowOperations
+from brainflow.data_filter import DataFilter, FilterTypes, DetrendOperations
 from scipy.signal import find_peaks
 
 import numpy as np
@@ -14,7 +14,7 @@ class Biometrics(OptionalBaseLogic):
     RESP_FREQ = "BreathsPerSecond"
     RESP_BPM = "BreathsPerMinute"
 
-    def __init__(self, board, supported=True, fft_size=1024, ema_decay=0.025):
+    def __init__(self, board, supported=True, window_seconds=10, ema_decay=0.025):
         super().__init__(board, supported)
 
         if supported:
@@ -25,45 +25,44 @@ class Biometrics(OptionalBaseLogic):
             self.ppg_sampling_rate = BoardShim.get_sampling_rate(
                 board_id, BrainFlowPresets.ANCILLARY_PRESET)
 
-            self.window_seconds = int(fft_size / self.ppg_sampling_rate) + 1
+            self.window_seconds = window_seconds
             self.max_sample_size = self.ppg_sampling_rate * self.window_seconds
-            self.fft_size = fft_size
+
+            # heart rate filter params
+            self.lowcut = 30 / 60
+            self.highcut = 240 / 60
+            self.order = 4
+            self.min_distance = 1 / self.highcut * self.ppg_sampling_rate
 
             # ema smoothing variables
             self.current_values = None
             self.ema_decay = ema_decay
 
-    def estimate_heart_rate(self, hr_ir, hr_red, ppg_ambient):
+    def estimate_heart_rate(self, ppg_ir, ppg_red, ppg_ambient):
         # do not modify data
-        hr_ir, hr_red, hr_ambient = np.copy(hr_ir), np.copy(hr_red), np.copy(ppg_ambient)
-
-        # Possible min and max heart rate in hz
-        lowcut = 0.5
-        highcut = 4.25
-        order = 4
-        min_distance = 1 / highcut * self.ppg_sampling_rate
+        ppg_ir, ppg_red, ppg_ambient = np.copy(ppg_ir), np.copy(ppg_red), np.copy(ppg_ambient)
 
         # remove ambient light
-        hr_ir = np.clip(hr_ir - hr_ambient, 0, None)
-        hr_red = np.clip(hr_red - hr_ambient, 0, None)
+        ppg_ir = np.clip(ppg_ir - ppg_ambient, 0, None)
+        ppg_red = np.clip(ppg_red - ppg_ambient, 0, None)
 
         # detrend and filter down to possible heart rates
-        DataFilter.perform_bandpass(hr_red, self.ppg_sampling_rate, lowcut, highcut, order, FilterTypes.BUTTERWORTH, 0)
-        DataFilter.perform_bandpass(hr_ir, self.ppg_sampling_rate, lowcut, highcut, order, FilterTypes.BUTTERWORTH, 0)
-        DataFilter.detrend(hr_red, DetrendOperations.LINEAR)
-        DataFilter.detrend(hr_ir, DetrendOperations.LINEAR)
+        DataFilter.perform_bandpass(ppg_red, self.ppg_sampling_rate, self.lowcut, self.highcut, self.order, FilterTypes.BUTTERWORTH, 0)
+        DataFilter.perform_bandpass(ppg_ir, self.ppg_sampling_rate, self.lowcut, self.highcut, self.order, FilterTypes.BUTTERWORTH, 0)
+        DataFilter.detrend(ppg_red, DetrendOperations.LINEAR)
+        DataFilter.detrend(ppg_ir, DetrendOperations.LINEAR)
         
         # find peaks in signal
-        red_peaks, _ = find_peaks(hr_red, distance=min_distance)
-        ir_peaks, _ = find_peaks(hr_ir, distance=min_distance)
+        ppg_red = DataFilter.detect_peaks_z_score(ppg_red)
+        ppg_ir = DataFilter.detect_peaks_z_score(ppg_ir)
+        red_peaks, _ = find_peaks(ppg_red, distance=self.min_distance)
+        ir_peaks, _ = find_peaks(ppg_ir, distance=self.min_distance)
 
-        # get inter-peak intervals
-        red_ipis = np.diff(red_peaks) / self.ppg_sampling_rate
-        ir_ipis = np.diff(ir_peaks) / self.ppg_sampling_rate
-        ipis = np.concatenate((red_ipis, ir_ipis))
+        # get inter-peak sample intervals
+        sample_ipis = np.concatenate((np.diff(red_peaks), np.diff(ir_peaks)))
         
-        # get bpm from mean inter-peak interval
-        average_ipi = np.mean(ipis)
+        # get bpm from mean inter-peak sample interval
+        average_ipi = np.mean(sample_ipis) / self.ppg_sampling_rate
         heart_bpm = 60 / average_ipi
 
         return heart_bpm
