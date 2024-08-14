@@ -2,7 +2,7 @@ from logic.base_logic import OptionalBaseLogic
 
 from brainflow.board_shim import BoardShim, BrainFlowPresets
 from brainflow.data_filter import DataFilter, FilterTypes, DetrendOperations
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, resample
 
 import numpy as np
 import utils
@@ -32,7 +32,10 @@ class Biometrics(OptionalBaseLogic):
             self.lowcut = 30 / 60
             self.highcut = 240 / 60
             self.order = 4
-            self.min_distance = 1 / self.highcut * self.ppg_sampling_rate
+
+            self.resample_rate = int(self.highcut * 2 + 0.5) # nyquist
+            self.resample_size = self.resample_rate * self.window_seconds
+            self.min_distance = 1 / self.highcut * self.resample_rate
 
             # ema smoothing variables
             self.current_values = None
@@ -49,12 +52,16 @@ class Biometrics(OptionalBaseLogic):
         # detrend and filter down to possible heart rates
         DataFilter.perform_bandpass(ppg_red, self.ppg_sampling_rate, self.lowcut, self.highcut, self.order, FilterTypes.BUTTERWORTH, 0)
         DataFilter.perform_bandpass(ppg_ir, self.ppg_sampling_rate, self.lowcut, self.highcut, self.order, FilterTypes.BUTTERWORTH, 0)
+
+        ppg_red = resample(ppg_red, self.resample_size)
+        ppg_ir = resample(ppg_red, self.resample_size)
+
         DataFilter.detrend(ppg_red, DetrendOperations.LINEAR)
         DataFilter.detrend(ppg_ir, DetrendOperations.LINEAR)
         
         # find peaks in signal
-        ppg_red = DataFilter.detect_peaks_z_score(ppg_red)
-        ppg_ir = DataFilter.detect_peaks_z_score(ppg_ir)
+        ppg_red = DataFilter.detect_peaks_z_score(ppg_red, threshold=3)
+        ppg_ir = DataFilter.detect_peaks_z_score(ppg_ir, threshold=3)
         red_peaks, _ = find_peaks(ppg_red, distance=self.min_distance)
         ir_peaks, _ = find_peaks(ppg_ir, distance=self.min_distance)
 
@@ -62,7 +69,7 @@ class Biometrics(OptionalBaseLogic):
         sample_ipis = np.concatenate((np.diff(red_peaks), np.diff(ir_peaks)))
         
         # get bpm from mean inter-peak sample interval
-        average_ipi = np.mean(sample_ipis) / self.ppg_sampling_rate
+        average_ipi = np.mean(sample_ipis) / self.resample_rate
         heart_bpm = 60 / average_ipi
 
         return heart_bpm
