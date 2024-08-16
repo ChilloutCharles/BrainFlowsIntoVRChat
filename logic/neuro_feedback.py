@@ -42,4 +42,4 @@ class NeuroFB(PwrBands):
         return ret_dict
     
     def calculate_ratio(self, numerator, denominator):
-        return tanh_normalize(numerator - denominator, self.normalize_scale, 0)
+        return tanh_normalize(numerator / denominator, self.normalize_scale, -1)
