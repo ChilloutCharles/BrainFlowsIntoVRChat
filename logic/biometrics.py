@@ -70,7 +70,9 @@ class Biometrics(OptionalBaseLogic):
         
         # get bpm from mean inter-peak sample interval
         average_ipi = np.mean(sample_ipis) / self.resample_rate
-        heart_bpm = 60 / average_ipi
+        heart_bpm = 0
+        if not np.isnan(average_ipi) and average_ipi != 0:
+            heart_bpm = 60 / average_ipi
 
         return heart_bpm
     
