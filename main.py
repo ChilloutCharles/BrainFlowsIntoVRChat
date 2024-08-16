@@ -131,8 +131,8 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
     logics = [
         Info(board, window_seconds=window_seconds),
         PwrBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
-        NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay),
-        Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
+        NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay, normalize_scale=1.5),
+        Addons(board, window_seconds=window_seconds, ema_decay=ema_decay, normalize_scale=1.5),
         biometrics_logic
     ]
 
