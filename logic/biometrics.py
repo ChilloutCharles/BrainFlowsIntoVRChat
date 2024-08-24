@@ -1,8 +1,8 @@
 from logic.base_logic import OptionalBaseLogic
 
 from brainflow.board_shim import BoardShim, BrainFlowPresets
-from brainflow.data_filter import DataFilter, FilterTypes, DetrendOperations
-from scipy.signal import find_peaks, resample
+from brainflow.data_filter import DataFilter, WaveletTypes
+from scipy.signal import find_peaks, butter, filtfilt
 
 import numpy as np
 import utils
@@ -29,13 +29,11 @@ class Biometrics(OptionalBaseLogic):
             self.max_sample_size = self.ppg_sampling_rate * self.window_seconds
 
             # heart rate filter params
-            self.lowcut = 30 / 60
-            self.highcut = 240 / 60
-            self.order = 4
-
-            self.resample_rate = int(self.highcut * 2 + 0.5) # nyquist
-            self.resample_size = self.resample_rate * self.window_seconds
-            self.min_distance = 1 / self.highcut * self.resample_rate
+            lowcut = 30 / 60
+            highcut = 240 / 60
+            order = 2
+            b, a = butter(order, (lowcut, highcut), btype="bandpass", fs=self.ppg_sampling_rate)
+            self.hr_filter = lambda data: filtfilt(b, a, data)
 
             # ema smoothing variables
             self.current_values = None
@@ -46,34 +44,26 @@ class Biometrics(OptionalBaseLogic):
         ppg_ir, ppg_red, ppg_ambient = np.copy(ppg_ir), np.copy(ppg_red), np.copy(ppg_ambient)
 
         # remove ambient light
-        ppg_ir = np.clip(ppg_ir - ppg_ambient, 0, None)
-        ppg_red = np.clip(ppg_red - ppg_ambient, 0, None)
+        ppg_ir -= ppg_ambient
+        ppg_red -= ppg_ambient
 
-        # detrend and filter down to possible heart rates
-        DataFilter.perform_bandpass(ppg_red, self.ppg_sampling_rate, self.lowcut, self.highcut, self.order, FilterTypes.BUTTERWORTH, 0)
-        DataFilter.perform_bandpass(ppg_ir, self.ppg_sampling_rate, self.lowcut, self.highcut, self.order, FilterTypes.BUTTERWORTH, 0)
+        # Denoise and Filter to possible heart rates
+        DataFilter.perform_wavelet_denoising(ppg_ir, WaveletTypes.DB4, 5)
+        DataFilter.perform_wavelet_denoising(ppg_red, WaveletTypes.DB4, 5)
+        ppg_ir = self.hr_filter(ppg_ir)
+        ppg_red = self.hr_filter(ppg_red)
 
-        ppg_red = resample(ppg_red, self.resample_size)
-        ppg_ir = resample(ppg_red, self.resample_size)
-
-        DataFilter.detrend(ppg_red, DetrendOperations.LINEAR)
-        DataFilter.detrend(ppg_ir, DetrendOperations.LINEAR)
-        
         # find peaks in signal
-        ppg_red = DataFilter.detect_peaks_z_score(ppg_red, threshold=3)
-        ppg_ir = DataFilter.detect_peaks_z_score(ppg_ir, threshold=3)
-        red_peaks, _ = find_peaks(ppg_red, distance=self.min_distance)
-        ir_peaks, _ = find_peaks(ppg_ir, distance=self.min_distance)
+        red_peaks, _ = find_peaks(ppg_red)
+        ir_peaks, _ = find_peaks(ppg_ir)
 
         # get inter-peak sample intervals
         sample_ipis = np.concatenate((np.diff(red_peaks), np.diff(ir_peaks)))
         
         # get bpm from mean inter-peak sample interval
-        average_ipi = np.mean(sample_ipis) / self.resample_rate
-        heart_bpm = 0
-        if not np.isnan(average_ipi) and average_ipi != 0:
-            heart_bpm = 60 / average_ipi
-
+        average_ipi = np.mean(sample_ipis) / self.ppg_sampling_rate
+        heart_bpm = 60 / average_ipi
+        
         return heart_bpm
     
     def calculate_data_dict(self):
