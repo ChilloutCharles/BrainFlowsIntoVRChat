@@ -30,10 +30,11 @@ class Biometrics(OptionalBaseLogic):
 
             # heart rate filter params
             lowcut = 30 / 60
-            highcut = 240 / 60
+            highcut = 150 / 60
             order = 2
             b, a = butter(order, (lowcut, highcut), btype="bandpass", fs=self.ppg_sampling_rate)
             self.hr_filter = lambda data: filtfilt(b, a, data)
+            self.min_distance = self.ppg_sampling_rate / highcut
 
             # ema smoothing variables
             self.current_values = None
@@ -48,14 +49,14 @@ class Biometrics(OptionalBaseLogic):
         ppg_red -= ppg_ambient
 
         # Denoise and Filter to possible heart rates
-        DataFilter.perform_wavelet_denoising(ppg_ir, WaveletTypes.DB4, 5)
-        DataFilter.perform_wavelet_denoising(ppg_red, WaveletTypes.DB4, 5)
+        DataFilter.perform_wavelet_denoising(ppg_ir, WaveletTypes.DB4, 4)
+        DataFilter.perform_wavelet_denoising(ppg_red, WaveletTypes.DB4, 4)
         ppg_ir = self.hr_filter(ppg_ir)
         ppg_red = self.hr_filter(ppg_red)
 
         # find peaks in signal
-        red_peaks, _ = find_peaks(ppg_red)
-        ir_peaks, _ = find_peaks(ppg_ir)
+        red_peaks, _ = find_peaks(ppg_red, distance=self.min_distance)
+        ir_peaks, _ = find_peaks(ppg_ir, distance=self.min_distance)
 
         # get inter-peak sample intervals
         sample_ipis = np.concatenate((np.diff(red_peaks), np.diff(ir_peaks)))
