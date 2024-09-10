@@ -124,9 +124,7 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
 
     ### Logic Modules ###
     has_muse_ppg = master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD)
-    
-    fft_size= 64 * 10 # TODO: Make this configurable
-    biometrics_logic = Biometrics(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
+    biometrics_logic = Biometrics(board, has_muse_ppg, ema_decay=ema_decay)
 
     logics = [
         Info(board, window_seconds=window_seconds),
@@ -145,9 +143,6 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
     ### Add ml action to logics if enabled
     if args.enable_action:
         logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier))
-
-    ### Adding one second to startup time for adaptive filters ###
-    startup_time += 1
 
     BoardShim.log_message(LogLevels.LEVEL_INFO.value, 'Intializing (wait {}s)'.format(startup_time))
     board.start_stream(streamer_params=args.streamer_params)
