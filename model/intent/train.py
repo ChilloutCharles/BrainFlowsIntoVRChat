@@ -142,10 +142,9 @@ def main():
 
     ## create channel expander/normalizer and classification layer
     classes = len(processed_windows)
-    user_channels = len(eeg_channels)
     encoder_channels = pretrained_encoder.input_shape[-1]
 
-    expandalizer = create_first_layer(user_channels, encoder_channels)
+    expandalizer = create_first_layer(encoder_channels)
     classifier = create_last_layer(classes)
     
     ## Create Model
@@ -159,7 +158,7 @@ def main():
     model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=2*3, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
@@ -182,6 +181,8 @@ def main():
     predictions_prob = model.predict(X_test)
     predictions = np.argmax(predictions_prob, axis=1)
     y_test_idxs = np.argmax(y_test, axis=1)
+    print("Model evaluation:")
+    model.evaluate(X_test, y_test)
     print(classification_report(y_test_idxs, predictions))
 
     ## Plot history accuracy from model

@@ -13,7 +13,8 @@ def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
         DataFilter.detrend(session_data[eeg_chan], DetrendOperations.LINEAR)
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-        DataFilter.perform_lowpass(session_data[eeg_chan], sampling_rate, 80, 4, FilterTypes.BUTTERWORTH.value, 0) # resample effect mitigation
+        # bandpass to alpha, beta, gamma, 80 for resample effect mitigation
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 8, 80, 4, FilterTypes.BUTTERWORTH.value, 0) 
     return session_data
 
 def extract_features(preprocessed_data):

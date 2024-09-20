@@ -2,8 +2,8 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, Activation, Flatten, Multiply, BatchNormalization, Dropout, Layer
-from keras.layers import SeparableConv1D, Conv1D, UpSampling1D, MaxPooling1D
+from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D
+from keras.layers import Activation, Flatten, Multiply, BatchNormalization, Dropout
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -29,42 +29,72 @@ class SpatialAttention(Layer):
 ## Encoder and Decoder Trained on the physionet motor imagery dataset
 ## https://www.physionet.org/content/eegmmidb/1.0.0/
 ## Thanks again to Summer, Programmerboi, Hosomi
+## Modification to follow along this paper
+## https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7522466/
 
-act = 'silu'
+@keras.saving.register_keras_serializable()
+class ExpandDimsLayer(Layer):
+    def call(self, inputs):
+        return tf.expand_dims(inputs, axis=-1)
 
-encoder = Sequential([ 
-    SeparableConv1D(128, 3, padding='same'),
-    BatchNormalization(), Activation(act), MaxPooling1D(2),
-    SeparableConv1D(64, 3, padding='same'),
-    BatchNormalization(), Activation(act), MaxPooling1D(2),
-    SeparableConv1D(32, 3, padding='same'),
-    Activation(act)
+@keras.saving.register_keras_serializable()
+class SqueezeDimsLayer(Layer):
+    def call(self, inputs):
+        return tf.squeeze(inputs, axis=-1)
+
+kernel = (3, 3)
+act = 'leaky_relu'
+
+encoder = Sequential([
+    ExpandDimsLayer(),
+    SeparableConv2D(16, kernel, padding='same'),
+    DepthwiseConv2D(kernel, padding='same', strides=2),
+    BatchNormalization(), Activation(act),
+    
+    SeparableConv2D(16, kernel, padding='same'),
+    DepthwiseConv2D(kernel, padding='same', strides=2),
+    BatchNormalization(), Activation(act),
+
+    SeparableConv2D(16, kernel, padding='same'),
+    DepthwiseConv2D(kernel, padding='same', strides=2),
+    BatchNormalization(), Activation(act),
+
+    SeparableConv2D(16, kernel, padding='same'),
 ])
 
 decoder = Sequential([
-    SeparableConv1D(32, 3, padding='same'), 
-    BatchNormalization(), Activation(act), UpSampling1D(2),
-    SeparableConv1D(64, 3, padding='same'), 
-    BatchNormalization(), Activation(act), UpSampling1D(2),
-    SeparableConv1D(128, 3, padding='same'),
-    BatchNormalization(), Activation(act),
+    SeparableConv2D(16, kernel, padding='same'),
+    BatchNormalization(), Activation(act), UpSampling2D(2),
+    
+    SeparableConv2D(16, kernel, padding='same'),
+    BatchNormalization(), Activation(act), UpSampling2D(2),
 
-    SeparableConv1D(64, 1, padding='same', activation='sigmoid'),
+    SeparableConv2D(16, kernel, padding='same'),
+    BatchNormalization(), Activation(act), UpSampling2D(2),
+    
+    SeparableConv2D(1, kernel, padding='same'), Activation('relu'),
+    SqueezeDimsLayer()
+])
+
+auto_encoder = Sequential([
+    encoder,
+    decoder
 ])
 
 ## First Layer to convert any channels to 64 ranged [0, 1]
-def create_first_layer(channels, expanded_channels=64):
+def create_first_layer(chs=64):
     return Sequential([
-        SeparableConv1D(expanded_channels, channels, padding='same', use_bias=False),
-        BatchNormalization(),
-        Activation('sigmoid'),
-        Dropout(0.1),
+        Conv1D(chs//4, 3, padding='same'),
+        BatchNormalization(), Activation('silu'),
+        Conv1D(chs//2, 3, padding='same'),
+        BatchNormalization(), Activation('silu'), 
+        Conv1D(chs//1, 3, padding='same'),
+        BatchNormalization(), Activation('sigmoid'), 
     ])
 
 ## Last Layer to map latent space to custom classes
 def create_last_layer(classes):
     return Sequential([
-        SpatialAttention(classes, 5),
         Flatten(),
         Dropout(0.1),
         Dense(classes, activation='softmax', kernel_regularizer='l2')
