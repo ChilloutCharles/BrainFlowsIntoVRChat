@@ -2,7 +2,7 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, MaxPooling2D
+from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, GlobalAveragePooling2D
 from keras.layers import Activation, Flatten, Multiply, BatchNormalization, Dropout
 
 ## Spatial Attention (Thanks Summer!)
@@ -61,6 +61,9 @@ encoder = Sequential([
     create_block(16, kernel, e_rates, 2),
     BatchNormalization(), Activation(act),
 
+    create_block(16, kernel, e_rates, 2),
+    BatchNormalization(), Activation(act),
+
     create_block(16, kernel, e_rates), Activation(act)
 ])
 
@@ -68,6 +71,9 @@ decoder = Sequential([
     create_block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
     
+    create_block(16, kernel, d_rates),
+    BatchNormalization(), Activation(act), UpSampling2D(2),
+
     create_block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
 
@@ -97,7 +103,7 @@ def create_first_layer(chs=64):
 ## Last Layer to map latent space to custom classes
 def create_last_layer(classes):
     return Sequential([
-        Flatten(),
+        GlobalAveragePooling2D(),
         Dropout(0.1),
         Dense(classes, activation='softmax', kernel_regularizer='l2')
     ])
