@@ -25,10 +25,10 @@ X_train, X_val = train_test_split(data, test_size=0.2)
 
 # Build the autoencoder
 autoencoder = auto_encoder
-autoencoder.compile(optimizer=Adam(learning_rate=0.001), loss='huber')
+autoencoder.compile(optimizer=Adam(learning_rate=0.01), loss='huber')
 
 # Define the EarlyStopping callback
-early_stopping = EarlyStopping(monitor='val_loss', patience=2*3, restore_best_weights=True, verbose=0)
+early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
 
 # Train the autoencoder with early stopping
 batch_size = 256

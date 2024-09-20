@@ -2,18 +2,15 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D
+from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, MaxPooling2D
 from keras.layers import Activation, Flatten, Multiply, BatchNormalization, Dropout
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
 class SpatialAttention(Layer):
-    def __init__(self, classes, kernel_size=7, **kwargs):
+    def __init__(self, kernel_size=7, **kwargs):
         super(SpatialAttention, self).__init__(**kwargs)
-        self.kernel_size = kernel_size
-        self.classes = classes
-        self.conv1 = Conv1D(self.classes, self.kernel_size, padding='same', activation='silu', use_bias=False)
-        self.conv2 = Conv1D(1, self.kernel_size, padding='same', activation='sigmoid', use_bias=False)
+        self.attn = SeparableConv2D(1, kernel_size, padding='same', activation='sigmoid')
     
     def build(self, input_shape):
         super(SpatialAttention, self).build(input_shape)
@@ -21,16 +18,15 @@ class SpatialAttention(Layer):
     def call(self, inputs):
         avg_out = tf.reduce_mean(inputs, axis=-1, keepdims=True)
         max_out = tf.reduce_max(inputs, axis=-1, keepdims=True)
-        x = tf.concat([avg_out, max_out], axis=2)
-        x = self.conv1(x)
-        x = self.conv2(x)
+        x = tf.concat([avg_out, max_out], axis=-1)
+        x = self.attn(x)
         return Multiply()([inputs, x])
 
 ## Encoder and Decoder Trained on the physionet motor imagery dataset
 ## https://www.physionet.org/content/eegmmidb/1.0.0/
 ## Thanks again to Summer, Programmerboi, Hosomi
 ## Modification to follow along this paper
-## https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7522466/
+## https://journalofcloudcomputing.springeropen.com/articles/10.1186/s13677-020-00203-9
 
 @keras.saving.register_keras_serializable()
 class ExpandDimsLayer(Layer):
@@ -43,36 +39,42 @@ class SqueezeDimsLayer(Layer):
         return tf.squeeze(inputs, axis=-1)
 
 kernel = (3, 3)
+e_rates = [1, 2]
+d_rates = list(reversed(e_rates))
 act = 'leaky_relu'
+
+def create_block(filters, kernel, dilation_rates, end_stride=1):
+    # dialated depthwise convolves followed by pointwise convolve
+    return Sequential(
+        [DepthwiseConv2D(kernel, padding='same', dilation_rate=dr) for dr in dilation_rates] + 
+        [SeparableConv2D(filters, 1, padding='same', strides=end_stride)]
+    )
 
 encoder = Sequential([
     ExpandDimsLayer(),
-    SeparableConv2D(16, kernel, padding='same'),
-    DepthwiseConv2D(kernel, padding='same', strides=2),
+    create_block(16, kernel, e_rates, 2),
     BatchNormalization(), Activation(act),
     
-    SeparableConv2D(16, kernel, padding='same'),
-    DepthwiseConv2D(kernel, padding='same', strides=2),
+    create_block(16, kernel, e_rates, 2),
+    BatchNormalization(), Activation(act),
+    
+    create_block(16, kernel, e_rates, 2),
     BatchNormalization(), Activation(act),
 
-    SeparableConv2D(16, kernel, padding='same'),
-    DepthwiseConv2D(kernel, padding='same', strides=2),
-    BatchNormalization(), Activation(act),
-
-    SeparableConv2D(16, kernel, padding='same'),
+    create_block(16, kernel, e_rates), Activation(act)
 ])
 
 decoder = Sequential([
-    SeparableConv2D(16, kernel, padding='same'),
+    create_block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
     
-    SeparableConv2D(16, kernel, padding='same'),
+    create_block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
 
-    SeparableConv2D(16, kernel, padding='same'),
+    create_block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
     
-    SeparableConv2D(1, kernel, padding='same'), Activation('relu'),
+    create_block(1, kernel, d_rates), Activation('relu'),
     SqueezeDimsLayer()
 ])
 
