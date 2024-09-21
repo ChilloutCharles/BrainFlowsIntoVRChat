@@ -104,6 +104,7 @@ def create_first_layer(chs=64):
 def create_last_layer(classes):
     return Sequential([
         GlobalAveragePooling2D(),
+        Dense(64, activation='silu'),
         Dropout(0.1),
         Dense(classes, activation='softmax', kernel_regularizer='l2')
     ])
