@@ -72,6 +72,9 @@ js = js[:4]  # Select 4 random channels
 original = X_val[i][js]
 reconstructed_sample = reconstructed[i][js]
 
+# Use the dark background style
+plt.style.use('dark_background')
+
 # Create subplots for each selected channel
 fig, axs = plt.subplots(len(js), 1, figsize=(9, 16))
 
