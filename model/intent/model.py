@@ -2,8 +2,8 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, GlobalAveragePooling2D
-from keras.layers import Activation, Multiply, BatchNormalization, Dropout
+from keras.layers import Dense, Layer, Conv2D, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, GlobalAveragePooling2D
+from keras.layers import Activation, Multiply, BatchNormalization, Dropout, Add
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -56,38 +56,54 @@ e_rates = [1, 2]
 d_rates = list(reversed(e_rates))
 act = 'elu'
 
-def create_block(filters, kernel, dilation_rates, end_stride=1):
+def create_inner_layer(filters, kernel, dilation_rates, end_stride=1):
     # dialated depthwise convolves followed by pointwise convolve
     return Sequential(
         [DepthwiseConv2D(kernel, padding='same', dilation_rate=dr) for dr in dilation_rates] + 
         [SeparableConv2D(filters, 1, padding='same', strides=end_stride)]
     )
 
+@keras.utils.register_keras_serializable()
+class Block(Layer):
+    def __init__(self, filters, kernel, dilation_rates, strides=1, **kwargs):
+        super(Block, self).__init__(**kwargs)
+        self.inner_layer = create_inner_layer(filters, kernel, dilation_rates, strides)
+        self.residual = Conv2D(filters, 1, padding='same', strides=strides)
+
+    def call(self, inputs):
+        x = self.inner_layer(inputs)
+        r = self.residual(inputs)
+        return x + r
+
+    def build(self, input_shape):
+        super(Block, self).build(input_shape)
+
+
 encoder = Sequential([
     ExpandDimsLayer(),
-    create_block(16, kernel, e_rates, 2),
+    Block(16, kernel, e_rates, 2),
     BatchNormalization(), Activation(act), # (80, 32, 16)
     
-    create_block(16, kernel, e_rates, 2),
+    Block(16, kernel, e_rates, 2),
     BatchNormalization(), Activation(act), # (40, 16, 16)
     
-    create_block(16, kernel, e_rates, 2),
+    Block(16, kernel, e_rates, 2),
     BatchNormalization(), Activation(act), # (20, 8, 16)
 
-    create_block(16, kernel, e_rates), Activation(act)
+    create_inner_layer(16, kernel, e_rates), Activation(act)
 ])
 
 decoder = Sequential([
-    create_block(16, kernel, d_rates),
+    Block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
     
-    create_block(16, kernel, d_rates),
+    Block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
 
-    create_block(16, kernel, d_rates),
+    Block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
     
-    create_block(1, kernel, d_rates), Activation('relu'),
+    create_inner_layer(1, kernel, d_rates), Activation('relu'),
     SqueezeDimsLayer()
 ])
 
