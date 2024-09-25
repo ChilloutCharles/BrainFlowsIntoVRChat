@@ -3,7 +3,7 @@ import keras
 
 from keras.models import Sequential
 from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, GlobalAveragePooling2D
-from keras.layers import Activation, Multiply, BatchNormalization
+from keras.layers import Activation, Multiply, BatchNormalization, Dropout
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -115,5 +115,6 @@ def create_last_layer(classes):
             GlobalAveragePooling2D(), Dense(16),
             BatchNormalization(), Activation(act)
         ]),
+        Dropout(0.2),
         Dense(classes, activation='softmax', kernel_regularizer='l2')
     ])
