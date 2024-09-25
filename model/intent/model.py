@@ -38,10 +38,22 @@ class SqueezeDimsLayer(Layer):
     def call(self, inputs):
         return tf.squeeze(inputs, axis=-1)
 
+@keras.utils.register_keras_serializable()
+class AddNoiseLayer(Layer):
+    def __init__(self, noise_factor=0.1, **kwargs):
+        super(AddNoiseLayer, self).__init__(**kwargs)
+        self.noise_factor = noise_factor
+
+    def call(self, inputs, training=None):
+        if training:
+            noise = self.noise_factor * tf.random.normal(shape=tf.shape(inputs), mean=0.0, stddev=1.0)
+            return inputs + noise
+        return inputs
+
 kernel = (3, 3)
 e_rates = [1, 2]
 d_rates = list(reversed(e_rates))
-act = 'leaky_relu'
+act = 'elu'
 
 def create_block(filters, kernel, dilation_rates, end_stride=1):
     # dialated depthwise convolves followed by pointwise convolve
@@ -53,16 +65,13 @@ def create_block(filters, kernel, dilation_rates, end_stride=1):
 encoder = Sequential([
     ExpandDimsLayer(),
     create_block(16, kernel, e_rates, 2),
-    BatchNormalization(), Activation(act),
+    BatchNormalization(), Activation(act), # (80, 32, 16)
     
     create_block(16, kernel, e_rates, 2),
-    BatchNormalization(), Activation(act),
+    BatchNormalization(), Activation(act), # (40, 16, 16)
     
     create_block(16, kernel, e_rates, 2),
-    BatchNormalization(), Activation(act),
-
-    create_block(16, kernel, e_rates, 2),
-    BatchNormalization(), Activation(act),
+    BatchNormalization(), Activation(act), # (20, 8, 16)
 
     create_block(16, kernel, e_rates), Activation(act)
 ])
@@ -76,15 +85,13 @@ decoder = Sequential([
 
     create_block(16, kernel, d_rates),
     BatchNormalization(), Activation(act), UpSampling2D(2),
-
-    create_block(16, kernel, d_rates),
-    BatchNormalization(), Activation(act), UpSampling2D(2),
     
     create_block(1, kernel, d_rates), Activation('relu'),
     SqueezeDimsLayer()
 ])
 
 auto_encoder = Sequential([
+    AddNoiseLayer(0.001),
     encoder,
     decoder
 ])

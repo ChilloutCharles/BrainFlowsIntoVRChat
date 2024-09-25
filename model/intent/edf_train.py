@@ -43,8 +43,8 @@ fit_history = autoencoder.fit(
 
 #Save the model
 print("Saving Model")
-encoder = autoencoder.layers[0]
-decoder = autoencoder.layers[1]
+encoder = autoencoder.layers[-2]
+decoder = autoencoder.layers[-1]
 
 encoder.save('physionet_encoder.keras')
 decoder.save('physionet_decoder.keras')
