@@ -92,7 +92,7 @@ decoder = Sequential([
 ])
 
 auto_encoder = Sequential([
-    AddNoiseLayer(0.001),
+    AddNoiseLayer(0.005),
     encoder,
     decoder
 ])
