@@ -185,6 +185,9 @@ def main():
     model.evaluate(X_test, y_test)
     print(classification_report(y_test_idxs, predictions))
 
+    # Use the dark background style
+    plt.style.use('dark_background')
+
     ## Plot history accuracy from model
     plt.plot(fit_history.history['loss'])
     plt.plot(fit_history.history['val_loss'])
@@ -192,7 +195,45 @@ def main():
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper left')
-    plt.show()
+    plt.savefig('loss.png')
+
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.manifold import TSNE
+    import tensorflow as tf
+
+    # Assuming `latent` has shape (samples, timesteps, channels, features)
+    seq = Sequential([
+        expandalizer,
+        pretrained_encoder,
+        classifier.layers[0]
+    ])
+    latent = seq(X_test)
+
+    # Step 1: Reshape to 2D by flattening the last three dimensions
+    samples = latent.shape[0]  # Number of samples
+    # Flatten the timesteps, channels, and features dimensions into a single dimension
+    latent_flat = tf.reshape(latent, (samples, -1)).numpy()
+
+    # Step 2: Standardize the flattened data
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(latent_flat)
+
+    # Step 3: Apply t-SNE
+    tsne = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=1000, random_state=42)
+    X_tsne = tsne.fit_transform(X_scaled)
+
+    # Step 5: Plot the t-SNE result
+    plt.figure(figsize=(10, 10))
+    scatter = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=i_test, cmap='viridis', alpha=0.7)
+    plt.colorbar(scatter, label='Labels')
+    plt.title('t-SNE Visualization of Labeled Data')
+    plt.xlabel('t-SNE Component 1')
+    plt.ylabel('t-SNE Component 2')
+    plt.grid(True)
+
+    # Set the scatter plot aspect to be square
+    plt.axis('square')
+    plt.savefig('tsne.png')
 
 
 if __name__ == "__main__":

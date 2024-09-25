@@ -3,7 +3,7 @@ import keras
 
 from keras.models import Sequential
 from keras.layers import Dense, Layer, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, GlobalAveragePooling2D
-from keras.layers import Activation, Flatten, Multiply, BatchNormalization, Dropout
+from keras.layers import Activation, Multiply, BatchNormalization
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -38,6 +38,7 @@ class SqueezeDimsLayer(Layer):
     def call(self, inputs):
         return tf.squeeze(inputs, axis=-1)
 
+# Noise Layer 
 @keras.utils.register_keras_serializable()
 class AddNoiseLayer(Layer):
     def __init__(self, noise_factor=0.1, **kwargs):
@@ -100,9 +101,9 @@ auto_encoder = Sequential([
 def create_first_layer(chs=64):
     return Sequential([
         Conv1D(chs//4, 3, padding='same'),
-        BatchNormalization(), Activation('silu'),
+        BatchNormalization(), Activation(act),
         Conv1D(chs//2, 3, padding='same'),
-        BatchNormalization(), Activation('silu'), 
+        BatchNormalization(), Activation(act), 
         Conv1D(chs//1, 3, padding='same'),
         BatchNormalization(), Activation('sigmoid'), 
     ])
@@ -110,7 +111,9 @@ def create_first_layer(chs=64):
 ## Last Layer to map latent space to custom classes
 def create_last_layer(classes):
     return Sequential([
-        GlobalAveragePooling2D(),
-        Dropout(0.2),
+        Sequential([
+            GlobalAveragePooling2D(), Dense(16),
+            BatchNormalization(), Activation(act)
+        ]),
         Dense(classes, activation='softmax', kernel_regularizer='l2')
     ])
