@@ -208,7 +208,7 @@ def main():
         classifier.layers[0]
     ])
     latent = seq(X_test)
-
+    
     # Step 1: Reshape to 2D by flattening the last three dimensions
     samples = latent.shape[0]  # Number of samples
     # Flatten the timesteps, channels, and features dimensions into a single dimension
