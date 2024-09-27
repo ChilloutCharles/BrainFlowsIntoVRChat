@@ -2,8 +2,8 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, Layer, Conv2D, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, GlobalAveragePooling2D
-from keras.layers import Activation, Multiply, BatchNormalization, Dropout, SpatialDropout1D
+from keras.layers import Dense, Layer, Conv2D, DepthwiseConv2D, SeparableConv2D , Conv1D
+from keras.layers import Activation, Multiply, BatchNormalization, Dropout, SpatialDropout1D, UpSampling2D, GlobalAveragePooling2D
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -116,21 +116,19 @@ auto_encoder = Sequential([
 ## First Layer to convert any channels to 64 ranged [0, 1]
 def create_first_layer(chs=64):
     return Sequential([
-        Conv1D(chs//4, 3, padding='same'),
+        Conv1D(chs, 3, padding='same', dilation_rate=1),
         BatchNormalization(), Activation(act),
-        Conv1D(chs//2, 3, padding='same'),
+        Conv1D(chs, 3, padding='same', dilation_rate=2),
         BatchNormalization(), Activation(act), 
-        Conv1D(chs//1, 3, padding='same'),
-        BatchNormalization(), Activation('sigmoid'), 
+        Conv1D(chs, 3, padding='same', dilation_rate=4),
+        BatchNormalization(),
+        AddNoiseLayer(0.1),
+        Activation('relu'),
     ])
 
 ## Last Layer to map latent space to custom classes
 def create_last_layer(classes):
     return Sequential([
-        Sequential([
-            GlobalAveragePooling2D(), Dense(16),
-            BatchNormalization(), Activation(act)
-        ]),
-        Dropout(0.2),
+        GlobalAveragePooling2D(),
         Dense(classes, activation='softmax', kernel_regularizer='l2')
     ])
