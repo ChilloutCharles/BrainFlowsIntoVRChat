@@ -3,7 +3,7 @@ import keras
 
 from keras.models import Sequential
 from keras.layers import Dense, Layer, Conv2D, DepthwiseConv2D, SeparableConv2D , Conv1D, UpSampling2D, GlobalAveragePooling2D
-from keras.layers import Activation, Multiply, BatchNormalization, Dropout, Add
+from keras.layers import Activation, Multiply, BatchNormalization, Dropout, SpatialDropout1D
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -108,7 +108,7 @@ decoder = Sequential([
 ])
 
 auto_encoder = Sequential([
-    AddNoiseLayer(0.005),
+    SpatialDropout1D(0.2),
     encoder,
     decoder
 ])
