@@ -3,7 +3,7 @@ import keras
 
 from keras.models import Sequential
 from keras.layers import Dense, Layer, Conv2D, DepthwiseConv2D, SeparableConv2D , Conv1D
-from keras.layers import Activation, Multiply, BatchNormalization, Dropout, SpatialDropout1D, UpSampling2D, GlobalAveragePooling2D
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling2D, GlobalAveragePooling2D
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -116,14 +116,12 @@ auto_encoder = Sequential([
 ## First Layer to convert any channels to 64 ranged [0, 1]
 def create_first_layer(chs=64):
     return Sequential([
-        Conv1D(chs, 3, padding='same', dilation_rate=1),
+        Conv1D(chs, 3, padding='causal', dilation_rate=1),
         BatchNormalization(), Activation(act),
-        Conv1D(chs, 3, padding='same', dilation_rate=2),
+        Conv1D(chs, 3, padding='causal', dilation_rate=2),
         BatchNormalization(), Activation(act), 
-        Conv1D(chs, 3, padding='same', dilation_rate=4),
-        BatchNormalization(),
-        AddNoiseLayer(0.1),
-        Activation('relu'),
+        Conv1D(chs, 3, padding='causal', dilation_rate=4),
+        BatchNormalization(), AddNoiseLayer(0.1), Activation('relu'),
     ])
 
 ## Last Layer to map latent space to custom classes
