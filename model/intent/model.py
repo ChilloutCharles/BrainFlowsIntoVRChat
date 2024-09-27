@@ -51,7 +51,7 @@ class AddNoiseLayer(Layer):
             return inputs + noise
         return inputs
 
-kernel = (3, 3)
+kernel = (2, 3)
 e_rates = [1, 2]
 d_rates = list(reversed(e_rates))
 act = 'elu'
@@ -60,7 +60,7 @@ def create_inner_layer(filters, kernel, dilation_rates, end_stride=1):
     # dialated depthwise convolves followed by pointwise convolve
     return Sequential(
         [DepthwiseConv2D(kernel, padding='same', dilation_rate=dr) for dr in dilation_rates] + 
-        [SeparableConv2D(filters, 1, padding='same', strides=end_stride)]
+        [Conv2D(filters, 1, padding='same', strides=end_stride)]
     )
 
 @keras.utils.register_keras_serializable()
