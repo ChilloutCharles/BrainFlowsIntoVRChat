@@ -2,8 +2,8 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential
-from keras.layers import Dense, Layer, Conv2D, DepthwiseConv2D, SeparableConv2D , Conv1D
-from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling2D, GlobalAveragePooling2D
+from keras.layers import Dense, Layer, DepthwiseConv1D, SeparableConv2D , Conv1D
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D
 
 ## Spatial Attention (Thanks Summer!)
 @keras.saving.register_keras_serializable()
@@ -51,16 +51,16 @@ class AddNoiseLayer(Layer):
             return inputs + noise
         return inputs
 
-kernel = (2, 3)
-e_rates = [1, 2]
+kernel = 3
+e_rates = [1, 2, 4]
 d_rates = list(reversed(e_rates))
 act = 'elu'
 
 def create_inner_layer(filters, kernel, dilation_rates, end_stride=1):
     # dialated depthwise convolves followed by pointwise convolve
     return Sequential(
-        [DepthwiseConv2D(kernel, padding='same', dilation_rate=dr) for dr in dilation_rates] + 
-        [Conv2D(filters, 1, padding='same', strides=end_stride)]
+        [DepthwiseConv1D(kernel, padding='same', dilation_rate=dr) for dr in dilation_rates] + 
+        [Conv1D(filters, 1, padding='same', strides=end_stride)]
     )
 
 @keras.utils.register_keras_serializable()
@@ -68,7 +68,7 @@ class Block(Layer):
     def __init__(self, filters, kernel, dilation_rates, strides=1, **kwargs):
         super(Block, self).__init__(**kwargs)
         self.inner_layer = create_inner_layer(filters, kernel, dilation_rates, strides)
-        self.residual = Conv2D(filters, 1, padding='same', strides=strides)
+        self.residual = Conv1D(filters, 1, padding='same', strides=strides)
 
     def call(self, inputs):
         x = self.inner_layer(inputs)
@@ -78,33 +78,30 @@ class Block(Layer):
     def build(self, input_shape):
         super(Block, self).build(input_shape)
 
-
 encoder = Sequential([
-    ExpandDimsLayer(),
-    Block(16, kernel, e_rates, 2),
-    BatchNormalization(), Activation(act), # (80, 32, 16)
+    Block(64, kernel, e_rates, 2),
+    BatchNormalization(), Activation(act), # (80, 64)
     
-    Block(16, kernel, e_rates, 2),
-    BatchNormalization(), Activation(act), # (40, 16, 16)
+    Block(32, kernel, e_rates, 2),
+    BatchNormalization(), Activation(act), # (40, 32)
     
-    Block(16, kernel, e_rates, 2),
-    BatchNormalization(), Activation(act), # (20, 8, 16)
+    Block(32, kernel, e_rates, 2),
+    BatchNormalization(), Activation(act), # (20, 32)
 
-    create_inner_layer(16, kernel, e_rates), Activation(act)
+    create_inner_layer(16, kernel, e_rates), Activation(act) # (20, 16)
 ])
 
 decoder = Sequential([
     Block(16, kernel, d_rates),
-    BatchNormalization(), Activation(act), UpSampling2D(2),
+    BatchNormalization(), Activation(act), UpSampling1D(2),
     
-    Block(16, kernel, d_rates),
-    BatchNormalization(), Activation(act), UpSampling2D(2),
+    Block(32, kernel, d_rates),
+    BatchNormalization(), Activation(act), UpSampling1D(2),
 
-    Block(16, kernel, d_rates),
-    BatchNormalization(), Activation(act), UpSampling2D(2),
+    Block(32, kernel, d_rates),
+    BatchNormalization(), Activation(act), UpSampling1D(2),
     
-    create_inner_layer(1, kernel, d_rates), Activation('relu'),
-    SqueezeDimsLayer()
+    create_inner_layer(64, kernel, d_rates), Activation('linear')
 ])
 
 auto_encoder = Sequential([
@@ -121,12 +118,12 @@ def create_first_layer(chs=64):
         Conv1D(chs, 3, padding='causal', dilation_rate=2),
         BatchNormalization(), Activation(act), 
         Conv1D(chs, 3, padding='causal', dilation_rate=4),
-        BatchNormalization(), AddNoiseLayer(0.1), Activation('relu'),
+        BatchNormalization(), AddNoiseLayer(0.1), Activation('linear'),
     ])
 
 ## Last Layer to map latent space to custom classes
 def create_last_layer(classes):
     return Sequential([
-        GlobalAveragePooling2D(),
+        GlobalAveragePooling1D(),
         Dense(classes, activation='softmax', kernel_regularizer='l2')
     ])

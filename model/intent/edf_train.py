@@ -2,7 +2,7 @@ import numpy as np
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler as Scaler
+from sklearn.preprocessing import StandardScaler as Scaler
 
 from model import auto_encoder
 
@@ -25,7 +25,7 @@ X_train, X_val = train_test_split(data, test_size=0.2)
 
 # Build the autoencoder
 autoencoder = auto_encoder
-autoencoder.compile(optimizer=Adam(learning_rate=0.01), loss='huber')
+autoencoder.compile(optimizer=Adam(learning_rate=0.01), loss='mse')
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
