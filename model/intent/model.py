@@ -28,16 +28,6 @@ class SpatialAttention(Layer):
 ## Modification to follow along this paper
 ## https://journalofcloudcomputing.springeropen.com/articles/10.1186/s13677-020-00203-9
 
-@keras.saving.register_keras_serializable()
-class ExpandDimsLayer(Layer):
-    def call(self, inputs):
-        return tf.expand_dims(inputs, axis=-1)
-
-@keras.saving.register_keras_serializable()
-class SqueezeDimsLayer(Layer):
-    def call(self, inputs):
-        return tf.squeeze(inputs, axis=-1)
-
 # Noise Layer 
 @keras.utils.register_keras_serializable()
 class AddNoiseLayer(Layer):
@@ -113,12 +103,9 @@ auto_encoder = Sequential([
 ## First Layer to convert any channels to 64 ranged [0, 1]
 def create_first_layer(chs=64):
     return Sequential([
-        Conv1D(chs, 3, padding='causal', dilation_rate=1),
-        BatchNormalization(), Activation(act),
-        Conv1D(chs, 3, padding='causal', dilation_rate=2),
-        BatchNormalization(), Activation(act), 
-        Conv1D(chs, 3, padding='causal', dilation_rate=4),
-        BatchNormalization(), AddNoiseLayer(0.1), Activation('linear'),
+        Conv1D(chs, 3, padding='causal', dilation_rate=1), Activation(act),
+        Conv1D(chs, 3, padding='causal', dilation_rate=2), Activation(act), 
+        Conv1D(chs, 3, padding='causal', dilation_rate=4), Activation('linear'),
     ])
 
 ## Last Layer to map latent space to custom classes
