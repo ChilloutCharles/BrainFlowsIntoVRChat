@@ -3,7 +3,7 @@ import keras
 
 from keras.models import Sequential, Model
 from keras.layers import Dense, Layer, DepthwiseConv1D, SeparableConv2D , Conv1D
-from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, LayerNormalization
 from keras.losses import MeanSquaredError as MSE
 
 ## Spatial Attention (Thanks Summer!)
@@ -130,9 +130,12 @@ auto_encoder = CustomAutoencoder(encoder, decoder)
 def create_first_layer(chs=64):
     return Sequential([
         AddNoiseLayer(0.2),
-        Conv1D(chs, 3, padding='causal', dilation_rate=1), Activation(act),
-        Conv1D(chs, 3, padding='causal', dilation_rate=2), Activation(act), 
-        Conv1D(chs, 3, padding='causal', dilation_rate=4), Activation('linear'),
+        Conv1D(chs, 3, padding='causal', dilation_rate=1),
+        LayerNormalization(), Activation(act),
+        Conv1D(chs, 3, padding='causal', dilation_rate=2),
+        LayerNormalization(), Activation(act), 
+        Conv1D(chs, 3, padding='causal', dilation_rate=4),
+        LayerNormalization(), Activation('linear'),
     ])
 
 ## Last Layer to map latent space to custom classes
