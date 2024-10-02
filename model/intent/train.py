@@ -158,7 +158,7 @@ def main():
     model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2*2, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
