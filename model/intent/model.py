@@ -135,7 +135,7 @@ def create_first_layer(chs=64):
         Conv1D(chs, 3, padding='causal', dilation_rate=2),
         LayerNormalization(), Activation(act), 
         Conv1D(chs, 3, padding='causal', dilation_rate=4),
-        LayerNormalization(), Activation('linear'),
+        Activation('linear'),
     ])
 
 ## Last Layer to map latent space to custom classes
