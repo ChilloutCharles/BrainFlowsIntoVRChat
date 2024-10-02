@@ -28,10 +28,10 @@ autoencoder = auto_encoder
 autoencoder.compile(optimizer=Adam(learning_rate=0.01), loss='mse')
 
 # Define the EarlyStopping callback
-early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
 
 # Train the autoencoder with early stopping
-batch_size = 256
+batch_size = 256 * 2
 epochs = 128
 fit_history = autoencoder.fit(
     X_train, X_train, 
@@ -43,8 +43,8 @@ fit_history = autoencoder.fit(
 
 #Save the model
 print("Saving Model")
-encoder = autoencoder.layers[-2]
-decoder = autoencoder.layers[-1]
+encoder = autoencoder.encoder
+decoder = autoencoder.decoder
 
 encoder.save('physionet_encoder.keras')
 decoder.save('physionet_decoder.keras')
