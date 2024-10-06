@@ -8,13 +8,12 @@ import matplotlib.pyplot as plt
 import random
 
 import keras
-from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 
-from model import create_first_layer, create_last_layer
+from model import partial_trainable, PerceptualClassifier
 from pipeline import preprocess_data, extract_features
 
 SAVE_FILENAME = "recorded_eeg"
@@ -136,29 +135,24 @@ def main():
     X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
     y_test = to_categorical(i_test, num_classes=len(processed_windows))
 
-    ## load pretrained encoder and keep it static
+    ## load pretrained encoder and keep it partially frozen
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
-    pretrained_encoder.trainable = False
+    partial_trainable(pretrained_encoder)
+    ## load pretrained decoder freeze it for use in perceptual loss
+    pretrained_decoder = keras.models.load_model("physionet_decoder.keras")
+    pretrained_decoder.trainable = False
 
-    ## create channel expander/normalizer and classification layer
+    ## get class count from training data
     classes = len(processed_windows)
-    encoder_channels = pretrained_encoder.input_shape[-1]
 
-    expandalizer = create_first_layer(encoder_channels)
-    classifier = create_last_layer(classes)
-    
     ## Create Model
-    model = Sequential([
-        expandalizer,
-        pretrained_encoder,
-        classifier
-    ])
+    model = PerceptualClassifier(pretrained_encoder, pretrained_decoder, classes, 1, 1)
 
     ## Compile the model
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
+    model.compile(optimizer=Adam(), loss=model.get_loss_function())
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=2*2, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
@@ -172,6 +166,7 @@ def main():
     )
 
     ## Print out model summary
+    model = model.get_lean_model()
     model.summary()
     
     ## Save models for realtime use
@@ -195,6 +190,7 @@ def main():
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper left')
+    plt.ylim(0, 1)
     plt.savefig('loss.png')
 
     from sklearn.preprocessing import StandardScaler
@@ -202,12 +198,8 @@ def main():
     import tensorflow as tf
 
     # Assuming `latent` has shape (samples, timesteps, channels, features)
-    seq = Sequential([
-        expandalizer,
-        pretrained_encoder,
-        classifier.layers[0]
-    ])
-    latent = seq(X_test)
+    model.layers[-1] = model.layers[-1].layers[0]
+    latent = model(X_test)
     
     # Step 1: Reshape to 2D by flattening the last three dimensions
     samples = latent.shape[0]  # Number of samples

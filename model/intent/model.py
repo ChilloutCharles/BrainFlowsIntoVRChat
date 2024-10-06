@@ -1,10 +1,9 @@
 import tensorflow as tf
-import numpy as np
 import keras
 
 from keras.models import Sequential, Model
-from keras.layers import Dense, Layer, DepthwiseConv1D, SeparableConv2D , Conv1D, Attention
-from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Dropout, Input, LayerNormalization, Flatten
+from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D, Attention
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy, CosineSimilarity
 
 ## Spatial Attention (Thanks Summer!)
@@ -90,10 +89,10 @@ class LoRALayer(Layer):
 # activates LoRA layers for downstream 
 def partial_trainable(seq_model):
     for layer in seq_model.layers:
-        if not isinstance(layer, LoRALayer):
-            layer.trainable = False  
+        if isinstance(layer, LoRALayer):
+            layer.trainable = True 
         else:
-            layer.trainable = True
+            layer.trainable = False
 
 ## Modification of seperable convolutions to follow along this paper
 ## https://journalofcloudcomputing.springeropen.com/articles/10.1186/s13677-020-00203-9
@@ -120,18 +119,19 @@ class StackedDepthSeperableConv1D(Layer):
         super(StackedDepthSeperableConv1D, self).build(input_shape)
 
 encoder = Sequential([
+    LoRALayer(rank), 
     StackedDepthSeperableConv1D(64, kernel, e_rates, 2, True),
     BatchNormalization(), Activation(act), # (80, 64)
-    LoRALayer(rank), 
     
+    LoRALayer(rank), 
     StackedDepthSeperableConv1D(32, kernel, e_rates, 2, True),
     BatchNormalization(), Activation(act), # (40, 32)
-    LoRALayer(rank), 
     
+    LoRALayer(rank), 
     StackedDepthSeperableConv1D(32, kernel, e_rates, 2, True),
     BatchNormalization(), Activation(act), # (20, 32)
+    
     LoRALayer(rank), 
-
     StackedDepthSeperableConv1D(16, kernel, e_rates, 1, False), # (20, 16)
     Activation('linear')
 ])
@@ -179,6 +179,7 @@ class CustomAutoencoder(Model):
     
 auto_encoder = CustomAutoencoder(encoder, decoder)
 
+## Classifier Model that trains for both classification and perceptual targets
 class PerceptualClassifier(Model):
     def __init__(self, encoder, decoder, classes, perceptual_weight=0.5, classify_weight=0.5, **kwargs):
         super(PerceptualClassifier, self).__init__(**kwargs)
@@ -212,14 +213,14 @@ class PerceptualClassifier(Model):
         return lambda y_true, y_pred: self.classify_weight * self.cce_loss(y_true, y_pred)
     
     def get_lean_model(self):
-        inputs = Input(self.expander.input_shape[1:])
         model = Sequential([
+            Input(self.expander.input_shape[1:]),
             self.expander,
             self.encoder,
             self.classifier
         ])
-        outputs = model(inputs)
-        return Model(inputs, outputs)
+        model.compile(optimizer='adam', loss='categorical_crossentropy')
+        return model
 
 # Custom Activation to maintain zero centered with max standard deviation of 3
 def tanh3(x):
@@ -239,5 +240,5 @@ def create_last_layer(classes):
         Sequential([
             GlobalAveragePooling1D()
         ]),
-        Dense(classes, activation='softmax', kernel_regularizer='l2')
+        Dense(classes, activation='softmax')
     ])
