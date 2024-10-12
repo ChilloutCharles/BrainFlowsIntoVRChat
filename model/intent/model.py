@@ -99,16 +99,16 @@ encoder = Sequential([
 ])
 
 decoder = Sequential([
-    StackedDepthSeperableConv1D(32, kernel, e_rates, 1, True),
+    StackedDepthSeperableConv1D(32, kernel, d_rates, 1, True),
     BatchNormalization(), Activation(act), UpSampling1D(2),
     
-    StackedDepthSeperableConv1D(32, kernel, e_rates, 1, True),
+    StackedDepthSeperableConv1D(32, kernel, d_rates, 1, True),
     BatchNormalization(), Activation(act), UpSampling1D(2),
 
-    StackedDepthSeperableConv1D(32, kernel, e_rates, 1, True),
+    StackedDepthSeperableConv1D(32, kernel, d_rates, 1, True),
     BatchNormalization(), Activation(act), UpSampling1D(2),
     
-    StackedDepthSeperableConv1D(64, kernel, e_rates, 1, False),
+    StackedDepthSeperableConv1D(64, kernel, d_rates, 1, False),
     Activation('linear')
 ])  
 
