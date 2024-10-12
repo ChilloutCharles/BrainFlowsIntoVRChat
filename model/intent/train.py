@@ -13,7 +13,7 @@ from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 
-from model import partial_trainable, PerceptualClassifier
+from model import PerceptualClassifier
 from pipeline import preprocess_data, extract_features
 
 SAVE_FILENAME = "recorded_eeg"
@@ -137,7 +137,7 @@ def main():
 
     ## load pretrained encoder and keep it partially frozen
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
-    partial_trainable(pretrained_encoder)
+    pretrained_encoder.trainable = False
     ## load pretrained decoder freeze it for use in perceptual loss
     pretrained_decoder = keras.models.load_model("physionet_decoder.keras")
     pretrained_decoder.trainable = False

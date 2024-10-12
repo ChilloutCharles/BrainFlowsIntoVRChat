@@ -1,9 +1,9 @@
 import tensorflow as tf
 import keras
 
-from keras.models import Sequential, Model
+from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D, Attention
-from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input, Dropout
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy, CosineSimilarity
 
 ## Spatial Attention (Thanks Summer!)
@@ -55,44 +55,10 @@ class AddNoiseLayer(Layer):
 ## https://www.physionet.org/content/eegmmidb/1.0.0/
 ## Thanks again to Summer, Programmerboi, Hosomi
 
-kernel = 2
+kernel = 3
 e_rates = [1, 2, 4]
 d_rates = list(reversed(e_rates))
 act = 'elu'
-rank = 8  # Low-rank dimension for LoRA
-
-## LoRA layers for use in downstream classification
-## https://arxiv.org/abs/2106.09685
-@keras.utils.register_keras_serializable()
-class LoRALayer(Layer):
-    def __init__(self, rank, **kwargs):
-        super(LoRALayer, self).__init__(**kwargs)
-        self.rank = rank
-    
-    def build(self, input_shape):
-        input_dim = input_shape[-1]
-        self.A = self.add_weight(shape=(input_dim, self.rank),
-                                 initializer='random_normal',
-                                 trainable=True,
-                                 name='lora_A')
-        self.B = self.add_weight(shape=(self.rank, input_dim),
-                                 initializer='random_normal',
-                                 trainable=True,
-                                 name='lora_B')
-        super(LoRALayer, self).build(input_shape)
-
-    def call(self, inputs):
-        lora_update = tf.matmul(inputs, self.A)
-        lora_update = tf.matmul(lora_update, self.B)
-        return inputs + lora_update
-
-# activates LoRA layers for downstream 
-def partial_trainable(seq_model):
-    for layer in seq_model.layers:
-        if isinstance(layer, LoRALayer):
-            layer.trainable = True 
-        else:
-            layer.trainable = False
 
 ## Modification of seperable convolutions to follow along this paper
 ## https://journalofcloudcomputing.springeropen.com/articles/10.1186/s13677-020-00203-9
@@ -119,25 +85,21 @@ class StackedDepthSeperableConv1D(Layer):
         super(StackedDepthSeperableConv1D, self).build(input_shape)
 
 encoder = Sequential([
-    LoRALayer(rank), 
     StackedDepthSeperableConv1D(64, kernel, e_rates, 2, True),
     BatchNormalization(), Activation(act), # (80, 64)
     
-    LoRALayer(rank), 
     StackedDepthSeperableConv1D(32, kernel, e_rates, 2, True),
     BatchNormalization(), Activation(act), # (40, 32)
     
-    LoRALayer(rank), 
     StackedDepthSeperableConv1D(32, kernel, e_rates, 2, True),
     BatchNormalization(), Activation(act), # (20, 32)
-    
-    LoRALayer(rank), 
-    StackedDepthSeperableConv1D(16, kernel, e_rates, 1, False), # (20, 16)
+
+    StackedDepthSeperableConv1D(32, kernel, e_rates, 1, False), 
     Activation('linear')
 ])
 
 decoder = Sequential([
-    StackedDepthSeperableConv1D(16, kernel, e_rates, 1, True),
+    StackedDepthSeperableConv1D(32, kernel, e_rates, 1, True),
     BatchNormalization(), Activation(act), UpSampling1D(2),
     
     StackedDepthSeperableConv1D(32, kernel, e_rates, 1, True),
@@ -181,29 +143,38 @@ auto_encoder = CustomAutoencoder(encoder, decoder)
 
 ## Classifier Model that trains for both classification and perceptual targets
 class PerceptualClassifier(Model):
-    def __init__(self, encoder, decoder, classes, perceptual_weight=0.5, classify_weight=0.5, **kwargs):
+    def __init__(self, frozen_encoder, frozen_decoder, classes, perceptual_weight=1.0, classify_weight=1.0, **kwargs):
         super(PerceptualClassifier, self).__init__(**kwargs)
         
-        self.encoder = encoder
-        self.decoder = decoder
+        # create teacher from frozen models
+        self.teacher = Sequential([frozen_decoder, frozen_encoder])
 
-        channels = self.encoder.input_shape[-1]
-        self.expander = create_first_layer(channels)
-        self.classifier = create_last_layer(classes)
+        # create student from pieces of unfrozen encoder
+        first_layer = [StackedDepthSeperableConv1D(64, kernel, e_rates, 2, True)]
+        cloned_encoder = clone_model(frozen_encoder)
+        cloned_encoder.set_weights(cloned_encoder.get_weights())
+        encoder_layers = first_layer + cloned_encoder.layers[1:]
+        self.student = Sequential(encoder_layers)
 
+        # classifier 
+        self.classifier = Sequential([
+            GlobalAveragePooling1D(),
+            Dense(classes, activation='softmax', kernel_regularizer='l2')
+        ])
+
+        # perceptual and classification losses
         self.perceptual_weight = perceptual_weight
         self.classify_weight = classify_weight
-        self.percept_loss = lambda y_true, y_pred: 1 + CosineSimilarity(axis=-1)(y_true, y_pred)
+        self.percept_loss = MSE()
         self.cce_loss = CategoricalCrossentropy()
     
     def call(self, inputs):
-        expand = self.expander(inputs)
-        features = self.encoder(expand)
+        # predict class
+        features = self.student(inputs)
         output = self.classifier(features)
 
-        reconstruct = self.decoder(features)
-        reconstruct_features = self.encoder(reconstruct)
-
+        # teach 
+        reconstruct_features = self.teacher(features)
         perceptual_loss = self.perceptual_weight * self.percept_loss(features, reconstruct_features)
         self.add_loss(perceptual_loss)
 
@@ -214,31 +185,9 @@ class PerceptualClassifier(Model):
     
     def get_lean_model(self):
         model = Sequential([
-            Input(self.expander.input_shape[1:]),
-            self.expander,
-            self.encoder,
+            Input(self.student.input_shape[1:]),
+            self.student,
             self.classifier
         ])
         model.compile(optimizer='adam', loss='categorical_crossentropy')
         return model
-
-# Custom Activation to maintain zero centered with max standard deviation of 3
-def tanh3(x):
-    return tf.nn.tanh(x) * 3.5
-keras.utils.get_custom_objects().update({'tanh3': tanh3})
-
-## First Layer to convert any channels to 64, standard scaled
-def create_first_layer(chs=64):
-    return Sequential([
-        AddNoiseLayer(0.2),
-        Conv1D(chs, 1, padding='same', use_bias=False, activation=tanh3)
-    ])
-
-## Last Layer to map latent space to custom classes
-def create_last_layer(classes):
-    return Sequential([
-        Sequential([
-            GlobalAveragePooling1D()
-        ]),
-        Dense(classes, activation='softmax')
-    ])
