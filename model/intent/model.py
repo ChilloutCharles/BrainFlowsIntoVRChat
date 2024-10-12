@@ -2,11 +2,12 @@ import tensorflow as tf
 import keras
 
 from keras.models import Sequential, Model, clone_model
-from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D, Attention
+from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
 from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input, Dropout
-from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy, CosineSimilarity
+from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
 
 ## Spatial Attention (Thanks Summer!)
+@keras.utils.register_keras_serializable()
 class SpatialAttention(Layer):
     def __init__(self, classes, kernel_size=7, **kwargs):
         super(SpatialAttention, self).__init__(**kwargs)
@@ -25,18 +26,6 @@ class SpatialAttention(Layer):
         x = self.conv1(x)
         x = self.conv2(x)
         return Multiply()([inputs, x])
-
-@keras.utils.register_keras_serializable()
-class SelfAttention(Layer):
-    def __init__(self, **kwargs):
-        super(SelfAttention, self).__init__(**kwargs)
-        self.attn = Attention()
-    
-    def call(self, x):
-        return self.attn([x, x])
-
-    def build(self, input_shape):
-        super(SelfAttention, self).build(input_shape)
 
 # Noise Layer 
 @keras.utils.register_keras_serializable()
@@ -141,10 +130,10 @@ class CustomAutoencoder(Model):
     
 auto_encoder = CustomAutoencoder(encoder, decoder)
 
-## Classifier Model that trains for both classification and perceptual targets
-class PerceptualClassifier(Model):
+## Classifier Model that is guided by pretrained Autoencoder Teacher
+class StudentTeacherClassifier(Model):
     def __init__(self, frozen_encoder, frozen_decoder, classes, perceptual_weight=1.0, classify_weight=1.0, **kwargs):
-        super(PerceptualClassifier, self).__init__(**kwargs)
+        super(StudentTeacherClassifier, self).__init__(**kwargs)
         
         # create teacher from frozen models
         self.teacher = Sequential([frozen_decoder, frozen_encoder])
@@ -152,8 +141,14 @@ class PerceptualClassifier(Model):
         # create student from pieces of unfrozen encoder
         first_layer = [StackedDepthSeperableConv1D(64, kernel, e_rates, 2, True)]
         cloned_encoder = clone_model(frozen_encoder)
-        cloned_encoder.set_weights(cloned_encoder.get_weights())
-        encoder_layers = first_layer + cloned_encoder.layers[1:]
+        
+        # remove first layer, replace bn layers with dropout
+        cloned_layers = [
+            SpatialDropout1D(0.2) if isinstance(layer, BatchNormalization) else layer
+            for layer in cloned_encoder.layers[1:]
+        ]
+
+        encoder_layers = first_layer + cloned_layers
         self.student = Sequential(encoder_layers)
 
         # classifier 
@@ -173,7 +168,7 @@ class PerceptualClassifier(Model):
         features = self.student(inputs)
         output = self.classifier(features)
 
-        # teach 
+        # teach the student
         reconstruct_features = self.teacher(features)
         perceptual_loss = self.perceptual_weight * self.percept_loss(features, reconstruct_features)
         self.add_loss(perceptual_loss)

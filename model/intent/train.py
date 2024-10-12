@@ -8,12 +8,13 @@ import matplotlib.pyplot as plt
 import random
 
 import keras
+from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 
-from model import PerceptualClassifier
+from model import StudentTeacherClassifier
 from pipeline import preprocess_data, extract_features
 
 SAVE_FILENAME = "recorded_eeg"
@@ -146,7 +147,7 @@ def main():
     classes = len(processed_windows)
 
     ## Create Model
-    model = PerceptualClassifier(pretrained_encoder, pretrained_decoder, classes, 1, 1)
+    model = StudentTeacherClassifier(pretrained_encoder, pretrained_decoder, classes)
 
     ## Compile the model
     model.compile(optimizer=Adam(), loss=model.get_loss_function())
@@ -198,8 +199,8 @@ def main():
     import tensorflow as tf
 
     # Assuming `latent` has shape (samples, timesteps, channels, features)
-    model.layers[-1] = model.layers[-1].layers[0]
-    latent = model(X_test)
+    seq_model = Sequential(model.layers[:-1])
+    latent = seq_model(X_test)
     
     # Step 1: Reshape to 2D by flattening the last three dimensions
     samples = latent.shape[0]  # Number of samples
