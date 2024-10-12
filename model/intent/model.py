@@ -144,8 +144,8 @@ class StudentTeacherClassifier(Model):
         
         # remove first layer, replace bn layers with dropout
         cloned_layers = [
-            SpatialDropout1D(0.2) if isinstance(layer, BatchNormalization) else layer
-            for layer in cloned_encoder.layers[1:]
+            SpatialDropout1D(0.5) if isinstance(layer, BatchNormalization) else 
+            layer for layer in cloned_encoder.layers[1:]
         ]
 
         encoder_layers = first_layer + cloned_layers
@@ -153,7 +153,9 @@ class StudentTeacherClassifier(Model):
 
         # classifier 
         self.classifier = Sequential([
+            SpatialAttention(classes, 5),
             GlobalAveragePooling1D(),
+            Dropout(0.5),
             Dense(classes, activation='softmax', kernel_regularizer='l2')
         ])
 
