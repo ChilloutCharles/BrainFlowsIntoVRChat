@@ -136,7 +136,7 @@ def main():
     X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
     y_test = to_categorical(i_test, num_classes=len(processed_windows))
 
-    ## load pretrained encoder and keep it partially frozen
+    ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
     pretrained_encoder.trainable = False
     ## load pretrained decoder freeze it for use in perceptual loss
@@ -150,7 +150,7 @@ def main():
     model = StudentTeacherClassifier(pretrained_encoder, pretrained_decoder, classes)
 
     ## Compile the model
-    model.compile(optimizer=Adam(), loss=model.get_loss_function())
+    model.compile(optimizer='adamw', loss=model.get_loss_function())
 
     ## Set up EarlyStopping
     early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)

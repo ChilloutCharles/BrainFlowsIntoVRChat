@@ -139,23 +139,18 @@ class StudentTeacherClassifier(Model):
         self.teacher = Sequential([frozen_decoder, frozen_encoder])
 
         # create student from pieces of unfrozen encoder
+        # surround pieces with new first layer and attention layer
         first_layer = [StackedDepthSeperableConv1D(64, kernel, e_rates, 2, True)]
         cloned_encoder = clone_model(frozen_encoder)
-        
-        # remove first layer, replace bn layers with dropout
-        cloned_layers = [
-            SpatialDropout1D(0.5) if isinstance(layer, BatchNormalization) else 
-            layer for layer in cloned_encoder.layers[1:]
-        ]
-
-        encoder_layers = first_layer + cloned_layers
+        cloned_layers = cloned_encoder.layers[1:]
+        attention = [SpatialAttention(classes, 5)]
+        encoder_layers = first_layer + cloned_layers + attention
         self.student = Sequential(encoder_layers)
 
         # classifier 
         self.classifier = Sequential([
-            SpatialAttention(classes, 5),
             GlobalAveragePooling1D(),
-            Dropout(0.5),
+            Dropout(0.2),
             Dense(classes, activation='softmax', kernel_regularizer='l2')
         ])
 
