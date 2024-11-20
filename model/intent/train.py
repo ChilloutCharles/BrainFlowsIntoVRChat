@@ -9,7 +9,7 @@ import random
 
 import keras
 from keras.models import Sequential
-from keras.optimizers import Adam
+from keras.optimizers import Adam, AdamW
 from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
@@ -150,10 +150,10 @@ def main():
     model = StudentTeacherClassifier(pretrained_encoder, pretrained_decoder, classes)
 
     ## Compile the model
-    model.compile(optimizer='adamw', loss=model.get_loss_function())
+    model.compile(optimizer=AdamW(0.0001), loss=model.get_loss_function())
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=2*4, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2**3, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128

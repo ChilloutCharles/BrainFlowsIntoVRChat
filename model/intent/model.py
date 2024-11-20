@@ -3,7 +3,7 @@ import keras
 
 from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
-from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input, Dropout
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
 
 ## Spatial Attention (Thanks Summer!)
@@ -140,17 +140,19 @@ class StudentTeacherClassifier(Model):
 
         # create student from pieces of unfrozen encoder
         # surround pieces with new first layer and attention layer
-        first_layer = [StackedDepthSeperableConv1D(64, kernel, e_rates, 2, True)]
+        
+        first_layer = encoder.layers[:1]
         cloned_encoder = clone_model(frozen_encoder)
-        cloned_layers = cloned_encoder.layers[1:]
-        attention = [SpatialAttention(classes, 5)]
-        encoder_layers = first_layer + cloned_layers + attention
-        self.student = Sequential(encoder_layers)
+        cloned_layers = cloned_encoder.layers[2:]
+        for layer in cloned_layers:
+            layer.trainable = False
+
+        self.student = Sequential(first_layer + cloned_layers)
 
         # classifier 
         self.classifier = Sequential([
             GlobalAveragePooling1D(),
-            Dropout(0.2),
+            Dense(64, activation='relu'),
             Dense(classes, activation='softmax', kernel_regularizer='l2')
         ])
 
@@ -174,6 +176,9 @@ class StudentTeacherClassifier(Model):
     
     def get_loss_function(self):
         return lambda y_true, y_pred: self.classify_weight * self.cce_loss(y_true, y_pred)
+    
+    def build(self, input_shape):
+        super(StudentTeacherClassifier, self).build(input_shape)
     
     def get_lean_model(self):
         model = Sequential([
