@@ -14,11 +14,17 @@ from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 
+import tensorflow as tf
+import logging
+
 from model import StudentTeacherClassifier
 from pipeline import preprocess_data, extract_features
 
 SAVE_FILENAME = "recorded_eeg"
 SAVE_EXTENSION = ".pkl"
+
+## Set logging to all!
+tf.get_logger().setLevel(logging.DEBUG)
 
 ## helper function to generate windows
 def segment_data(eeg_data, samples_per_window, overlap=0):
@@ -196,7 +202,6 @@ def main():
 
     from sklearn.preprocessing import StandardScaler
     from sklearn.manifold import TSNE
-    import tensorflow as tf
 
     # Assuming `latent` has shape (samples, timesteps, channels, features)
     seq_model = Sequential(model.layers[:-1])
