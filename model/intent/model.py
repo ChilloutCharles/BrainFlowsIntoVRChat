@@ -5,6 +5,7 @@ from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
 from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
+from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
 
 ## Spatial Attention (Thanks Summer!)
 @keras.utils.register_keras_serializable()
@@ -188,3 +189,102 @@ class StudentTeacherClassifier(Model):
         ])
         model.compile(optimizer='adam', loss='categorical_crossentropy')
         return model
+
+@keras.saving.register_keras_serializable()
+class PatchLayer(Layer):
+    def __init__(self, patch_shape=(10, 4), embed_dim=64, **kwargs):
+        super(PatchLayer, self).__init__(**kwargs)
+        self.patch_shape = patch_shape
+        self.embed_dim = embed_dim
+        self.projection = Dense(embed_dim)
+
+    def call(self, inputs):
+        # create image-like: (B, 160, 64) -> (B, 160, 64, 1)
+        image_like = tf.expand_dims(inputs, -1)
+        patch_width = self.patch_shape[0]
+        patch_height = self.patch_shape[1]
+        
+        # Extract patches: shape (B, 16, 16, 40)
+        patches = tf.image.extract_patches(
+            images=image_like,
+            sizes=[1, patch_width, patch_height, 1],
+            strides=[1, patch_width, patch_height, 1],
+            rates=[1,1,1,1],
+            padding='VALID'
+        )
+
+        # Flatten each patch: (B, num_patches, patch_dims)
+        patches_shape = tf.shape(patches)
+        num_patches = patches_shape[-3] * patches_shape[-2]
+        patch_dims = patches_shape[-1]
+        patches = tf.reshape(patches, [-1, num_patches, patch_dims])
+        
+        return patches
+    
+    def build(self, input_shape):
+        super(PatchLayer, self).build(input_shape)
+
+@keras.saving.register_keras_serializable()
+class Transformer(Layer):
+    def __init__(self, ffn_dim, out_dim, **kwargs):
+        super(Transformer, self).__init__(**kwargs)
+        self.attn = MultiHeadAttention(4, 16)
+        self.ffn = Sequential([
+            Dense(ffn_dim, activation='elu'),
+            Dense(out_dim, activation='elu')
+        ])
+        self.ln1 = LayerNormalization()
+        self.ln2 = LayerNormalization()
+    
+    def build(self, input_shape):
+        super(Transformer, self).build(input_shape)
+    
+    def call(self, inputs):
+        attn_out = self.attn(inputs, inputs)
+        attn_out = self.ln1(attn_out + inputs)
+        ffn_out = self.ffn(attn_out) 
+        ffn_out = self.ln2(ffn_out + attn_out)
+        return ffn_out
+
+@keras.saving.register_keras_serializable()
+class MaskingModel(Model):
+    def __init__(self, ffn_dim=32, out_dim=64, **kwargs):
+        super(MaskingModel, self).__init__(**kwargs)
+        
+        self.feature_extractor = Sequential([
+            Transformer(ffn_dim, out_dim),
+            Transformer(ffn_dim, out_dim),
+            Transformer(ffn_dim, out_dim)
+        ])
+        self.decoder = Sequential([
+            Dense(out_dim, activation='elu'), # Temporal
+            Conv1D(out_dim, 3, activation='elu', padding='same') # Spatial
+        ])
+
+        self.mask_token =  tf.Variable(tf.random.uniform((1, 64), minval=0, maxval=1))
+        self.mask_dropout = SpatialDropout1D(0.85)
+        
+    def call(self, inputs, training=False):
+        mask = tf.ones_like(inputs)
+        mask = self.mask_dropout(mask, training=True)
+        mask = tf.equal(1.0, mask)
+        reduced_inputs = tf.boolean_mask(inputs, mask)
+
+        outputs = self.feature_extractor(reduced_inputs)
+        outputs = tf.where(mask, outputs, self.mask_token)
+
+        reconstruct = self.decoder(outputs)
+        return reconstruct
+    
+
+if __name__ == '__main__':
+    pe = PatchLayer()
+    phynet = tf.ones((3, 160, 64))
+    muse = tf.ones((3, 160, 8))
+    
+    phynet_out = pe(phynet)
+    muse_out = pe(muse)
+    
+    print(phynet_out.shape, muse_out.shape)
+
+
