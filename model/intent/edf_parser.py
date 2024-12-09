@@ -47,7 +47,7 @@ if __name__ == '__main__':
         ])
 
         # Create epochs around these events
-        epochs = mne.Epochs(raw, synthetic_events, tmin=0, tmax=1.0, preload=True, baseline=None)
+        epochs = mne.Epochs(raw, synthetic_events, tmin=0, tmax=(1.0-1/160), preload=True, baseline=None)
 
         # Convert epochs to NumPy arrays
         return epochs.get_data()
@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     # reshape data
     print(arr.shape)
-    arr = arr.reshape(-1, 64, 161)
+    arr = arr.reshape(-1, arr.shape[-2], arr.shape[-1])
 
     with open("dataset.pkl", "wb") as f:
         np.save(f, arr)

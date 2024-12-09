@@ -13,9 +13,6 @@ data = np.load('dataset.pkl')
 scaler = Scaler()
 data = scaler.fit_transform(data.reshape(-1, 1)).reshape(data.shape)
 
-# Remove the last sample from each sequence, 161 -> 160
-data = data[:, :, :-1]
-
 # reshape array for use with model
 data = data.transpose(0, 2, 1)
 print(data.shape)
