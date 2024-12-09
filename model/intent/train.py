@@ -23,9 +23,6 @@ from pipeline import preprocess_data, extract_features
 SAVE_FILENAME = "recorded_eeg"
 SAVE_EXTENSION = ".pkl"
 
-## Set logging to all!
-tf.get_logger().setLevel(logging.DEBUG)
-
 ## helper function to generate windows
 def segment_data(eeg_data, samples_per_window, overlap=0):
     _, total_samples = eeg_data.shape
