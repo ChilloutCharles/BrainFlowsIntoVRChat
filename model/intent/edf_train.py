@@ -1,13 +1,10 @@
 import numpy as np
 from keras.optimizers import Adam
-from keras.models import Sequential
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler as Scaler
+from sklearn.preprocessing import StandardScaler as Scaler
 
-from model import encoder, decoder
-
-import pickle
+from model import auto_encoder
 
 # Load the data
 data = np.load('dataset.pkl')
@@ -27,29 +24,27 @@ print(data.shape)
 X_train, X_val = train_test_split(data, test_size=0.2)
 
 # Build the autoencoder
-autoencoder = Sequential([
-    encoder,
-    decoder
-])
-autoencoder.compile(optimizer=Adam(learning_rate=0.001), loss='huber')
+autoencoder = auto_encoder
+autoencoder.compile(optimizer=Adam(learning_rate=0.01), loss='mse')
 
 # Define the EarlyStopping callback
-early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True, verbose=0)
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
 
 # Train the autoencoder with early stopping
-batch_size = 512
+batch_size = 256 * 2
 epochs = 128
 fit_history = autoencoder.fit(
     X_train, X_train, 
     epochs=epochs, batch_size=batch_size, 
     validation_data=(X_val, X_val), 
-    callbacks=[early_stopping], verbose=1
+    callbacks=[early_stopping], 
+    verbose=1
 )
 
 #Save the model
 print("Saving Model")
-encoder = autoencoder.layers[0]
-decoder = autoencoder.layers[1]
+encoder = autoencoder.encoder
+decoder = autoencoder.decoder
 
 encoder.save('physionet_encoder.keras')
 decoder.save('physionet_decoder.keras')
@@ -67,18 +62,28 @@ import random
 
 reconstructed = autoencoder.predict(X_val)
 
+X_val = X_val.transpose(0, 2, 1)
+reconstructed = reconstructed.transpose(0, 2, 1)
+
 i = random.randint(0, len(X_val) - 1)
 js = list(range(0, 64))
 random.shuffle(js)
-js = js[:4]
-original = X_val[i][js].flatten()
-reconstructed_sample = reconstructed[i][js].flatten()
+js = js[:4]  # Select 4 random channels
+original = X_val[i][js]
+reconstructed_sample = reconstructed[i][js]
 
-plt.figure(figsize=(12, 4))
-plt.subplot(1, 2, 1)
-plt.plot(original)
-plt.title('Original Data')
-plt.subplot(1, 2, 2)
-plt.plot(reconstructed_sample)
-plt.title('Reconstructed Data')
+# Use the dark background style
+plt.style.use('dark_background')
+
+# Create subplots for each selected channel
+fig, axs = plt.subplots(len(js), 1, figsize=(9, 16))
+
+# Plot the original and reconstructed signals for each channel
+for idx, j in enumerate(js):
+    axs[idx].plot(original[idx], label='original')
+    axs[idx].plot(reconstructed_sample[idx], label='reconstructed')
+    axs[idx].set_title(f'Channel {j} Reconstruction Comparison')
+    axs[idx].legend(loc='upper left')
+
+plt.tight_layout()
 plt.savefig('autoencoder_reconstruct.png')

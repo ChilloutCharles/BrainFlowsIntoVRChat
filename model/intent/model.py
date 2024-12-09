@@ -1,12 +1,13 @@
 import tensorflow as tf
 import keras
 
-from keras.models import Sequential
-from keras.layers import Dense, Activation, Flatten, Multiply, BatchNormalization, Dropout, Layer
-from keras.layers import SeparableConv1D, Conv1D, UpSampling1D, MaxPooling1D
+from keras.models import Sequential, Model, clone_model
+from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
+from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
 
 ## Spatial Attention (Thanks Summer!)
-@keras.saving.register_keras_serializable()
+@keras.utils.register_keras_serializable()
 class SpatialAttention(Layer):
     def __init__(self, classes, kernel_size=7, **kwargs):
         super(SpatialAttention, self).__init__(**kwargs)
@@ -26,46 +27,164 @@ class SpatialAttention(Layer):
         x = self.conv2(x)
         return Multiply()([inputs, x])
 
+# Noise Layer 
+@keras.utils.register_keras_serializable()
+class AddNoiseLayer(Layer):
+    def __init__(self, noise_factor=0.1, **kwargs):
+        super(AddNoiseLayer, self).__init__(**kwargs)
+        self.noise_factor = noise_factor
+
+    def call(self, inputs, training=None):
+        if training:
+            noise = self.noise_factor * tf.random.normal(shape=tf.shape(inputs), mean=0.0, stddev=1.0)
+            return inputs + noise
+        return inputs
+
 ## Encoder and Decoder Trained on the physionet motor imagery dataset
 ## https://www.physionet.org/content/eegmmidb/1.0.0/
 ## Thanks again to Summer, Programmerboi, Hosomi
 
-act = 'silu'
+kernel = 3
+e_rates = [1, 2, 4]
+d_rates = list(reversed(e_rates))
+act = 'elu'
 
-encoder = Sequential([ 
-    SeparableConv1D(128, 3, padding='same'),
-    BatchNormalization(), Activation(act), MaxPooling1D(2),
-    SeparableConv1D(64, 3, padding='same'),
-    BatchNormalization(), Activation(act), MaxPooling1D(2),
-    SeparableConv1D(32, 3, padding='same'),
-    Activation(act)
+## Modification of seperable convolutions to follow along this paper
+## https://journalofcloudcomputing.springeropen.com/articles/10.1186/s13677-020-00203-9
+@keras.utils.register_keras_serializable()
+class StackedDepthSeperableConv1D(Layer):
+    def __init__(self, filters, kernel_size, dilation_rates, stride=1, use_residual=False, **kwargs):
+        super(StackedDepthSeperableConv1D, self).__init__(**kwargs)
+        self.filters = filters
+        self.dilation_rates = dilation_rates
+        self.depthwise_stack = Sequential([DepthwiseConv1D(kernel_size, padding='same', dilation_rate=dr) for dr in dilation_rates])
+        self.pointwise_conv = Conv1D(filters, 1, padding='same', strides=stride)
+        self.residual_conv = None
+        if use_residual:
+            self.residual_conv = Conv1D(filters, 1, padding='same', strides=stride)
+    
+    def call(self, inputs):
+        depthwise_output = self.depthwise_stack(inputs)
+        output = self.pointwise_conv(depthwise_output)
+        if self.residual_conv:
+            output += self.residual_conv(inputs)
+        return output
+    
+    def build(self, input_shape):
+        super(StackedDepthSeperableConv1D, self).build(input_shape)
+
+encoder = Sequential([
+    StackedDepthSeperableConv1D(64, kernel, e_rates, 2, True),
+    BatchNormalization(), Activation(act), # (80, 64)
+    
+    StackedDepthSeperableConv1D(32, kernel, e_rates, 2, True),
+    BatchNormalization(), Activation(act), # (40, 32)
+    
+    StackedDepthSeperableConv1D(32, kernel, e_rates, 2, True),
+    BatchNormalization(), Activation(act), # (20, 32)
+
+    StackedDepthSeperableConv1D(32, kernel, e_rates, 1, False), 
+    Activation('linear')
 ])
 
 decoder = Sequential([
-    SeparableConv1D(32, 3, padding='same'), 
+    StackedDepthSeperableConv1D(32, kernel, d_rates, 1, True),
     BatchNormalization(), Activation(act), UpSampling1D(2),
-    SeparableConv1D(64, 3, padding='same'), 
+    
+    StackedDepthSeperableConv1D(32, kernel, d_rates, 1, True),
     BatchNormalization(), Activation(act), UpSampling1D(2),
-    SeparableConv1D(128, 3, padding='same'),
-    BatchNormalization(), Activation(act),
 
-    SeparableConv1D(64, 1, padding='same', activation='sigmoid'),
-])
+    StackedDepthSeperableConv1D(32, kernel, d_rates, 1, True),
+    BatchNormalization(), Activation(act), UpSampling1D(2),
+    
+    StackedDepthSeperableConv1D(64, kernel, d_rates, 1, False),
+    Activation('linear')
+])  
 
-## First Layer to convert any channels to 64 ranged [0, 1]
-def create_first_layer(channels, expanded_channels=64):
-    return Sequential([
-        SeparableConv1D(expanded_channels, channels, padding='same', use_bias=False),
-        BatchNormalization(),
-        Activation('sigmoid'),
-        Dropout(0.1),
-    ])
+## AutoEncoder Wrapper for edf_train
+## Tunes for both feature and reconstruction losses
+class CustomAutoencoder(Model):
+    def __init__(self, encoder, decoder, perceptual_weight=1.0, sd_rate=0.2):
+        super(CustomAutoencoder, self).__init__()
+        self.spatial_dropout = SpatialDropout1D(sd_rate)
+        self.encoder = encoder
+        self.decoder = decoder
+        self.perceptual_weight = perceptual_weight
+        self.mse_loss = MSE()
 
-## Last Layer to map latent space to custom classes
-def create_last_layer(classes):
-    return Sequential([
-        SpatialAttention(classes, 5),
-        Flatten(),
-        Dropout(0.1),
-        Dense(classes, activation='softmax', kernel_regularizer='l2')
-    ])
+    def call(self, inputs):
+        # Encoding and reconstructing the input
+        inputs = self.spatial_dropout(inputs)
+        original_features = self.encoder(inputs)
+        reconstruction = self.decoder(original_features)
+        
+        # get features from reconstruction
+        reconstructed_features = self.encoder(reconstruction)
+
+        # Compute and add perceptual loss during the call
+        perceptual_loss = self.mse_loss(original_features, reconstructed_features)
+        self.add_loss(self.perceptual_weight * perceptual_loss)
+
+        # Return only the reconstruction for the main loss computation
+        return reconstruction
+    
+auto_encoder = CustomAutoencoder(encoder, decoder)
+
+## Classifier Model that is guided by pretrained Autoencoder Teacher
+class StudentTeacherClassifier(Model):
+    def __init__(self, frozen_encoder, frozen_decoder, classes, perceptual_weight=1.0, classify_weight=1.0, **kwargs):
+        super(StudentTeacherClassifier, self).__init__(**kwargs)
+        
+        # create teacher from frozen models
+        self.teacher = Sequential([frozen_decoder, frozen_encoder])
+
+        # create student from pieces of unfrozen encoder
+        # surround pieces with new first layer and attention layer
+        
+        first_layer = encoder.layers[:1]
+        cloned_encoder = clone_model(frozen_encoder)
+        cloned_layers = cloned_encoder.layers[2:]
+        for layer in cloned_layers:
+            layer.trainable = False
+
+        self.student = Sequential(first_layer + cloned_layers)
+
+        # classifier 
+        self.classifier = Sequential([
+            GlobalAveragePooling1D(),
+            Dense(64, activation='relu'),
+            Dense(classes, activation='softmax', kernel_regularizer='l2')
+        ])
+
+        # perceptual and classification losses
+        self.perceptual_weight = perceptual_weight
+        self.classify_weight = classify_weight
+        self.percept_loss = MSE()
+        self.cce_loss = CategoricalCrossentropy()
+    
+    def call(self, inputs):
+        # predict class
+        features = self.student(inputs)
+        output = self.classifier(features)
+
+        # teach the student
+        reconstruct_features = self.teacher(features)
+        perceptual_loss = self.perceptual_weight * self.percept_loss(features, reconstruct_features)
+        self.add_loss(perceptual_loss)
+
+        return output
+    
+    def get_loss_function(self):
+        return lambda y_true, y_pred: self.classify_weight * self.cce_loss(y_true, y_pred)
+    
+    def build(self, input_shape):
+        super(StudentTeacherClassifier, self).build(input_shape)
+    
+    def get_lean_model(self):
+        model = Sequential([
+            Input(self.student.input_shape[1:]),
+            self.student,
+            self.classifier
+        ])
+        model.compile(optimizer='adam', loss='categorical_crossentropy')
+        return model

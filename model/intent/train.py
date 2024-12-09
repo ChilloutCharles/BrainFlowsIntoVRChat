@@ -9,12 +9,15 @@ import random
 
 import keras
 from keras.models import Sequential
-from keras.optimizers import Adam
+from keras.optimizers import Adam, AdamW
 from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 
-from model import create_first_layer, create_last_layer
+import tensorflow as tf
+import logging
+
+from model import StudentTeacherClassifier
 from pipeline import preprocess_data, extract_features
 
 SAVE_FILENAME = "recorded_eeg"
@@ -136,30 +139,24 @@ def main():
     X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
     y_test = to_categorical(i_test, num_classes=len(processed_windows))
 
-    ## load pretrained encoder and keep it static
+    ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
     pretrained_encoder.trainable = False
+    ## load pretrained decoder freeze it for use in perceptual loss
+    pretrained_decoder = keras.models.load_model("physionet_decoder.keras")
+    pretrained_decoder.trainable = False
 
-    ## create channel expander/normalizer and classification layer
+    ## get class count from training data
     classes = len(processed_windows)
-    user_channels = len(eeg_channels)
-    encoder_channels = pretrained_encoder.input_shape[-1]
 
-    expandalizer = create_first_layer(user_channels, encoder_channels)
-    classifier = create_last_layer(classes)
-    
     ## Create Model
-    model = Sequential([
-        expandalizer,
-        pretrained_encoder,
-        classifier
-    ])
+    model = StudentTeacherClassifier(pretrained_encoder, pretrained_decoder, classes)
 
     ## Compile the model
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy')
+    model.compile(optimizer=AdamW(0.0001), loss=model.get_loss_function())
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=2*3, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2**3, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 128
@@ -173,6 +170,7 @@ def main():
     )
 
     ## Print out model summary
+    model = model.get_lean_model()
     model.summary()
     
     ## Save models for realtime use
@@ -182,7 +180,12 @@ def main():
     predictions_prob = model.predict(X_test)
     predictions = np.argmax(predictions_prob, axis=1)
     y_test_idxs = np.argmax(y_test, axis=1)
+    print("Model evaluation:")
+    model.evaluate(X_test, y_test)
     print(classification_report(y_test_idxs, predictions))
+
+    # Use the dark background style
+    plt.style.use('dark_background')
 
     ## Plot history accuracy from model
     plt.plot(fit_history.history['loss'])
@@ -191,7 +194,41 @@ def main():
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper left')
-    plt.show()
+    plt.ylim(0, 1)
+    plt.savefig('loss.png')
+
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.manifold import TSNE
+
+    # Assuming `latent` has shape (samples, timesteps, channels, features)
+    seq_model = Sequential(model.layers[:-1])
+    latent = seq_model(X_test)
+    
+    # Step 1: Reshape to 2D by flattening the last three dimensions
+    samples = latent.shape[0]  # Number of samples
+    # Flatten the timesteps, channels, and features dimensions into a single dimension
+    latent_flat = tf.reshape(latent, (samples, -1)).numpy()
+
+    # Step 2: Standardize the flattened data
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(latent_flat)
+
+    # Step 3: Apply t-SNE
+    tsne = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=1000)
+    X_tsne = tsne.fit_transform(X_scaled)
+
+    # Step 5: Plot the t-SNE result
+    plt.figure(figsize=(10, 10))
+    scatter = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=i_test, cmap='viridis', alpha=0.7)
+    plt.colorbar(scatter, label='Labels')
+    plt.title('t-SNE Visualization of Labeled Data')
+    plt.xlabel('t-SNE Component 1')
+    plt.ylabel('t-SNE Component 2')
+    plt.grid(True)
+
+    # Set the scatter plot aspect to be square
+    plt.axis('square')
+    plt.savefig('tsne.png')
 
 
 if __name__ == "__main__":
