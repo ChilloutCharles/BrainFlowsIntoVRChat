@@ -1,5 +1,5 @@
 import numpy as np
-from keras.optimizers import Adam
+from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler as Scaler
@@ -22,7 +22,7 @@ X_train, X_val = train_test_split(data, test_size=0.2)
 
 # Build the autoencoder
 autoencoder = MaskingModel()
-autoencoder.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
+autoencoder.compile(optimizer='adamw', loss='huber')
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)

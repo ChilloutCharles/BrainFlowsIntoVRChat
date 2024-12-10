@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 import keras
 
 from keras.models import Sequential, Model, clone_model
@@ -245,26 +246,31 @@ class Transformer(Layer):
         return ffn_out
 
 @keras.saving.register_keras_serializable()
-class TrainablePositionalEmbedding(Layer):
+class PositionalEmbedding(Layer):
     def __init__(self, max_len=160, embed_dim=64, **kwargs):
-        super(TrainablePositionalEmbedding, self).__init__(**kwargs)
+        super(PositionalEmbedding, self).__init__(**kwargs)
         self.max_len = max_len  # Maximum length of the input sequence (number of patches)
         self.embed_dim = embed_dim  # Embedding dimension for patches
 
     def build(self, input_shape):
-        # Initialize a trainable positional embedding of shape (max_len, embed_dim)
-        self.positional_embeddings = self.add_weight(
-            name='pos_embedding',
-            shape=(self.max_len, self.embed_dim),
-            initializer='random_normal',
-            trainable=True
-        )
-        super(TrainablePositionalEmbedding, self).build(input_shape)
+        # Generate the positional encoding matrix for all positions and embedding dimensions
+        position = np.arange(self.max_len)[:, np.newaxis]
+        div_term = np.exp(np.arange(0, self.embed_dim, 2) * -(np.log(10000.0) / self.embed_dim))
+        
+        pe = np.zeros((self.max_len, self.embed_dim))
+        pe[:, 0::2] = np.sin(position * div_term)  # Apply sin to even indices
+        pe[:, 1::2] = np.cos(position * div_term)  # Apply cos to odd indices
+        
+        # Convert to TensorFlow tensor and add a batch dimension
+        self.positional_embeddings = tf.constant(pe, dtype=tf.float32)
+        
+        super(PositionalEmbedding, self).build(input_shape)
 
     def call(self, inputs):
-        # Add the positional embeddings to the input tensor
+        # Add the positional encodings to the input tensor
         seq_len = tf.shape(inputs)[1]  # Get the sequence length (number of patches)
         return inputs + self.positional_embeddings[:seq_len, :]
+
 
 @keras.saving.register_keras_serializable()
 class MaskingModel(Model):
@@ -272,28 +278,37 @@ class MaskingModel(Model):
         super(MaskingModel, self).__init__(**kwargs)
 
         patch_shape = (10, 4)
-        patch_dim = patch_shape[0] * patch_shape[1]
+        self.patch_dim = patch_shape[0] * patch_shape[1]
         patch_count_w = times//patch_shape[0] 
         patch_count_h = out_dim//patch_shape[1]
-        patch_count = patch_count_w * patch_count_h
+        self.patch_count = patch_count_w * patch_count_h
 
         self.patch_embedder = Sequential([
             Input((None, None)),
             PatchLayer(patch_shape),
             Dense(out_dim),
-            TrainablePositionalEmbedding(patch_count, out_dim)
+            PositionalEmbedding(self.patch_count, out_dim)
         ], name='patch_embedder')
         
-        self.encoder = Sequential([Input((None, out_dim))] + [Transformer(ffn_dim, out_dim) for _ in range(9)], name='encoder')
-        self.decoder = Sequential([Input((None, out_dim))] + [Transformer(ffn_dim, out_dim) for _ in range(3)], name='decoder')
+        self.encoder = Sequential(
+            [Input((None, out_dim))] + 
+            [Transformer(ffn_dim, out_dim) for _ in range(8)], 
+            name='encoder')
+        
+        self.decoder = Sequential([
+            Dense(out_dim, activation='elu'),
+            Conv1D(out_dim, 3, activation='linear', padding='same')
+        ], name='decoder')
 
         self.unpatch_recover = Sequential([
-            Dense(patch_dim),
+            Dense(self.patch_dim),
             Reshape((times, out_dim))
         ], name='unpatch_recover')
 
-        self.mask_token = tf.Variable(tf.random.normal((1, patch_count, 1)), trainable=True)
-        self.num_mask = int(0.75 * patch_count)
+        self.mask_token = tf.Variable(tf.random.normal((1, self.patch_count, 1)), trainable=True)
+        
+        # TODO: hard_ass_scatter_update fails on anything except 0.75. Fix this later
+        self.num_mask = int(0.75 * self.patch_count)
 
         
     def call(self, inputs):
@@ -305,21 +320,30 @@ class MaskingModel(Model):
             tf.random.uniform(shape=(embed_shape[0], embed_shape[1])), axis=-1
         )
         unmask_indices = rand_indices[:, self.num_mask :]
-        mask_indices = rand_indices[:, : self.num_mask]
         
         unmasked_embeds = tf.gather(embedding, unmask_indices, axis=1, batch_dims=1)
         features = self.encoder(unmasked_embeds)
 
-        # TODO: goal of (tf.ones_like(embedding) * self.mask_token)[unmask_indices] = features
-        # for now just appending the mask tokens to the end
-        masked_embeds = tf.ones_like(embedding) * self.mask_token
-        masked_embeds = tf.gather(masked_embeds, mask_indices, axis=1, batch_dims=1)
-        decoder_input = tf.concat([features, masked_embeds], axis=1)
+        decoder_input = tf.ones_like(embedding) * self.mask_token
+        decoder_input = self.hard_ass_scatter_update(decoder_input, unmask_indices, features)
         
         reconstruct_embedding = self.decoder(decoder_input)
         reconstruct = self.unpatch_recover(reconstruct_embedding)
 
         return reconstruct
+    
+    def hard_ass_scatter_update(self, tensor, indices, updates):
+        batch_size, out_dim = tf.shape(tensor)[0], tf.shape(tensor)[2]
+
+        batch_indices = tf.tile(tf.expand_dims(tf.range(batch_size), axis=1), [1, out_dim])
+        batch_indices = tf.reshape(batch_indices, (-1, 1))
+
+        indices_reshaped = tf.reshape(indices, (-1, 1))
+        scatter_indices = tf.concat([batch_indices, indices_reshaped], axis=1)
+        updates_reshaped = tf.reshape(updates, (-1, out_dim))
+
+        updated_tensor = tf.tensor_scatter_nd_update(tensor, scatter_indices, updates_reshaped)
+        return updated_tensor
     
     def assemble_feature_extractor(self):
         return Sequential([
@@ -334,3 +358,12 @@ def create_classifier(feature_extractor, classes):
         Dense(32, activation='elu'),
         Dense(classes, activation='softmax')
     ])
+
+    
+
+if __name__ == '__main__':
+    mae = MaskingModel()
+    test_input = tf.ones((3, 160, 64))
+    output = mae(test_input)
+    print(output.shape)
+
