@@ -17,7 +17,7 @@ from sklearn.metrics import classification_report
 import tensorflow as tf
 import logging
 
-from model import StudentTeacherClassifier
+from model import create_classifier
 from pipeline import preprocess_data, extract_features
 
 SAVE_FILENAME = "recorded_eeg"
@@ -142,18 +142,15 @@ def main():
     ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
     pretrained_encoder.trainable = False
-    ## load pretrained decoder freeze it for use in perceptual loss
-    pretrained_decoder = keras.models.load_model("physionet_decoder.keras")
-    pretrained_decoder.trainable = False
 
     ## get class count from training data
     classes = len(processed_windows)
 
     ## Create Model
-    model = StudentTeacherClassifier(pretrained_encoder, pretrained_decoder, classes)
+    model = create_classifier(pretrained_encoder, classes)
 
     ## Compile the model
-    model.compile(optimizer=AdamW(0.0001), loss=model.get_loss_function())
+    model.compile(optimizer=AdamW(0.001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
     early_stopping = EarlyStopping(monitor='val_loss', patience=2**3, restore_best_weights=True, verbose=0)
@@ -170,7 +167,6 @@ def main():
     )
 
     ## Print out model summary
-    model = model.get_lean_model()
     model.summary()
     
     ## Save models for realtime use

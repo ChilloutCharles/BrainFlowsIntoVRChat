@@ -5,7 +5,7 @@ from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
 from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
-from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
+from keras.layers import MultiHeadAttention, LayerNormalization, Reshape, Flatten
 
 ## Spatial Attention (Thanks Summer!)
 @keras.utils.register_keras_serializable()
@@ -192,11 +192,9 @@ class StudentTeacherClassifier(Model):
 
 @keras.saving.register_keras_serializable()
 class PatchLayer(Layer):
-    def __init__(self, patch_shape=(10, 4), embed_dim=64, **kwargs):
+    def __init__(self, patch_shape=(10, 4), **kwargs):
         super(PatchLayer, self).__init__(**kwargs)
         self.patch_shape = patch_shape
-        self.embed_dim = embed_dim
-        self.projection = Dense(embed_dim)
 
     def call(self, inputs):
         # create image-like: (B, 160, 64) -> (B, 160, 64, 1)
@@ -247,44 +245,92 @@ class Transformer(Layer):
         return ffn_out
 
 @keras.saving.register_keras_serializable()
+class TrainablePositionalEmbedding(Layer):
+    def __init__(self, max_len=160, embed_dim=64, **kwargs):
+        super(TrainablePositionalEmbedding, self).__init__(**kwargs)
+        self.max_len = max_len  # Maximum length of the input sequence (number of patches)
+        self.embed_dim = embed_dim  # Embedding dimension for patches
+
+    def build(self, input_shape):
+        # Initialize a trainable positional embedding of shape (max_len, embed_dim)
+        self.positional_embeddings = self.add_weight(
+            name='pos_embedding',
+            shape=(self.max_len, self.embed_dim),
+            initializer='random_normal',
+            trainable=True
+        )
+        super(TrainablePositionalEmbedding, self).build(input_shape)
+
+    def call(self, inputs):
+        # Add the positional embeddings to the input tensor
+        seq_len = tf.shape(inputs)[1]  # Get the sequence length (number of patches)
+        return inputs + self.positional_embeddings[:seq_len, :]
+
+@keras.saving.register_keras_serializable()
 class MaskingModel(Model):
-    def __init__(self, ffn_dim=32, out_dim=64, **kwargs):
+    def __init__(self, times=160, ffn_dim=32, out_dim=64, **kwargs):
         super(MaskingModel, self).__init__(**kwargs)
+
+        patch_shape = (10, 4)
+        patch_dim = patch_shape[0] * patch_shape[1]
+        patch_count_w = times//patch_shape[0] 
+        patch_count_h = out_dim//patch_shape[1]
+        patch_count = patch_count_w * patch_count_h
+
+        self.patch_embedder = Sequential([
+            Input((None, None)),
+            PatchLayer(patch_shape),
+            Dense(out_dim),
+            TrainablePositionalEmbedding(patch_count, out_dim)
+        ], name='patch_embedder')
         
-        self.feature_extractor = Sequential([
-            Transformer(ffn_dim, out_dim),
-            Transformer(ffn_dim, out_dim),
-            Transformer(ffn_dim, out_dim)
-        ])
-        self.decoder = Sequential([
-            Dense(out_dim, activation='elu'), # Temporal
-            Conv1D(out_dim, 3, activation='elu', padding='same') # Spatial
-        ])
+        self.encoder = Sequential([Input((None, out_dim))] + [Transformer(ffn_dim, out_dim) for _ in range(9)], name='encoder')
+        self.decoder = Sequential([Input((None, out_dim))] + [Transformer(ffn_dim, out_dim) for _ in range(3)], name='decoder')
 
-        self.mask_token =  tf.Variable(tf.random.uniform((1, 64), minval=0, maxval=1))
-        self.mask_dropout = SpatialDropout1D(0.85)
+        self.unpatch_recover = Sequential([
+            Dense(patch_dim),
+            Reshape((times, out_dim))
+        ], name='unpatch_recover')
+
+        self.mask_token = tf.Variable(tf.random.normal((1, patch_count, 1)), trainable=True)
+        self.num_mask = int(0.75 * patch_count)
+
         
-    def call(self, inputs, training=False):
-        mask = tf.ones_like(inputs)
-        mask = self.mask_dropout(mask, training=True)
-        mask = tf.equal(1.0, mask)
-        reduced_inputs = tf.boolean_mask(inputs, mask)
+    def call(self, inputs):
+        # patch and linearly embed data
+        embedding = self.patch_embedder(inputs)
+        embed_shape = tf.shape(embedding)
 
-        outputs = self.feature_extractor(reduced_inputs)
-        outputs = tf.where(mask, outputs, self.mask_token)
+        rand_indices = tf.argsort(
+            tf.random.uniform(shape=(embed_shape[0], embed_shape[1])), axis=-1
+        )
+        unmask_indices = rand_indices[:, self.num_mask :]
+        mask_indices = rand_indices[:, : self.num_mask]
+        
+        unmasked_embeds = tf.gather(embedding, unmask_indices, axis=1, batch_dims=1)
+        features = self.encoder(unmasked_embeds)
 
-        reconstruct = self.decoder(outputs)
+        # TODO: goal of (tf.ones_like(embedding) * self.mask_token)[unmask_indices] = features
+        # for now just appending the mask tokens to the end
+        masked_embeds = tf.ones_like(embedding) * self.mask_token
+        masked_embeds = tf.gather(masked_embeds, mask_indices, axis=1, batch_dims=1)
+        decoder_input = tf.concat([features, masked_embeds], axis=1)
+        
+        reconstruct_embedding = self.decoder(decoder_input)
+        reconstruct = self.unpatch_recover(reconstruct_embedding)
+
         return reconstruct
     
-
-if __name__ == '__main__':
-    pe = PatchLayer()
-    phynet = tf.ones((3, 160, 64))
-    muse = tf.ones((3, 160, 8))
+    def assemble_feature_extractor(self):
+        return Sequential([
+            self.patch_embedder,
+            self.encoder
+        ])
     
-    phynet_out = pe(phynet)
-    muse_out = pe(muse)
-    
-    print(phynet_out.shape, muse_out.shape)
-
-
+def create_classifier(feature_extractor, classes):
+    return Sequential([
+        feature_extractor,
+        GlobalAveragePooling1D(),
+        Dense(32, activation='elu'),
+        Dense(classes, activation='softmax')
+    ])

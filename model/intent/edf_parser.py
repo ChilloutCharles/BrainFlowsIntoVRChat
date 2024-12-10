@@ -2,8 +2,11 @@ import os
 import mne
 import numpy as np
 import time
+import pywt
+import scipy
 
 from multiprocess import Pool
+import scipy.signal
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -50,7 +53,22 @@ if __name__ == '__main__':
         epochs = mne.Epochs(raw, synthetic_events, tmin=0, tmax=(1.0-1/160), preload=True, baseline=None)
 
         # Convert epochs to NumPy arrays
-        return epochs.get_data()
+        data = epochs.get_data()
+        return data
+
+        # dwt_coeffs = []
+        # for epoch in data:  # Iterate over epochs
+        #     epoch_coeffs = []
+        #     for channel in epoch:  # Iterate over channels
+        #         coeffs = pywt.wavedec(channel, wavelet='db4', level=4)
+        #         resample_size = max(len(coeff) for coeff in coeffs)
+        #         coeffs = [scipy.signal.resample(coeff, resample_size) for coeff in coeffs[1:]]
+        #         coeffs = np.stack(coeffs)
+        #         epoch_coeffs.append(coeffs)
+        #     dwt_coeffs.append(epoch_coeffs)
+
+        # # Convert to NumPy array (optional: depends on downstream needs)
+        # return np.array(dwt_coeffs)
 
     data = list(p.map(get_windows, raw_list))
     data = list(filter(lambda x: x is not None, data))
@@ -63,6 +81,7 @@ if __name__ == '__main__':
 
     # reshape data
     print(arr.shape)
+    # arr = arr.reshape(-1, arr.shape[-3], arr.shape[-2], arr.shape[-1])
     arr = arr.reshape(-1, arr.shape[-2], arr.shape[-1])
 
     with open("dataset.pkl", "wb") as f:

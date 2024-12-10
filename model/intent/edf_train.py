@@ -4,7 +4,7 @@ from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler as Scaler
 
-from model import auto_encoder
+from model import MaskingModel
 
 # Load the data
 data = np.load('dataset.pkl')
@@ -21,8 +21,8 @@ print(data.shape)
 X_train, X_val = train_test_split(data, test_size=0.2)
 
 # Build the autoencoder
-autoencoder = auto_encoder
-autoencoder.compile(optimizer=Adam(learning_rate=0.01), loss='mse')
+autoencoder = MaskingModel()
+autoencoder.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
@@ -40,13 +40,9 @@ fit_history = autoencoder.fit(
 
 #Save the model
 print("Saving Model")
-encoder = autoencoder.encoder
-decoder = autoencoder.decoder
-
+encoder = autoencoder.assemble_feature_extractor()
 encoder.save('physionet_encoder.keras')
-decoder.save('physionet_decoder.keras')
-
-autoencoder.summary()
+encoder.summary()
 
 # Evaluate the model
 print("Model evaluation:")
