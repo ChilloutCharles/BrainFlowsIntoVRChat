@@ -3,7 +3,6 @@ import mne
 import numpy as np
 import time
 import pywt
-import scipy
 
 from multiprocess import Pool
 import scipy.signal
@@ -46,24 +45,23 @@ if __name__ == '__main__':
         start_event_sample = selected_events[0, 0]
         synthetic_events = np.array([
             [int(start_event_sample + i * sfreq), 0, 1]  # Each event 1 second apart
-            for i in range(60)
+            for i in range(60 * 2)
         ])
 
         # Create epochs around these events
-        epochs = mne.Epochs(raw, synthetic_events, tmin=0, tmax=(1.0-1/160), preload=True, baseline=None)
+        epochs = mne.Epochs(raw, synthetic_events, tmin=0, tmax=(1.0-1/sfreq), preload=True, baseline=None)
 
         # Convert epochs to NumPy arrays
         data = epochs.get_data()
         return data
 
         # dwt_coeffs = []
+        # max_coeff_len = int(sfreq // 2)
         # for epoch in data:  # Iterate over epochs
         #     epoch_coeffs = []
         #     for channel in epoch:  # Iterate over channels
         #         coeffs = pywt.wavedec(channel, wavelet='db4', level=4)
-        #         resample_size = max(len(coeff) for coeff in coeffs)
-        #         coeffs = [scipy.signal.resample(coeff, resample_size) for coeff in coeffs[1:]]
-        #         coeffs = np.stack(coeffs)
+        #         coeffs = [scipy.signal.resample(coeff, max_coeff_len) for coeff in coeffs]
         #         epoch_coeffs.append(coeffs)
         #     dwt_coeffs.append(epoch_coeffs)
 
@@ -82,7 +80,9 @@ if __name__ == '__main__':
     # reshape data
     print(arr.shape)
     # arr = arr.reshape(-1, arr.shape[-3], arr.shape[-2], arr.shape[-1])
+    # arr = arr.transpose(0, 3, 1, 2)
     arr = arr.reshape(-1, arr.shape[-2], arr.shape[-1])
+    arr = arr.transpose(0, 2, 1)
 
     with open("dataset.pkl", "wb") as f:
         np.save(f, arr)

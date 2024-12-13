@@ -141,28 +141,28 @@ def main():
 
     ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
-    pretrained_encoder.trainable = False
 
     ## get class count from training data
     classes = len(processed_windows)
+    channels = X_train.shape[-1]
 
     ## Create Model
-    model = create_classifier(pretrained_encoder, classes)
+    model = create_classifier(pretrained_encoder, classes, channels)
 
     ## Compile the model
-    model.compile(optimizer=AdamW(0.001), loss='categorical_crossentropy')
+    model.compile(optimizer=AdamW(0.01), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
     early_stopping = EarlyStopping(monitor='val_loss', patience=2**3, restore_best_weights=True, verbose=0)
 
     ## Train the model
-    batch_size = 128
+    batch_size = 512
     epochs = 128
     fit_history = model.fit(
         X_train, y_train, 
         epochs=epochs, batch_size=batch_size, 
         validation_data=(X_test, y_test), 
-        callbacks=[early_stopping], 
+        # callbacks=[early_stopping], 
         verbose=1
     )
 

@@ -1,6 +1,8 @@
 import keras
 import os
 import numpy as np
+import pywt
+import joblib
 from scipy import signal
 
 from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, FilterTypes, WaveletTypes, ThresholdTypes
@@ -9,7 +11,7 @@ from sklearn.preprocessing import StandardScaler as Scaler
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
-scaler = Scaler()
+scaler = joblib.load(os.path.join(abs_script_dir, "scaler.gz"))
 
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
@@ -27,8 +29,13 @@ def extract_features(preprocessed_data):
     for eeg_row in preprocessed_data:
         # resample to match physionet dataset
         eeg_row = signal.resample(eeg_row, 160)
+        # coeffs = pywt.wavedec(eeg_row, wavelet='db4', level=4)
+        # coeffs = np.concatenate(coeffs[1:])
         features.append(eeg_row)
-    return np.stack(features, axis=-1)
+    
+    features = np.stack(features, axis=-1)
+    features = scaler.transform(features.reshape(-1, 1)).reshape(features.shape)
+    return features
 
 class Pipeline:
     def __init__(self):
