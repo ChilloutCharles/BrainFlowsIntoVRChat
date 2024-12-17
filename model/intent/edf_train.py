@@ -23,7 +23,7 @@ X_train, X_val = train_test_split(data, test_size=0.2)
 
 # Setup variables for batch generation and training
 batch_size = 512
-epochs = 128
+epochs = 256
 train_steps = X_train.shape[0] // batch_size
 test_steps = X_val.shape[0] // batch_size
 

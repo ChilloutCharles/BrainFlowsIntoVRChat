@@ -144,25 +144,24 @@ def main():
 
     ## get class count from training data
     classes = len(processed_windows)
-    channels = X_train.shape[-1]
 
     ## Create Model
-    model = create_classifier(pretrained_encoder, classes, channels)
+    model = create_classifier(pretrained_encoder, classes)
 
     ## Compile the model
-    model.compile(optimizer=AdamW(0.01), loss='categorical_crossentropy')
+    model.compile(optimizer=AdamW(0.001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
     early_stopping = EarlyStopping(monitor='val_loss', patience=2**3, restore_best_weights=True, verbose=0)
 
     ## Train the model
-    batch_size = 512
+    batch_size = 256
     epochs = 128
     fit_history = model.fit(
         X_train, y_train, 
         epochs=epochs, batch_size=batch_size, 
         validation_data=(X_test, y_test), 
-        # callbacks=[early_stopping], 
+        callbacks=[early_stopping], 
         verbose=1
     )
 

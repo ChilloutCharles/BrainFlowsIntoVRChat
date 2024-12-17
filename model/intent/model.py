@@ -6,7 +6,7 @@ from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
 from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
-from keras.layers import MultiHeadAttention, LayerNormalization, Reshape, Permute, Dropout, GlobalMaxPooling1D
+from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
 
 ## Spatial Attention (Thanks Summer!)
 @keras.utils.register_keras_serializable()
@@ -191,6 +191,11 @@ class StudentTeacherClassifier(Model):
         model.compile(optimizer='adam', loss='categorical_crossentropy')
         return model
 
+### MASKED AUTOENCODER SECTION ###
+# Following along with this paper: Masked Autoencoders Are Scalable Vision Learners
+# Using the resulting encoder as a feature extractor that is channel agnostic
+# https://arxiv.org/abs/2111.06377
+
 @keras.saving.register_keras_serializable()
 class PatchLayer(Layer):
     def __init__(self, patch_shape=(10, 4), **kwargs):
@@ -245,12 +250,36 @@ class Transformer(Layer):
         ffn_out = self.ln2(ffn_out + attn_out)
         return ffn_out
 
-@keras.saving.register_keras_serializable()
-class PositionalEmbedding(Layer):
+@keras.utils.register_keras_serializable()
+class TrainablePositionalEmbedding(Layer):
     def __init__(self, max_len=160, embed_dim=64, **kwargs):
-        super(PositionalEmbedding, self).__init__(**kwargs)
-        self.max_len = max_len  # Maximum length of the input sequence (number of patches)
-        self.embed_dim = embed_dim  # Embedding dimension for patches
+        super(TrainablePositionalEmbedding, self).__init__(**kwargs)
+        self.max_len = max_len  
+        self.embed_dim = embed_dim 
+        self.tanh = Activation('tanh') # Smooth Gradient please
+
+    def build(self, input_shape):
+        # Initialize a trainable positional embedding of shape (max_len, embed_dim)
+        self.positional_embeddings = self.add_weight(
+            name='pos_embedding',
+            shape=(self.max_len, self.embed_dim),
+            initializer='random_normal',
+            trainable=True
+        )
+        super(TrainablePositionalEmbedding, self).build(input_shape)
+
+    def call(self, inputs):
+        # Add the positional embeddings to the input tensor
+        seq_len = tf.shape(inputs)[1]  # Get the sequence length (number of patches)
+        pos_embed = self.tanh(self.positional_embeddings[:seq_len, :]) # smoothed pos_embed
+        return inputs + pos_embed
+    
+@keras.saving.register_keras_serializable()
+class SinusoidPositionalEmbedding(Layer):
+    def __init__(self, max_len=160, embed_dim=64, **kwargs):
+        super(SinusoidPositionalEmbedding, self).__init__(**kwargs)
+        self.max_len = max_len  
+        self.embed_dim = embed_dim  
 
         # Generate the positional encoding matrix for all positions and embedding dimensions
         position = np.arange(self.max_len)[:, np.newaxis]
@@ -264,30 +293,12 @@ class PositionalEmbedding(Layer):
         self.positional_embeddings = tf.constant(pe, dtype=tf.float32)
 
     def build(self, input_shape):
-        super(PositionalEmbedding, self).build(input_shape)
+        super(SinusoidPositionalEmbedding, self).build(input_shape)
 
     def call(self, inputs):
         # Add the positional encodings to the input tensor
-        seq_len = tf.shape(inputs)[1]  # Get the sequence length (number of patches)
+        seq_len = tf.shape(inputs)[1]
         return inputs + self.positional_embeddings[:seq_len, :]
-
-@keras.saving.register_keras_serializable()
-class ChannelPositionalEmbedding(Layer):
-    def __init__(self, chan_dim=64, **kwargs):
-        super(ChannelPositionalEmbedding, self).__init__(**kwargs)
-        self.channel_embeddings = self.add_weight(
-            name='chan_embedding',
-            shape=(1, 1, chan_dim),
-            initializer='random_normal',
-            trainable=True
-        )
-
-    def build(self, input_shape):
-        super(ChannelPositionalEmbedding, self).build(input_shape)
-    
-    def call(self, inputs):
-        chan_embed = tf.broadcast_to(self.channel_embeddings, tf.shape(inputs))
-        return inputs + chan_embed
 
 @keras.saving.register_keras_serializable()
 class MaskedAutoEncoder(Model):
@@ -299,23 +310,17 @@ class MaskedAutoEncoder(Model):
         patch_count_h = emb_dim//patch_shape[1]
         patch_count = patch_count_w * patch_count_h
 
-        self.channel_embedding = ChannelPositionalEmbedding(out_dim)
-
-        self.patch_embed = Sequential([
+        self.patcher = Sequential([
             Input((None, None)),
             PatchLayer(patch_shape),
-            Dense(emb_dim),
-            PositionalEmbedding(patch_count, emb_dim)
-        ], name='patch_embed')
+            Dense(emb_dim)
+        ], name='patcher')
         
+        self.encoder_position = TrainablePositionalEmbedding(patch_count, emb_dim)
+        self.decoder_position = SinusoidPositionalEmbedding(patch_count, emb_dim)
+
         self.encoder = Sequential([Input((None, emb_dim))] +  [Transformer(ffn_dim, emb_dim) for _ in range(8)], name='encoder')
-        
-        self.decoder = Sequential([
-            Conv1D(emb_dim, 3, padding='same'), BatchNormalization(), Activation('gelu'), # Temporal Convolution
-            Permute((2, 1)),
-            Conv1D(patch_count, 3, padding='same'), BatchNormalization(), Activation('gelu'), # Spatial Convolution
-            Permute((2, 1)),
-        ], name='decoder')
+        self.decoder = Sequential([Input((None, emb_dim))] +  [Transformer(ffn_dim, emb_dim) for _ in range(2)], name='decoder')
 
         self.unpatch_recover = Sequential([
             Dense(patch_dim),
@@ -326,28 +331,25 @@ class MaskedAutoEncoder(Model):
         self.num_mask = int(0.75 * patch_count)
 
     def call(self, inputs):
-        # embed channel position
-        embedding = self.channel_embedding(inputs)
-
         # patch, linearly embed, then patch position embed
-        embedding = self.patch_embed(embedding)
+        embedding = self.patcher(inputs)
+        embedding = self.encoder_position(embedding)
 
         # get embed shape for later use
         embed_shape = tf.shape(embedding)
 
         # create unmasked indices and gather unmasked patches
-        rand_indices = tf.argsort(
-            tf.random.uniform(shape=(embed_shape[0], embed_shape[1])), axis=-1
-        )
+        rand_indices = tf.argsort(tf.random.uniform(shape=embed_shape[:2]), axis=-1)
         unmask_indices = rand_indices[:, self.num_mask :]
         unmasked_embeds = tf.gather(embedding, unmask_indices, axis=1, batch_dims=1)
 
         # send unmasked patches through encoder
         features = self.encoder(unmasked_embeds)
 
-        # reintroduce masked portions with the mask token
+        # reintroduce masked portions with the mask token, apply positional embed too
         decoder_input = tf.broadcast_to(self.mask_token, embed_shape)
         decoder_input = self.hard_ass_scatter_update(decoder_input, unmask_indices, features)
+        decoder_input = self.decoder_position(decoder_input)
         
         # send mask tokenized full data to decoder and reconstruct original patches
         reconstruct_embedding = self.decoder(decoder_input)
@@ -376,71 +378,26 @@ class MaskedAutoEncoder(Model):
     
     def assemble_feature_extractor(self):
         return Sequential([
-            self.channel_embedding,
-            self.patch_embed,
+            self.patcher,
+            self.encoder_position,
             self.encoder
         ])
-
-## LoRA layers for use in downstream classification
-## https://arxiv.org/abs/2106.09685
-@keras.utils.register_keras_serializable()
-class LoRALayer(Layer):
-    def __init__(self, rank, **kwargs):
-        super(LoRALayer, self).__init__(**kwargs)
-        self.rank = rank
     
-    def build(self, input_shape):
-        input_dim = input_shape[-1]
-        self.A = self.add_weight(shape=(input_dim, self.rank),
-                                 initializer='random_normal',
-                                 trainable=True,
-                                 name='lora_A')
-        self.B = self.add_weight(shape=(self.rank, input_dim),
-                                 initializer='random_normal',
-                                 trainable=True,
-                                 name='lora_B')
-        super(LoRALayer, self).build(input_shape)
+def create_classifier(feature_extractor, classes):
+    [patcher, position, encoder] = feature_extractor.layers
+    patcher.trainable = False
 
-    def call(self, inputs):
-        lora_update = tf.matmul(inputs, self.A)
-        lora_update = tf.matmul(lora_update, self.B)
-        return inputs + lora_update
-
-@keras.utils.register_keras_serializable()
-class GlobalAttentionPooling1D(Layer):
-    def __init__(self, num_heads=4, key_dim=16, **kwargs):
-        super(GlobalAttentionPooling1D, self).__init__(**kwargs)
-        self.attn = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)
-    
-    def build(self, input_shape):
-        super(GlobalAttentionPooling1D, self).build(input_shape)
-
-    def call(self, inputs):
-        attn_output = self.attn(inputs, inputs)
-        pooled_output = tf.reduce_sum(attn_output, axis=1)
-        return pooled_output
-
-def create_classifier(feature_extractor, classes, out_dim=4):
-    [_, patch_embed, encoder] = feature_extractor.layers
-    patch_embed.trainable = False
-    # encoder.trainable = False
-    for layer in encoder.layers:
+    # Set positonal embedding and half of last layer of encoder to trainable
+    position.trainable = True
+    for layer in encoder.layers[:-1]:
         layer.trainable = False
-        layer = Sequential([layer, LoRALayer(10)])
+    last_tfm = encoder.layers[-1]
+    last_tfm.attn.trainable = False
+    last_tfm.ln1.trainable = False
 
     return Sequential([
-        ChannelPositionalEmbedding(out_dim),
-        patch_embed,
-        encoder,
+        BatchNormalization(), # input data was normalized during pretraining. Equivalent!
+        feature_extractor,
         GlobalAveragePooling1D(),
         Dense(classes, activation='softmax')
     ], name='classifier')
-
-    
-
-if __name__ == '__main__':
-    mae = MaskedAutoEncoder(170, 16, 32, 64)
-    test_input = tf.ones((3, 170, 64))
-    output = mae(test_input)
-    print(output.shape)
-
