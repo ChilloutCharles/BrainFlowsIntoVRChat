@@ -395,9 +395,14 @@ def create_classifier(feature_extractor, classes):
     last_tfm.attn.trainable = False
     last_tfm.ln1.trainable = False
 
+    # Set 2nd to last layer dim to half embed
+    embed_dim = encoder.input_shape[-1]
+    embed_dim = embed_dim // 2
+
     return Sequential([
         BatchNormalization(), # input data was normalized during pretraining. Equivalent!
         feature_extractor,
         GlobalAveragePooling1D(),
-        Dense(classes, activation='softmax')
+        Dense(embed_dim, activation='gelu'),
+        Dense(classes, activation='softmax', kernel_regularizer='l2')
     ], name='classifier')
