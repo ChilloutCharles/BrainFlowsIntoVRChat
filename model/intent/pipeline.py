@@ -10,6 +10,9 @@ from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
 
+scaler_path = os.path.join(abs_script_dir, 'scaler.gz')
+scaler = joblib.load(scaler_path)
+
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
@@ -26,6 +29,7 @@ def extract_features(preprocessed_data):
         eeg_row = signal.resample(eeg_row, 160)
         features.append(eeg_row)
     features = np.stack(features, axis=-1)
+    features = scaler.transform(features.reshape(-1, 1)).reshape(features.shape)
     return features
 
 class Pipeline:

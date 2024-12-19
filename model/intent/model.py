@@ -6,7 +6,9 @@ from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
 from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
-from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
+from keras.layers import MultiHeadAttention, LayerNormalization, Reshape, GaussianNoise
+
+from tensorflow_wavelets.Layers.DWT import DWT, IDWT
 
 ## Spatial Attention (Thanks Summer!)
 @keras.utils.register_keras_serializable()
@@ -195,6 +197,15 @@ class StudentTeacherClassifier(Model):
 # Following along with this paper: Masked Autoencoders Are Scalable Vision Learners
 # Using the resulting encoder as a feature extractor that is channel agnostic
 # https://arxiv.org/abs/2111.06377
+@keras.saving.register_keras_serializable()
+class ExpandDim(Layer):
+    def call(self, inputs):
+        return tf.expand_dims(inputs, -1)
+    
+@keras.saving.register_keras_serializable()
+class SqueezeDim(Layer):
+    def call(self, inputs):
+        return tf.squeeze(inputs, axis=-1)
 
 @keras.saving.register_keras_serializable()
 class PatchLayer(Layer):
@@ -203,21 +214,17 @@ class PatchLayer(Layer):
         self.patch_shape = patch_shape
 
     def call(self, inputs):
-        # create image-like: (B, 160, 64) -> (B, 160, 64, 1)
-        image_like = tf.expand_dims(inputs, -1)
         patch_width = self.patch_shape[0]
         patch_height = self.patch_shape[1]
         
-        # Extract patches: shape (B, 16, 16, 40)
         patches = tf.image.extract_patches(
-            images=image_like,
+            images=inputs,
             sizes=[1, patch_width, patch_height, 1],
             strides=[1, patch_width, patch_height, 1],
             rates=[1,1,1,1],
             padding='VALID'
         )
 
-        # Flatten each patch: (B, num_patches, patch_dims)
         patches_shape = tf.shape(patches)
         num_patches = patches_shape[-3] * patches_shape[-2]
         patch_dims = patches_shape[-1]
@@ -302,16 +309,17 @@ class SinusoidPositionalEmbedding(Layer):
 
 @keras.saving.register_keras_serializable()
 class MaskedAutoEncoder(Model):
-    def __init__(self, times=160, ffn_dim=32, emb_dim=64, out_dim=64, patch_shape=(10, 4), **kwargs):
+    def __init__(self, times=160, ffn_dim=128, emb_dim=32, out_dim=64, patch_shape=(8, 4), **kwargs):
         super(MaskedAutoEncoder, self).__init__(**kwargs)
 
         patch_dim = patch_shape[0] * patch_shape[1]
-        patch_count_w = times//patch_shape[0] 
-        patch_count_h = emb_dim//patch_shape[1]
-        patch_count = patch_count_w * patch_count_h
+        patch_count_h = times//patch_shape[0]
+        patch_count_w = out_dim//patch_shape[1]
+        patch_count = patch_count_h * patch_count_w
 
         self.patcher = Sequential([
             Input((None, None)),
+            ExpandDim(),
             PatchLayer(patch_shape),
             Dense(emb_dim)
         ], name='patcher')
@@ -400,9 +408,17 @@ def create_classifier(feature_extractor, classes):
     embed_dim = embed_dim // 2
 
     return Sequential([
-        BatchNormalization(), # input data was normalized during pretraining. Equivalent!
+        BatchNormalization(),
         feature_extractor,
         GlobalAveragePooling1D(),
-        Dense(embed_dim, activation='gelu'),
-        Dense(classes, activation='softmax', kernel_regularizer='l2')
+        Dense(classes, activation='softmax')
     ], name='classifier')
+
+def wavelet_loss(inner_loss_func):
+    dwt = DWT('bior4.4', concat=1)
+    def loss_func(y_true, y_pred):
+        true_wt = dwt(tf.expand_dims(y_true, -1))
+        pred_wt = dwt(tf.expand_dims(y_pred, -1))
+        wt_loss = inner_loss_func(true_wt, pred_wt)
+        return wt_loss
+    return loss_func

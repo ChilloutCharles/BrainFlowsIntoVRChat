@@ -1,21 +1,28 @@
 import numpy as np
 import joblib
+import os.path
+from concurrent.futures import ThreadPoolExecutor
 
 from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
+from keras.losses import Huber
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler as Scaler
 
-from model import MaskedAutoEncoder
+from model import MaskedAutoEncoder, wavelet_loss
 
 # Load the data
 data = np.load('dataset.pkl')
 
 # Normalize the data
 scaler = Scaler()
-data = scaler.fit_transform(data.reshape(-1, 1)).reshape(data.shape)
-joblib.dump(scaler, 'scaler.gz')
+if os.path.isfile('scaler.gz'):
+    scaler = joblib.load('scaler.gz')
+    data = scaler.transform(data.reshape(-1, 1)).reshape(data.shape)
+else:
+    data = scaler.fit_transform(data.reshape(-1, 1)).reshape(data.shape)
+    joblib.dump(scaler, 'scaler.gz')
 print("scaled")
 
 # Split the data into training and validation sets
@@ -30,17 +37,20 @@ test_steps = X_val.shape[0] // batch_size
 # set up train and val generators
 def batch_generator(X, batch_size):
     x_count = len(X)
-    while True:
-        for i in range(0, x_count, batch_size):
-            x = X[i:i + batch_size]
-            yield x, x
+    pairs = [(i, i + batch_size) for i in range(0, x_count, batch_size)]
+    with ThreadPoolExecutor(max_workers=2**4) as executor:
+        while True:
+            futures = [executor.submit(lambda p: X[p[0]:p[1]], pair) for pair in pairs]
+            for future in futures:
+                x = future.result()
+                yield x, x
 
 train_generator = batch_generator(X_train, batch_size)
 val_generator = batch_generator(X_val, batch_size)
 
 # Build the autoencoder
-autoencoder = MaskedAutoEncoder(times=160, out_dim=64, patch_shape=(10, 4))
-autoencoder.compile(optimizer=AdamW(0.001), loss='huber')
+autoencoder = MaskedAutoEncoder(times=160, ffn_dim=128, emb_dim=32, out_dim=64, patch_shape=(8, 4))
+autoencoder.compile(optimizer=AdamW(0.001), loss=wavelet_loss(Huber()))
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True, verbose=0)
