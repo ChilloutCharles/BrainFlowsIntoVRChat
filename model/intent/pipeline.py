@@ -1,21 +1,18 @@
 import keras
 import os
 import numpy as np
-import pywt
-import joblib
 from scipy import signal
 
-from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
+from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes, WaveletTypes
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
 
-scaler_path = os.path.join(abs_script_dir, 'scaler.gz')
-scaler = joblib.load(scaler_path)
-
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
+        # Wavelet Denoiser
+        DataFilter.perform_wavelet_denoising(session_data[eeg_chan], WaveletTypes.DB4, 5)
         # remove line noise
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
         # bandpass to alpha, beta, gamma, 80 for resample effect mitigation
@@ -29,7 +26,6 @@ def extract_features(preprocessed_data):
         eeg_row = signal.resample(eeg_row, 160)
         features.append(eeg_row)
     features = np.stack(features, axis=-1)
-    features = scaler.transform(features.reshape(-1, 1)).reshape(features.shape)
     return features
 
 class Pipeline:

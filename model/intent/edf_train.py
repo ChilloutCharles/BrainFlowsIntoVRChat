@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
-from keras.losses import Huber
+from keras.losses import Huber, MeanSquaredError as MSE
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler as Scaler
@@ -37,23 +37,20 @@ test_steps = X_val.shape[0] // batch_size
 # set up train and val generators
 def batch_generator(X, batch_size):
     x_count = len(X)
-    pairs = [(i, i + batch_size) for i in range(0, x_count, batch_size)]
-    with ThreadPoolExecutor(max_workers=2**4) as executor:
-        while True:
-            futures = [executor.submit(lambda p: X[p[0]:p[1]], pair) for pair in pairs]
-            for future in futures:
-                x = future.result()
-                yield x, x
+    while True:
+        for i in range(0, x_count, batch_size):
+            x = X[i:i + batch_size]
+            yield x, x
 
 train_generator = batch_generator(X_train, batch_size)
 val_generator = batch_generator(X_val, batch_size)
 
 # Build the autoencoder
-autoencoder = MaskedAutoEncoder(times=160, ffn_dim=128, emb_dim=32, out_dim=64, patch_shape=(8, 4))
-autoencoder.compile(optimizer=AdamW(0.001), loss=wavelet_loss(Huber()))
+autoencoder = MaskedAutoEncoder(mask_ratio=0.8, input_shape=(160, 64), patch_shape=(8, 4), loss_func=MSE(), alpha=0.2)
+autoencoder.compile(optimizer=AdamW(0.001), loss=wavelet_loss(MSE(), alpha=0.8))
 
 # Define the EarlyStopping callback
-early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True, verbose=0)
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True, verbose=0)
 
 # Train the autoencoder with early stopping
 fit_history = autoencoder.fit(
@@ -63,12 +60,13 @@ fit_history = autoencoder.fit(
     callbacks=[early_stopping],
     steps_per_epoch=train_steps,
     validation_steps=test_steps,
-    verbose=1
+    verbose=2
 )
 
 #Save the model
 print("Saving Model")
 encoder = autoencoder.assemble_feature_extractor()
+assert encoder.built
 encoder.save('physionet_encoder.keras')
 encoder.summary()
 

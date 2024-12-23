@@ -142,11 +142,12 @@ def main():
     ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
 
-    ## get class count from training data
+    ## get class count and input shape from training data
     classes = len(processed_windows)
+    input_shape = X_test.shape[1:]
 
     ## Create Model
-    model = create_classifier(pretrained_encoder, classes)
+    model = create_classifier(pretrained_encoder, classes, input_shape)
 
     ## Compile the model
     model.compile(optimizer=AdamW(0.001), loss='categorical_crossentropy')

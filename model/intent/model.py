@@ -5,8 +5,8 @@ import keras
 from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
 from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
-from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
-from keras.layers import MultiHeadAttention, LayerNormalization, Reshape, GaussianNoise
+from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy, Huber
+from keras.layers import MultiHeadAttention, LayerNormalization, Reshape, GroupNormalization, Dropout
 
 from tensorflow_wavelets.Layers.DWT import DWT, IDWT
 
@@ -237,12 +237,12 @@ class PatchLayer(Layer):
 
 @keras.saving.register_keras_serializable()
 class Transformer(Layer):
-    def __init__(self, ffn_dim, out_dim, **kwargs):
+    def __init__(self, ffn_dim, out_dim, last_act='gelu', **kwargs):
         super(Transformer, self).__init__(**kwargs)
         self.attn = MultiHeadAttention(4, 16)
         self.ffn = Sequential([
             Dense(ffn_dim, activation='gelu'),
-            Dense(out_dim, activation='gelu')
+            Dense(out_dim, activation=last_act)
         ])
         self.ln1 = LayerNormalization()
         self.ln2 = LayerNormalization()
@@ -258,28 +258,25 @@ class Transformer(Layer):
         return ffn_out
 
 @keras.utils.register_keras_serializable()
-class TrainablePositionalEmbedding(Layer):
-    def __init__(self, max_len=160, embed_dim=64, **kwargs):
-        super(TrainablePositionalEmbedding, self).__init__(**kwargs)
-        self.max_len = max_len  
-        self.embed_dim = embed_dim 
-        self.tanh = Activation('tanh') # Smooth Gradient please
+class ChannelPositionalEmbedding(Layer):
+    def __init__(self, channels=64, **kwargs):
+        super(ChannelPositionalEmbedding, self).__init__(**kwargs)
+        self.channels = channels
+        self.tanh = Activation('tanh')
 
     def build(self, input_shape):
-        # Initialize a trainable positional embedding of shape (max_len, embed_dim)
         self.positional_embeddings = self.add_weight(
             name='pos_embedding',
-            shape=(self.max_len, self.embed_dim),
+            shape=(1, self.channels),  # Shape matches the number of channels
             initializer='random_normal',
             trainable=True
         )
-        super(TrainablePositionalEmbedding, self).build(input_shape)
+        super(ChannelPositionalEmbedding, self).build(input_shape)
 
     def call(self, inputs):
-        # Add the positional embeddings to the input tensor
-        seq_len = tf.shape(inputs)[1]  # Get the sequence length (number of patches)
-        pos_embed = self.tanh(self.positional_embeddings[:seq_len, :]) # smoothed pos_embed
-        return inputs + pos_embed
+        pos_emb = self.tanh(self.positional_embeddings)  # Apply tanh for smoother gradients
+        pos_emb = tf.expand_dims(pos_emb, axis=0)  # Broadcast along batch dimension
+        return inputs + pos_emb
     
 @keras.saving.register_keras_serializable()
 class SinusoidPositionalEmbedding(Layer):
@@ -309,61 +306,87 @@ class SinusoidPositionalEmbedding(Layer):
 
 @keras.saving.register_keras_serializable()
 class MaskedAutoEncoder(Model):
-    def __init__(self, times=160, ffn_dim=128, emb_dim=32, out_dim=64, patch_shape=(8, 4), **kwargs):
+    def __init__(self, mask_ratio=0.8, input_shape=(160, 64), patch_shape=(8, 4), loss_func=Huber(), alpha=0.2, **kwargs):
         super(MaskedAutoEncoder, self).__init__(**kwargs)
+        times, out_dim = input_shape
 
         patch_dim = patch_shape[0] * patch_shape[1]
         patch_count_h = times//patch_shape[0]
         patch_count_w = out_dim//patch_shape[1]
         patch_count = patch_count_h * patch_count_w
 
+        embed_dim = patch_dim * 2
+        ffn_dim = embed_dim * 4
+
+        self.channel_position = ChannelPositionalEmbedding(out_dim)
+        self.patch_position = SinusoidPositionalEmbedding(patch_count, embed_dim)
+
         self.patcher = Sequential([
             Input((None, None)),
             ExpandDim(),
-            PatchLayer(patch_shape),
-            Dense(emb_dim)
+            PatchLayer(patch_shape)
         ], name='patcher')
-        
-        self.encoder_position = TrainablePositionalEmbedding(patch_count, emb_dim)
-        self.decoder_position = SinusoidPositionalEmbedding(patch_count, emb_dim)
 
-        self.encoder = Sequential([Input((None, emb_dim))] +  [Transformer(ffn_dim, emb_dim) for _ in range(8)], name='encoder')
-        self.decoder = Sequential([Input((None, emb_dim))] +  [Transformer(ffn_dim, emb_dim) for _ in range(2)], name='decoder')
+        self.position_linear = Sequential([
+            Input((None, patch_dim)),
+            Dense(embed_dim),
+            self.patch_position
+        ], name='position_linear')
 
-        self.unpatch_recover = Sequential([
-            Dense(patch_dim),
-            Reshape((times, out_dim))
-        ], name='unpatch_recover')
+        self.encoder = Sequential([Input((None, embed_dim))] +  [Transformer(ffn_dim, embed_dim) for _ in range(8)], name='encoder')
+        self.decoder = Sequential([Input((None, embed_dim))] +  [Transformer(ffn_dim, embed_dim) for _ in range(2)], name='decoder')
+
+        self.unproject = Dense(patch_dim)
+        self.recover = Reshape((times, out_dim)) # also squeezes implicilty
 
         self.mask_token = tf.Variable(tf.random.normal((1, patch_count, 1)), trainable=True)
-        self.num_mask = int(0.75 * patch_count)
+        self.num_mask = int(mask_ratio * patch_count)
+
+        self.loss_func = loss_func
+        self.loss_alpha = alpha
 
     def call(self, inputs):
-        # patch, linearly embed, then patch position embed
-        embedding = self.patcher(inputs)
-        embedding = self.encoder_position(embedding)
+        # save patched inputs for loss
+        input_patches = self.patcher(inputs)
 
-        # get embed shape for later use
+        # apply channel position embedding
+        inputs = self.channel_position(inputs)
+
+        # patch, linearly project, and apply static position embedding
+        embedding = self.patcher(inputs)
+        embedding = self.position_linear(embedding)
+        
+        # get embedding shape for later use
         embed_shape = tf.shape(embedding)
 
-        # create unmasked indices and gather unmasked patches
+        # create indices and gather unmasked patches
         rand_indices = tf.argsort(tf.random.uniform(shape=embed_shape[:2]), axis=-1)
         unmask_indices = rand_indices[:, self.num_mask :]
+        mask_indices = rand_indices[:, :self.num_mask] 
         unmasked_embeds = tf.gather(embedding, unmask_indices, axis=1, batch_dims=1)
 
         # send unmasked patches through encoder
         features = self.encoder(unmasked_embeds)
 
-        # reintroduce masked portions with the mask token, apply positional embed too
+        # reintroduce masked portions with the mask token and apply positional embed
         decoder_input = tf.broadcast_to(self.mask_token, embed_shape)
         decoder_input = self.hard_ass_scatter_update(decoder_input, unmask_indices, features)
-        decoder_input = self.decoder_position(decoder_input)
+        decoder_input = self.patch_position(decoder_input)
         
-        # send mask tokenized full data to decoder and reconstruct original patches
+        # send mask tokenized full patch sequence to decoder
         reconstruct_embedding = self.decoder(decoder_input)
 
-        # undo linear embedding and stich patches back together
-        reconstruct = self.unpatch_recover(reconstruct_embedding)
+        # project back to patch dims
+        reconstruct_patches = self.unproject(reconstruct_embedding)
+
+        # do loss calculation on masked_patches
+        input_masked = tf.gather(input_patches, mask_indices, axis=1, batch_dims=1)
+        reconstruct_masked = tf.gather(reconstruct_patches, mask_indices, axis=1, batch_dims=1)
+        loss = self.loss_func(input_masked, reconstruct_masked) 
+        self.add_loss(loss * self.loss_alpha)
+
+        # stich patches back together
+        reconstruct = self.recover(reconstruct_patches)
 
         return reconstruct
     
@@ -385,40 +408,40 @@ class MaskedAutoEncoder(Model):
         return updated_tensor
     
     def assemble_feature_extractor(self):
-        return Sequential([
+        feature_extractor = Sequential([
+            self.channel_position,
             self.patcher,
-            self.encoder_position,
+            self.position_linear,
             self.encoder
         ])
-    
-def create_classifier(feature_extractor, classes):
-    [patcher, position, encoder] = feature_extractor.layers
-    patcher.trainable = False
+        feature_extractor.build(input_shape=(None, 160, 64))
+        return feature_extractor
 
-    # Set positonal embedding and half of last layer of encoder to trainable
-    position.trainable = True
+def create_classifier(feature_extractor, classes, input_shape=(160, 4)):
+    [_, patcher, position_linear, encoder] = feature_extractor.layers
+    patcher.trainable = False
+    position_linear.trainable = False
     for layer in encoder.layers[:-1]:
         layer.trainable = False
     last_tfm = encoder.layers[-1]
     last_tfm.attn.trainable = False
     last_tfm.ln1.trainable = False
 
-    # Set 2nd to last layer dim to half embed
-    embed_dim = encoder.input_shape[-1]
-    embed_dim = embed_dim // 2
-
     return Sequential([
         BatchNormalization(),
-        feature_extractor,
+        ChannelPositionalEmbedding(input_shape[1]),
+        patcher,
+        position_linear,
+        encoder,
         GlobalAveragePooling1D(),
         Dense(classes, activation='softmax')
     ], name='classifier')
 
-def wavelet_loss(inner_loss_func):
+def wavelet_loss(inner_loss_func, alpha=1.0):
     dwt = DWT('bior4.4', concat=1)
     def loss_func(y_true, y_pred):
         true_wt = dwt(tf.expand_dims(y_true, -1))
         pred_wt = dwt(tf.expand_dims(y_pred, -1))
         wt_loss = inner_loss_func(true_wt, pred_wt)
-        return wt_loss
+        return wt_loss * alpha
     return loss_func
