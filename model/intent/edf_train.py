@@ -1,34 +1,28 @@
 import numpy as np
 import joblib
-import os.path
-from concurrent.futures import ThreadPoolExecutor
 
 from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
 from keras.losses import Huber, MeanSquaredError as MSE
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler as Scaler
-
-from model import MaskedAutoEncoder, wavelet_loss
+from model import MaskedAutoEncoder
 
 # Load the data
-data = np.load('dataset.pkl')
-
-# Normalize the data
-scaler = Scaler()
-if os.path.isfile('scaler.gz'):
-    scaler = joblib.load('scaler.gz')
-    data = scaler.transform(data.reshape(-1, 1)).reshape(data.shape)
-else:
-    data = scaler.fit_transform(data.reshape(-1, 1)).reshape(data.shape)
-    joblib.dump(scaler, 'scaler.gz')
-print("scaled")
+print('Loading data...')
+data = joblib.load('dataset.pkl')
 
 # Split the data into training and validation sets
-X_train, X_val = train_test_split(data, test_size=0.2)
+print('Data Loaded. Processing:', data.shape)
+np.random.shuffle(data)
+
+print('Shuffled. Splitting...')
+pivot = int(data.shape[0] * 0.2)
+X_val = data[:pivot]
+X_train = data[pivot:]
+del data
 
 # Setup variables for batch generation and training
+print('Data Processed. Setting up...')
 batch_size = 512
 epochs = 256
 train_steps = X_train.shape[0] // batch_size
@@ -46,13 +40,15 @@ train_generator = batch_generator(X_train, batch_size)
 val_generator = batch_generator(X_val, batch_size)
 
 # Build the autoencoder
-autoencoder = MaskedAutoEncoder(mask_ratio=0.8, input_shape=(160, 64), patch_shape=(8, 4), loss_func=MSE(), alpha=0.2)
-autoencoder.compile(optimizer=AdamW(0.001), loss=wavelet_loss(MSE(), alpha=0.8))
+input_shape = X_train.shape[1:]
+autoencoder = MaskedAutoEncoder(mask_ratio=0.8, input_shape=input_shape, patch_shape=(5, 4))
+autoencoder.compile(optimizer=AdamW(0.001), loss='mse')
 
 # Define the EarlyStopping callback
-early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True, verbose=0)
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
 
 # Train the autoencoder with early stopping
+print('Setup Complete. Training...')
 fit_history = autoencoder.fit(
     x = train_generator, y = None,
     epochs=epochs,
@@ -60,31 +56,39 @@ fit_history = autoencoder.fit(
     callbacks=[early_stopping],
     steps_per_epoch=train_steps,
     validation_steps=test_steps,
-    verbose=2
+    verbose=1
 )
 
 #Save the model
 print("Saving Model")
 encoder = autoencoder.assemble_feature_extractor()
-assert encoder.built
 encoder.save('physionet_encoder.keras')
 encoder.summary()
 
 # Evaluate the model
 print("Model evaluation:")
-autoencoder.evaluate(X_val, X_val)
-
+autoencoder.evaluate(
+    x=val_generator, y=None,
+    steps=test_steps
+)
 
 # View Reconstruction
 import matplotlib.pyplot as plt
 import random
 
+r_index = np.random.choice(X_val.shape[0])
+X_val = X_val[[r_index]]
 reconstructed = autoencoder.predict(X_val)
 
+# reconstruct original signal shape by summing the mra levels
+X_val = np.sum(X_val, axis=-1)
+reconstructed = np.sum(reconstructed, axis=-1)
+
+# transpose back into time last
 X_val = X_val.transpose(0, 2, 1)
 reconstructed = reconstructed.transpose(0, 2, 1)
 
-i = random.randint(0, len(X_val) - 1)
+i = 0
 js = list(range(0, 64))
 random.shuffle(js)
 js = js[:4]  # Select 4 random channels

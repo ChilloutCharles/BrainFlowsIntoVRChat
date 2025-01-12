@@ -1,9 +1,10 @@
 import keras
 import os
 import numpy as np
+import pywt
 from scipy import signal
 
-from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes, WaveletTypes
+from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
@@ -11,21 +12,16 @@ abs_script_dir = os.path.dirname(abs_script_path)
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
-        # Wavelet Denoiser
-        DataFilter.perform_wavelet_denoising(session_data[eeg_chan], WaveletTypes.DB4, 5)
         # remove line noise
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
         # bandpass to alpha, beta, gamma, 80 for resample effect mitigation
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 8, 80, 4, FilterTypes.BUTTERWORTH.value, 0)
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 8, 80, 1, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
     return session_data
 
 def extract_features(preprocessed_data):
-    features  = []
-    for eeg_row in preprocessed_data:
-        # resample to match physionet dataset
-        eeg_row = signal.resample(eeg_row, 160)
-        features.append(eeg_row)
-    features = np.stack(features, axis=-1)
+    features = signal.resample(preprocessed_data, 160, axis=-1)
+    features = np.array(pywt.mra(features, 'db4', level=4, transform='dwt', axis=-1))
+    features = features.transpose()
     return features
 
 class Pipeline:

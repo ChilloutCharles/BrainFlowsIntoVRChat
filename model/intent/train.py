@@ -40,15 +40,22 @@ def main():
     ## Parse arguments for test and sample sizes
     parser = argparse.ArgumentParser()
     parser.add_argument('--sample_size', type=float, required=False, default=1.0, help='random sample proportion of recorded data to use')
-    parser.add_argument('--test_size', type=float, required=False, default=0.1, help='proportion of sampled data to reserve for validation')
+    parser.add_argument('--test_size', type=float, required=False, default=0.2, help='proportion of sampled data to reserve for validation')
     args = parser.parse_args()
     
     # Load and merge recorded data details of all present data files
     # .pkl file merging code based off https://github.com/open-mmlab/mmaction2/issues/1431
     # This is unoptimized for repeated trainings of large filesets. But that is rare.
     
+    # get all files with correct name and extension
+    print("Finding data files...")
+    file_names = [d for d in os.listdir() if d.startswith(SAVE_FILENAME) and d.endswith(SAVE_EXTENSION)]
+    first = file_names[0]
+    rest = file_names[1:]
+
     # Start off by getting data from the first file
-    with open(SAVE_FILENAME + SAVE_EXTENSION, 'rb') as f:
+    with open(first, 'rb') as f:
+        print("Opening " + first + "...")
         initial_data = pickle.load(f)
         recorded_data = {
             'board_id' : initial_data['board_id'],
@@ -58,37 +65,29 @@ def main():
         action_count = len(initial_data['action_dict'])
     
     # Then get the action_dict from all of them
-    print("Finding data files...")
-    for d in os.listdir():
-        if d.startswith(SAVE_FILENAME) and d.endswith(SAVE_EXTENSION):
-            print("Opening " + d + "...")
-            
-            # Get data from file
-            current_data = {}
-            with open(d, 'rb') as f:
-                current_data = pickle.load(f)
-            action_dict = current_data['action_dict']
+    for d in rest:
+        print("Opening " + d + "...")
+        
+        # Get data from file
+        current_data = {}
+        with open(d, 'rb') as f:
+            current_data = pickle.load(f)
+        action_dict = current_data['action_dict']
 
-            # Check the number of actions recorded, and give a warning and option to continue if they are different than the first file
-            current_actions = len(action_dict)
-            if(current_actions !=  action_count):
-                warning_option = input("WARNING! The amount of current actions ({}) is different than actions in {} ({}). Would you like to continue including this data? (Y/n)".format(action_count, d, current_actions))
-                if warning_option != 'Y':
-                    exit()
-
-            # Go action by action and combine the data
-            
-            # Ignore the first file, it was added already
-            if(d == SAVE_FILENAME + SAVE_EXTENSION):
-                continue
-            
-            for i in range(action_count):
-                # This creates a new entry in the action_dict. This should coincide with a warning in the console
-                if(not action_dict.get(i)):
-                    action_dict[i] = []
-                    
-                for action in action_dict[i]:
-                    recorded_data['action_dict'][i].append(action)
+        # Check the number of actions recorded, and give a warning and option to continue if they are different than the first file
+        current_actions = len(action_dict)
+        if(current_actions !=  action_count):
+            warning_option = input("WARNING! The amount of current actions ({}) is different than actions in {} ({}). Would you like to continue including this data? (Y/n)".format(action_count, d, current_actions))
+            if warning_option != 'Y':
+                exit()
+        
+        for i in range(action_count):
+            # This creates a new entry in the action_dict. This should coincide with a warning in the console
+            if(not action_dict.get(i)):
+                action_dict[i] = []
+                
+            for action in action_dict[i]:
+                recorded_data['action_dict'][i].append(action)
         
     board_id = recorded_data['board_id']
     sampling_rate = BoardShim.get_sampling_rate(board_id)
@@ -153,7 +152,7 @@ def main():
     model.compile(optimizer=AdamW(0.001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=2**4, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 256

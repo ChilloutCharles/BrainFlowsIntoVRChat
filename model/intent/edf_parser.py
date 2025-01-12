@@ -1,92 +1,118 @@
-import os
+import os, gc
 import mne
 import numpy as np
 import time
 import pywt
+import joblib
 
 from multiprocess import Pool
-import scipy.signal
+from sklearn.preprocessing import StandardScaler as Scaler
 
 if __name__ == '__main__':
     start_time = time.time()
 
-    p = Pool(20)
+    p = Pool(15)
 
-    def find_edf_files(directory):
-        edf_files = []
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                if file.endswith(".edf"):
-                    edf_files.append(os.path.join(root, file))
-        return edf_files
+    with Pool(20) as p:
+        def find_edf_files(directory):
+            edf_files = []
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    if file.endswith(".edf"):
+                        edf_files.append(os.path.join(root, file))
+            return edf_files
 
-    datadir = "dataset"
-    paths = find_edf_files(datadir)
-    raw_list = list(p.map(mne.io.read_raw_edf, paths))
+        datadir = "dataset"
+        paths = find_edf_files(datadir)
+        raw_list = list(p.map(mne.io.read_raw_edf, paths))
 
-    def get_windows(raw):
-        raw.load_data()
-        
-        # preprocessing
-        raw.notch_filter(freqs=50, method='iir')
-        raw.notch_filter(freqs=60, method='iir')
-        raw.filter(l_freq=8, h_freq=None)
-        
-        events, event_id = mne.events_from_annotations(raw)
-        if len(event_id) != 3:
-            return None
-        
-        sfreq = raw.info['sfreq'] 
+        def get_windows(raw):
+            raw.load_data()
+            
+            # preprocessing
+            raw.notch_filter(freqs=50)
+            raw.notch_filter(freqs=60)
+            raw.filter(l_freq=8, h_freq=None)
+            
+            events, event_id = mne.events_from_annotations(raw)
+            if len(event_id) != 3:
+                return None
+            
+            sfreq = raw.info['sfreq'] 
 
-        # Identify T0, T1, T2
-        selected_events = events[(events[:, 2] == event_id['T1']) | (events[:, 2] == event_id['T2']) | (events[:, 2] == event_id['T0'])]
+            # Identify T0, T1, T2
+            selected_events = events[(events[:, 2] == event_id['T1']) | (events[:, 2] == event_id['T2']) | (events[:, 2] == event_id['T0'])]
 
-        # Create Synthetic Events to get the whole minute
-        start_event_sample = selected_events[0, 0]
-        synthetic_events = np.array([
-            [int(start_event_sample + i * sfreq), 0, 1]  # Each event 1 second apart
-            for i in range(60 * 2)
-        ])
+            # Create Synthetic Events to get the whole minute
+            start_event_sample = selected_events[0, 0]
+            synthetic_events = np.array([
+                [int(start_event_sample + i * sfreq), 0, 1]  # Each event 1 second apart
+                for i in range(60 * 2)
+                # for i in range(1)
+            ])
 
-        # Create epochs around these events
-        epochs = mne.Epochs(raw, synthetic_events, tmin=0, tmax=(1.0-1/sfreq), preload=True, baseline=None)
+            # Create epochs around these events
+            epochs = mne.Epochs(raw, synthetic_events, tmin=0, tmax=(1.0-1/sfreq), preload=True, baseline=None)
 
-        # Convert epochs to NumPy arrays
-        data = epochs.get_data()
-        return data
+            # Convert epochs to NumPy arrays
+            data = epochs.get_data()
 
-        # dwt_coeffs = []
-        # max_coeff_len = int(sfreq // 2)
-        # for epoch in data:  # Iterate over epochs
-        #     epoch_coeffs = []
-        #     for channel in epoch:  # Iterate over channels
-        #         coeffs = pywt.wavedec(channel, wavelet='db4', level=4)
-        #         coeffs = [scipy.signal.resample(coeff, max_coeff_len) for coeff in coeffs]
-        #         epoch_coeffs.append(coeffs)
-        #     dwt_coeffs.append(epoch_coeffs)
+            # Convert to NumPy array (optional: depends on downstream needs)
+            return np.array(data)
 
-        # # Convert to NumPy array (optional: depends on downstream needs)
-        # return np.array(dwt_coeffs)
-
-    data = list(p.map(get_windows, raw_list))
-    data = list(filter(lambda x: x is not None, data))
+        data = list(p.map(get_windows, raw_list))
+        data = list(filter(lambda x: x is not None, data))
 
     # filter out bad data
     window_count = data[0].shape[0]
     sample_count = data[0].shape[-1]
     data = list(filter(lambda d: d.shape[0] == window_count and d.shape[-1] == sample_count, data))
-    arr = np.array(data)
+    data = np.array(data)
+
+    # multi-resolution analysis
+    print('MRA...', data.shape)
+    level = 4
+    d_shape = (data.shape[0], level+1, *data.shape[1:])
+    d = np.memmap('large_arr.tmp', dtype='float32', mode='w+', shape=d_shape)
+
+    with Pool(16) as p:
+        generator = p.imap_unordered(lambda row: np.array(pywt.mra(row, 'db4', level=level, transform='dwt')), data)
+        
+        for i, result in enumerate(generator):
+            print(f"Appending result {i/d_shape[0]}")
+            d[i] = result
+            
+            if i % 100 == 0:
+                d.flush()
+        d.flush()
+        data = d
 
     # reshape data
-    print(arr.shape)
-    # arr = arr.reshape(-1, arr.shape[-3], arr.shape[-2], arr.shape[-1])
-    # arr = arr.transpose(0, 3, 1, 2)
-    arr = arr.reshape(-1, arr.shape[-2], arr.shape[-1])
-    arr = arr.transpose(0, 2, 1)
+    print('Reshaping', data.shape)
+    data = data.transpose((0, 2, 4, 3, 1))
+    data = data.reshape(-1, *data.shape[-3:])
+    print('Reshaped', data.shape)
 
-    with open("dataset.pkl", "wb") as f:
-        np.save(f, arr)
+    # normalize
+    print('Normalizing...')
+    scaler = Scaler()
+    entries = data.shape[0]
+    choiced = int(np.sqrt(entries))
+    indices = np.random.choice(np.arange(0, entries), choiced)
+    sampled = data[choiced]
+    scaler.fit(sampled.reshape(-1, 1))
+    for i in range(entries):
+        data[i] = scaler.transform(data[i].reshape(-1, 1)).reshape(data[i].shape)
+
+    # serialize
+    print('Saving...')
+    joblib.dump(scaler, 'scaler.gz')
+    joblib.dump(data, 'dataset.pkl')
+
+    # cleanup
+    del data
+    gc.collect()
+    os.remove('large_arr.tmp')
 
     end_time = time.time() - start_time
-
-    print(arr.shape, end_time/60)
+    print('Runtime (mins)', end_time/60)
