@@ -2,12 +2,14 @@ import keras
 import os
 import numpy as np
 import pywt
+import joblib
 from scipy import signal
 
 from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
+scaler = joblib.load(os.path.join(abs_script_dir, 'scaler.gz'))
 
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
@@ -19,9 +21,13 @@ def preprocess_data(session_data, sampling_rate):
     return session_data
 
 def extract_features(preprocessed_data):
+    # resample to expected 160hz sampling rate
     features = signal.resample(preprocessed_data, 160, axis=-1)
-    features = np.array(pywt.mra(features, 'db4', level=4, transform='dwt', axis=-1))
+    # do multi resolution analysis and discard approx coeffs
+    features = np.array(pywt.mra(features, 'db4', level=3, transform='dwt', axis=-1))[1:]
     features = features.transpose()
+    # apply scaler made from pretraining
+    features = scaler.transform(features.reshape(-1, 1)).reshape(features.shape)
     return features
 
 class Pipeline:

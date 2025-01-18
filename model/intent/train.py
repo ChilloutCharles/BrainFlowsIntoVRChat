@@ -9,13 +9,12 @@ import random
 
 import keras
 from keras.models import Sequential
-from keras.optimizers import Adam, AdamW
+from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 
 import tensorflow as tf
-import logging
 
 from model import create_classifier
 from pipeline import preprocess_data, extract_features
@@ -143,16 +142,15 @@ def main():
 
     ## get class count and input shape from training data
     classes = len(processed_windows)
-    input_shape = X_test.shape[1:]
 
     ## Create Model
-    model = create_classifier(pretrained_encoder, classes, input_shape)
+    model = create_classifier(pretrained_encoder, classes)
 
     ## Compile the model
-    model.compile(optimizer=AdamW(0.001), loss='categorical_crossentropy')
+    model.compile(optimizer=AdamW(0.0001), loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True, verbose=0)
 
     ## Train the model
     batch_size = 256

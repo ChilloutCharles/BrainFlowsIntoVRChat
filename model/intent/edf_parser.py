@@ -48,7 +48,6 @@ if __name__ == '__main__':
             synthetic_events = np.array([
                 [int(start_event_sample + i * sfreq), 0, 1]  # Each event 1 second apart
                 for i in range(60 * 2)
-                # for i in range(1)
             ])
 
             # Create epochs around these events
@@ -71,12 +70,14 @@ if __name__ == '__main__':
 
     # multi-resolution analysis
     print('MRA...', data.shape)
-    level = 4
-    d_shape = (data.shape[0], level+1, *data.shape[1:])
-    d = np.memmap('large_arr.tmp', dtype='float32', mode='w+', shape=d_shape)
-
     with Pool(16) as p:
-        generator = p.imap_unordered(lambda row: np.array(pywt.mra(row, 'db4', level=level, transform='dwt')), data)
+        level = 3
+        d_shape = (data.shape[0], level, *data.shape[1:])
+        d = np.memmap('large_arr.tmp', dtype='float32', mode='w+', shape=d_shape)
+
+        def create_mra_func(level):
+            return lambda row: np.array(pywt.mra(row, 'db4', level, transform='dwt'))[1:]
+        generator = p.imap_unordered(create_mra_func(level), data)
         
         for i, result in enumerate(generator):
             print(f"Appending result {i/d_shape[0]}")

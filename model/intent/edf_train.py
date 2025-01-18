@@ -3,13 +3,16 @@ import joblib
 
 from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
-from keras.losses import Huber, MeanSquaredError as MSE
 
 from model import MaskedAutoEncoder
+
+from sklearn.preprocessing import MinMaxScaler
 
 # Load the data
 print('Loading data...')
 data = joblib.load('dataset.pkl')
+viz_scaler = MinMaxScaler()
+viz_scaler.fit(data.reshape(-1, 1))
 
 # Split the data into training and validation sets
 print('Data Loaded. Processing:', data.shape)
@@ -41,8 +44,13 @@ val_generator = batch_generator(X_val, batch_size)
 
 # Build the autoencoder
 input_shape = X_train.shape[1:]
-autoencoder = MaskedAutoEncoder(mask_ratio=0.8, input_shape=input_shape, patch_shape=(5, 4))
-autoencoder.compile(optimizer=AdamW(0.001), loss='mse')
+autoencoder = MaskedAutoEncoder(
+    input_shape=input_shape, 
+    patch_shape=(10, 4), 
+    mask_ratio=0.9,
+    num_heads=8
+)
+autoencoder.compile(optimizer=AdamW(0.001), loss='huber')
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
@@ -74,39 +82,65 @@ autoencoder.evaluate(
 
 # View Reconstruction
 import matplotlib.pyplot as plt
-import random
+from matplotlib.colors import rgb_to_hsv
 
-r_index = np.random.choice(X_val.shape[0])
-X_val = X_val[[r_index]]
-reconstructed = autoencoder.predict(X_val)
+# Number of random windows to select
+num_windows = 16
 
-# reconstruct original signal shape by summing the mra levels
-X_val = np.sum(X_val, axis=-1)
-reconstructed = np.sum(reconstructed, axis=-1)
+# Select random windows
+r_indices = np.random.choice(X_val.shape[0], size=num_windows, replace=False)
+X_val_subset = X_val[r_indices]
 
-# transpose back into time last
-X_val = X_val.transpose(0, 2, 1)
-reconstructed = reconstructed.transpose(0, 2, 1)
+# Get the reconstructed outputs
+reconstructed_subset = autoencoder.predict(X_val_subset)
 
-i = 0
-js = list(range(0, 64))
-random.shuffle(js)
-js = js[:4]  # Select 4 random channels
-original = X_val[i][js]
-reconstructed_sample = reconstructed[i][js]
+# Transpose to time last
+X_val_subset = X_val_subset.transpose(0, 2, 1, 3)
+reconstructed_subset = reconstructed_subset.transpose(0, 2, 1, 3)
+
+# Scale to [0, 1]
+X_val_subset = viz_scaler.transform(X_val_subset.reshape(-1, 1)).reshape(X_val_subset.shape)
+reconstructed_subset = viz_scaler.transform(reconstructed_subset.reshape(-1, 1)).reshape(reconstructed_subset.shape)
 
 # Use the dark background style
 plt.style.use('dark_background')
 
-# Create subplots for each selected channel
-fig, axs = plt.subplots(len(js), 1, figsize=(9, 16))
+# Apply MRA-to-HSV conversion
+X_val_rgb = np.array([rgb_to_hsv(x) for x in X_val_subset])
+reconstructed_rgb = np.array([rgb_to_hsv(x) for x in reconstructed_subset])
 
-# Plot the original and reconstructed signals for each channel
-for idx, j in enumerate(js):
-    axs[idx].plot(original[idx], label='original')
-    axs[idx].plot(reconstructed_sample[idx], label='reconstructed')
-    axs[idx].set_title(f'Channel {j} Reconstruction Comparison')
-    axs[idx].legend(loc='upper left')
+# Dynamically calculate grid size based on figsize
+figsize = (12, 12)  # Adjustable variable for figure size
+aspect_ratio = figsize[0] / figsize[1]
+cols = int(np.ceil(np.sqrt(num_windows * aspect_ratio)))
+rows = int(np.ceil(num_windows / cols)) * 2
 
+# Create subplots dynamically
+fig, axs = plt.subplots(rows, cols, figsize=figsize)
+
+# Plot the data
+for i in range(num_windows):
+    row, col = divmod(i, cols)
+    row *= 2  # Each pair occupies two rows
+
+    # get entry number to display
+    j = r_indices[i]
+
+    # Plot original RGB
+    axs[row, col].imshow(X_val_rgb[i])
+    axs[row, col].set_title(f"Original {j}")
+    axs[row, col].axis("off")
+
+    # Plot reconstructed RGB
+    axs[row + 1, col].imshow(reconstructed_rgb[i])
+    axs[row + 1, col].set_title(f"Reconstructed {j}")
+    axs[row + 1, col].axis("off")
+
+# Remove unused subplots
+for ax in axs.flat:
+    if not ax.images:
+        ax.axis("off")
+
+# Save visual
 plt.tight_layout()
 plt.savefig('autoencoder_reconstruct.png')
