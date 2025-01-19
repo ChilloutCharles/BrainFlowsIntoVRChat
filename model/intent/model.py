@@ -338,7 +338,7 @@ class MaskedAutoEncoder(Model):
             Dense(embed_dim, use_bias=False),
         ], name='project')
 
-        self.encoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(4)], name='encoder')
+        self.encoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(5)], name='encoder')
         self.decoder = Transformer(num_heads, ffn_dim, embed_dim)
 
         self.unproject = Dense(patch_dim, use_bias=False)

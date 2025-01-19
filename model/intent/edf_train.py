@@ -1,3 +1,20 @@
+import tensorflow as tf
+
+## Limit GPU usage
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Set virtual device configuration for the first GPU
+        tf.config.experimental.set_virtual_device_configuration(
+            gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=12000)]  # 12GB memory limit
+        )
+        print("Virtual GPU with 12 GB memory limit created.")
+    except RuntimeError as e:
+        print("Error while creating virtual GPU:", e)
+else:
+    print("No GPU found.")
+
 import numpy as np
 import joblib
 
@@ -47,10 +64,10 @@ input_shape = X_train.shape[1:]
 autoencoder = MaskedAutoEncoder(
     input_shape=input_shape, 
     patch_shape=(10, 4), 
-    mask_ratio=0.9,
+    mask_ratio=0.8,
     num_heads=8
 )
-autoencoder.compile(optimizer=AdamW(0.001), loss='huber')
+autoencoder.compile(optimizer=AdamW(0.001), loss='mse')
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
