@@ -64,8 +64,9 @@ input_shape = X_train.shape[1:]
 autoencoder = MaskedAutoEncoder(
     input_shape=input_shape, 
     patch_shape=(10, 4), 
-    mask_ratio=0.8,
-    num_heads=8
+    mask_ratio=0.75,
+    num_heads=8,
+    ae_size=(5, 1)
 )
 autoencoder.compile(optimizer=AdamW(0.001), loss='mse')
 

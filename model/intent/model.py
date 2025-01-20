@@ -314,7 +314,7 @@ class SinusoidPositionalEmbedding(Layer):
 
 @keras.saving.register_keras_serializable()
 class MaskedAutoEncoder(Model):
-    def __init__(self, input_shape, patch_shape, mask_ratio=0.8, num_heads=5, loss_func=None, loss_p=0.9, **kwargs):
+    def __init__(self, input_shape, patch_shape, mask_ratio=0.8, num_heads=5, ae_size=(10, 1), loss_func=None, loss_p=0.9, **kwargs):
         super(MaskedAutoEncoder, self).__init__(**kwargs)
         self.input_shape = input_shape
 
@@ -338,8 +338,8 @@ class MaskedAutoEncoder(Model):
             Dense(embed_dim, use_bias=False),
         ], name='project')
 
-        self.encoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(5)], name='encoder')
-        self.decoder = Transformer(num_heads, ffn_dim, embed_dim)
+        self.encoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(ae_size[0])], name='encoder')
+        self.decoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(ae_size[1])], name='decoder')
 
         self.unproject = Dense(patch_dim, use_bias=False)
         self.recover = Reshape(self.input_shape)
@@ -428,6 +428,18 @@ class MaskedAutoEncoder(Model):
     def build(self, input_shape):
         super(MaskedAutoEncoder, self).build(input_shape)
 
+@keras.utils.register_keras_serializable()
+class ShuffleLayer(Layer):
+    def __init__(self, **kwargs):
+        super(ShuffleLayer, self).__init__(**kwargs)
+    def call(self, inputs, training=None):
+        if training:
+            rand_indices = tf.argsort(tf.random.uniform(shape=tf.shape(inputs)[:2]), axis=-1)
+            inputs = tf.gather(inputs, rand_indices, axis=1, batch_dims=1)
+        return inputs
+    def build(self, input_shape):
+        super(ShuffleLayer, self).build(input_shape)
+
 def create_classifier(feature_extractor, classes):
     [
         patcher,
@@ -469,6 +481,7 @@ def create_classifier(feature_extractor, classes):
         patcher,
         project,
         patch_position,
+        ShuffleLayer(),
         encoder,
         pool,
         Dense(classes, activation='softmax')
