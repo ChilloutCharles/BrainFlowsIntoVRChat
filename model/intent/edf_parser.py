@@ -68,6 +68,15 @@ if __name__ == '__main__':
     data = list(filter(lambda d: d.shape[0] == window_count and d.shape[-1] == sample_count, data))
     data = np.array(data)
 
+    # normalize
+    print('Normalizing...')
+    scaler = Scaler()
+    entries = data.shape[0]
+    for batch in data:
+        scaler.partial_fit(batch.reshape(-1, 1))
+    for i in range(entries):
+        data[i] = scaler.transform(data[i].reshape(-1, 1)).reshape(data[i].shape)
+
     # multi-resolution analysis
     print('MRA...', data.shape)
     with Pool(16) as p:
@@ -93,17 +102,6 @@ if __name__ == '__main__':
     data = data.transpose((0, 2, 4, 3, 1))
     data = data.reshape(-1, *data.shape[-3:])
     print('Reshaped', data.shape)
-
-    # normalize
-    print('Normalizing...')
-    scaler = Scaler()
-    entries = data.shape[0]
-    choiced = int(np.sqrt(entries))
-    indices = np.random.choice(np.arange(0, entries), choiced)
-    sampled = data[choiced]
-    scaler.fit(sampled.reshape(-1, 1))
-    for i in range(entries):
-        data[i] = scaler.transform(data[i].reshape(-1, 1)).reshape(data[i].shape)
 
     # serialize
     print('Saving...')
