@@ -49,8 +49,8 @@ class PwrBands(BaseLogic):
         original_signal = data[self.eeg_channels].copy()
         for i, eeg_chan in enumerate(self.eeg_channels):
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, noise_level=NoiseEstimationLevelTypes.ALL_LEVELS)
-            data[eeg_chan] = self.adaptive_filters[i].filter_signal(original_signal[i], data[eeg_chan])
+            # DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, noise_level=NoiseEstimationLevelTypes.ALL_LEVELS)
+            # data[eeg_chan] = self.adaptive_filters[i].filter_signal(original_signal[i], data[eeg_chan])
 
         
         # calculate band features for left, right, and overall
