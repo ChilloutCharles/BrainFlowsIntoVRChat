@@ -26,7 +26,7 @@ def main():
     parser.add_argument('--sessions', type=int, required=False, default=2, help='number of sessions per action to record')
     parser.add_argument('--window-length', type=int, required=False, default=10, help='length in seconds of eeg data pulled per session')
     parser.add_argument('--window-buffer', type=int, required=False, default=2, help='time in seconds before eeg data is recorded each session (delay after hitting enter)')
-    parser.add_argument('--overwrite', type=int, required=False, default=1, help='1 to overwrite/remove old recordings, 0 to add results as an additional data file')
+    parser.add_argument('--overwrite', type=int, required=False, default=0, help='1 to overwrite/remove old recordings, 0 to add results as an additional data file')
     parser.add_argument('--board-id', type=str, required=True, help='board id or name, check docs to get a list of supported boards')
     parser.add_argument('--start-delay', type=int, required=False, help='delay between pressing enter and recording start', default=3)
     parser.add_argument('--enable-sounds', type=bool, required=False, help='enables sound indicators for starting / stopping a recording', default=True)
