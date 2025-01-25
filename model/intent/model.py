@@ -343,9 +343,8 @@ class MaskedAutoEncoder(Model):
 
         self.unproject = Dense(patch_dim, use_bias=False)
         self.recover = Reshape(self.input_shape)
-
-        # Mask token should be the same learnable value!
-        self.mask_token = tf.Variable(tf.random.normal((1, 1, 1)), trainable=True)
+        
+        self.mask_token = tf.Variable(tf.random.normal((1, patch_count, 1)), trainable=True)
         self.num_mask = int(mask_ratio * patch_count)
 
         # Internal Loss 

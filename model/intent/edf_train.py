@@ -20,24 +20,22 @@ import joblib
 
 from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
+from keras.layers import Activation
 
 from model import MaskedAutoEncoder
-
-from sklearn.preprocessing import MinMaxScaler
 
 # Load the data
 print('Loading data...')
 data = joblib.load('dataset.pkl')
-viz_scaler = MinMaxScaler()
-viz_scaler.fit(data.reshape(-1, 1))
 
 # Split the data into training and validation sets
 print('Data Loaded. Processing:', data.shape)
+sample_count = data.shape[0]
 np.random.shuffle(data)
 
 print('Shuffled. Splitting...')
 pivot = int(data.shape[0] * 0.2)
-X_val = data[:pivot]
+X_val_orig = data[:pivot]
 X_train = data[pivot:]
 del data
 
@@ -45,22 +43,24 @@ del data
 print('Data Processed. Setting up...')
 batch_size = 512
 epochs = 256
-train_steps = X_train.shape[0] // batch_size
-test_steps = X_val.shape[0] // batch_size
+batch_count = sample_count // batch_size
+X_train = np.array_split(X_train, batch_count, axis=0)
+X_val = np.array_split(X_val_orig, batch_count, axis=0)
+
+train_steps = len(X_train)
+test_steps = len(X_val)
 
 # set up train and val generators
-def batch_generator(X, batch_size):
-    x_count = len(X)
+def batch_generator(splits):
     while True:
-        for i in range(0, x_count, batch_size):
-            x = X[i:i + batch_size]
+        iterator = iter(splits)
+        for x in iterator:
             yield x, x
-
-train_generator = batch_generator(X_train, batch_size)
-val_generator = batch_generator(X_val, batch_size)
+train_generator = batch_generator(X_train)
+val_generator = batch_generator(X_val)
 
 # Build the autoencoder
-input_shape = X_train.shape[1:]
+input_shape = X_train[0].shape[1:]
 autoencoder = MaskedAutoEncoder(
     input_shape=input_shape, 
     patch_shape=(10, 4), 
@@ -100,14 +100,13 @@ autoencoder.evaluate(
 
 # View Reconstruction
 import matplotlib.pyplot as plt
-from matplotlib.colors import rgb_to_hsv
 
 # Number of random windows to select
 num_windows = 16
 
 # Select random windows
-r_indices = np.random.choice(X_val.shape[0], size=num_windows, replace=False)
-X_val_subset = X_val[r_indices]
+r_indices = np.random.choice(X_val_orig.shape[0], size=num_windows, replace=False)
+X_val_subset = X_val_orig[r_indices]
 
 # Get the reconstructed outputs
 reconstructed_subset = autoencoder.predict(X_val_subset)
@@ -117,15 +116,12 @@ X_val_subset = X_val_subset.transpose(0, 2, 1, 3)
 reconstructed_subset = reconstructed_subset.transpose(0, 2, 1, 3)
 
 # Scale to [0, 1]
-X_val_subset = viz_scaler.transform(X_val_subset.reshape(-1, 1)).reshape(X_val_subset.shape)
-reconstructed_subset = viz_scaler.transform(reconstructed_subset.reshape(-1, 1)).reshape(reconstructed_subset.shape)
+sigmoid = Activation('sigmoid')
+X_val_rgb = np.array(sigmoid(X_val_subset))
+reconstructed_rgb = np.array(sigmoid(reconstructed_subset))
 
 # Use the dark background style
 plt.style.use('dark_background')
-
-# Apply MRA-to-HSV conversion
-X_val_rgb = np.array([rgb_to_hsv(x) for x in X_val_subset])
-reconstructed_rgb = np.array([rgb_to_hsv(x) for x in reconstructed_subset])
 
 # Dynamically calculate grid size based on figsize
 figsize = (12, 12)  # Adjustable variable for figure size
