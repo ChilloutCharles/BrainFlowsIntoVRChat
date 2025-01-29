@@ -11,8 +11,6 @@ from sklearn.preprocessing import StandardScaler as Scaler
 if __name__ == '__main__':
     start_time = time.time()
 
-    p = Pool(15)
-
     with Pool(20) as p:
         def find_edf_files(directory):
             edf_files = []
