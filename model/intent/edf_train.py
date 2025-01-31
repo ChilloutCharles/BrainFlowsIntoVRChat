@@ -1,4 +1,5 @@
 import tensorflow as tf
+import itertools
 
 ## Limit GPU usage
 gpus = tf.config.list_physical_devices('GPU')
@@ -52,10 +53,9 @@ test_steps = len(X_val)
 
 # set up train and val generators
 def batch_generator(splits):
-    while True:
-        iterator = iter(splits)
-        for x in iterator:
-            yield x, x
+    iterator = itertools.cycle(splits)
+    for x in iterator:
+        yield x, x
 train_generator = batch_generator(X_train)
 val_generator = batch_generator(X_val)
 
@@ -141,14 +141,16 @@ for i in range(num_windows):
     j = r_indices[i]
 
     # Plot original RGB
-    axs[row, col].imshow(X_val_rgb[i])
-    axs[row, col].set_title(f"Original {j}")
-    axs[row, col].axis("off")
+    axs_original = axs[row, col]
+    axs_original.imshow(X_val_rgb[i])
+    axs_original.set_title(f"Original {j}")
+    axs_original.axis("off")
 
     # Plot reconstructed RGB
-    axs[row + 1, col].imshow(reconstructed_rgb[i])
-    axs[row + 1, col].set_title(f"Reconstructed {j}")
-    axs[row + 1, col].axis("off")
+    axs_reconstruct = axs[row + 1, col]
+    axs_reconstruct.imshow(reconstructed_rgb[i])
+    axs_reconstruct.set_title(f"Reconstructed {j}")
+    axs_reconstruct.axis("off")
 
 # Remove unused subplots
 for ax in axs.flat:
