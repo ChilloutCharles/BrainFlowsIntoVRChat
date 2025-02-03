@@ -1,89 +1,162 @@
-import numpy as np
-from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler as Scaler
+import tensorflow as tf
+import itertools
 
-from model import auto_encoder
+## Limit GPU usage
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Set virtual device configuration for the first GPU
+        tf.config.experimental.set_virtual_device_configuration(
+            gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=12000)]  # 12GB memory limit
+        )
+        print("Virtual GPU with 12 GB memory limit created.")
+    except RuntimeError as e:
+        print("Error while creating virtual GPU:", e)
+else:
+    print("No GPU found.")
+
+import numpy as np
+import joblib
+
+from keras.optimizers import AdamW
+from keras.callbacks import EarlyStopping
+from keras.layers import Activation
+
+from model import MaskedAutoEncoder
 
 # Load the data
-data = np.load('dataset.pkl')
-
-# Normalize the data
-scaler = Scaler()
-data = scaler.fit_transform(data.reshape(-1, 1)).reshape(data.shape)
-
-# Remove the last sample from each sequence, 161 -> 160
-data = data[:, :, :-1]
-
-# reshape array for use with model
-data = data.transpose(0, 2, 1)
-print(data.shape)
+print('Loading data...')
+data = joblib.load('dataset.pkl')
 
 # Split the data into training and validation sets
-X_train, X_val = train_test_split(data, test_size=0.2)
+print('Data Loaded. Processing:', data.shape)
+sample_count = data.shape[0]
+np.random.shuffle(data)
+
+print('Shuffled. Splitting...')
+pivot = int(data.shape[0] * 0.2)
+X_val_orig = data[:pivot]
+X_train = data[pivot:]
+del data
+
+# Setup variables for batch generation and training
+print('Data Processed. Setting up...')
+batch_size = 512
+epochs = 256
+batch_count = sample_count // batch_size
+X_train = np.array_split(X_train, batch_count, axis=0)
+X_val = np.array_split(X_val_orig, batch_count, axis=0)
+
+train_steps = len(X_train)
+test_steps = len(X_val)
+
+# set up train and val generators
+def batch_generator(splits):
+    iterator = itertools.cycle(splits)
+    for x in iterator:
+        yield x, x
+train_generator = batch_generator(X_train)
+val_generator = batch_generator(X_val)
 
 # Build the autoencoder
-autoencoder = auto_encoder
-autoencoder.compile(optimizer=Adam(learning_rate=0.01), loss='mse')
+input_shape = X_train[0].shape[1:]
+autoencoder = MaskedAutoEncoder(
+    input_shape=input_shape, 
+    patch_shape=(10, 4), 
+    mask_ratio=0.75,
+    num_heads=8,
+    ae_size=(5, 1)
+)
+autoencoder.compile(optimizer=AdamW(0.001), loss='mse')
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
 
 # Train the autoencoder with early stopping
-batch_size = 256 * 2
-epochs = 128
+print('Setup Complete. Training...')
 fit_history = autoencoder.fit(
-    X_train, X_train, 
-    epochs=epochs, batch_size=batch_size, 
-    validation_data=(X_val, X_val), 
-    callbacks=[early_stopping], 
+    x = train_generator, y = None,
+    epochs=epochs,
+    validation_data=val_generator, 
+    callbacks=[early_stopping],
+    steps_per_epoch=train_steps,
+    validation_steps=test_steps,
     verbose=1
 )
 
 #Save the model
 print("Saving Model")
-encoder = autoencoder.encoder
-decoder = autoencoder.decoder
-
+encoder = autoencoder.assemble_feature_extractor()
 encoder.save('physionet_encoder.keras')
-decoder.save('physionet_decoder.keras')
-
-autoencoder.summary()
+encoder.summary()
 
 # Evaluate the model
 print("Model evaluation:")
-autoencoder.evaluate(X_val, X_val)
-
+autoencoder.evaluate(
+    x=val_generator, y=None,
+    steps=test_steps
+)
 
 # View Reconstruction
 import matplotlib.pyplot as plt
-import random
 
-reconstructed = autoencoder.predict(X_val)
+# Number of random windows to select
+num_windows = 16
 
-X_val = X_val.transpose(0, 2, 1)
-reconstructed = reconstructed.transpose(0, 2, 1)
+# Select random windows
+r_indices = np.random.choice(X_val_orig.shape[0], size=num_windows, replace=False)
+X_val_subset = X_val_orig[r_indices]
 
-i = random.randint(0, len(X_val) - 1)
-js = list(range(0, 64))
-random.shuffle(js)
-js = js[:4]  # Select 4 random channels
-original = X_val[i][js]
-reconstructed_sample = reconstructed[i][js]
+# Get the reconstructed outputs
+reconstructed_subset = autoencoder.predict(X_val_subset)
+
+# Transpose to time last
+X_val_subset = X_val_subset.transpose(0, 2, 1, 3)
+reconstructed_subset = reconstructed_subset.transpose(0, 2, 1, 3)
+
+# Scale to [0, 1]
+sigmoid = Activation('sigmoid')
+X_val_rgb = np.array(sigmoid(X_val_subset))
+reconstructed_rgb = np.array(sigmoid(reconstructed_subset))
 
 # Use the dark background style
 plt.style.use('dark_background')
 
-# Create subplots for each selected channel
-fig, axs = plt.subplots(len(js), 1, figsize=(9, 16))
+# Dynamically calculate grid size based on figsize
+figsize = (12, 12)  # Adjustable variable for figure size
+aspect_ratio = figsize[0] / figsize[1]
+cols = int(np.ceil(np.sqrt(num_windows * aspect_ratio)))
+rows = int(np.ceil(num_windows / cols)) * 2
 
-# Plot the original and reconstructed signals for each channel
-for idx, j in enumerate(js):
-    axs[idx].plot(original[idx], label='original')
-    axs[idx].plot(reconstructed_sample[idx], label='reconstructed')
-    axs[idx].set_title(f'Channel {j} Reconstruction Comparison')
-    axs[idx].legend(loc='upper left')
+# Create subplots dynamically
+fig, axs = plt.subplots(rows, cols, figsize=figsize)
 
+# Plot the data
+for i in range(num_windows):
+    row, col = divmod(i, cols)
+    row *= 2  # Each pair occupies two rows
+
+    # get entry number to display
+    j = r_indices[i]
+
+    # Plot original RGB
+    axs_original = axs[row, col]
+    axs_original.imshow(X_val_rgb[i])
+    axs_original.set_title(f"Original {j}")
+    axs_original.axis("off")
+
+    # Plot reconstructed RGB
+    axs_reconstruct = axs[row + 1, col]
+    axs_reconstruct.imshow(reconstructed_rgb[i])
+    axs_reconstruct.set_title(f"Reconstructed {j}")
+    axs_reconstruct.axis("off")
+
+# Remove unused subplots
+for ax in axs.flat:
+    if not ax.images:
+        ax.axis("off")
+
+# Save visual
 plt.tight_layout()
 plt.savefig('autoencoder_reconstruct.png')

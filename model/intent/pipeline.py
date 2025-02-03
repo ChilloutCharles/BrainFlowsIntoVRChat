@@ -1,15 +1,14 @@
 import keras
 import os
 import numpy as np
+import pywt
+import joblib
 from scipy import signal
+from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
 
-from brainflow.data_filter import DataFilter, DetrendOperations, NoiseTypes, FilterTypes, WaveletTypes, ThresholdTypes
-
-from sklearn.preprocessing import StandardScaler as Scaler
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
-scaler = Scaler()
 
 ## preprocess and extract features to be shared between train and test
 def preprocess_data(session_data, sampling_rate):
@@ -17,18 +16,17 @@ def preprocess_data(session_data, sampling_rate):
         # remove line noise
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
         # bandpass to alpha, beta, gamma, 80 for resample effect mitigation
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 8, 80, 4, FilterTypes.BUTTERWORTH.value, 0)
-        # sureshrink adaptive filter
-        DataFilter.perform_wavelet_denoising(session_data[eeg_chan], WaveletTypes.DB4, 5, threshold=ThresholdTypes.SOFT)
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 8, 80, 1, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
     return session_data
 
 def extract_features(preprocessed_data):
-    features  = []
-    for eeg_row in preprocessed_data:
-        # resample to match physionet dataset
-        eeg_row = signal.resample(eeg_row, 160)
-        features.append(eeg_row)
-    return np.stack(features, axis=-1)
+    # resample to expected 160hz sampling rate
+    features = signal.resample(preprocessed_data, 160, axis=-1)
+    # do multi resolution analysis and discard approx coeffs
+    features = np.array(pywt.mra(features, 'db4', level=3, transform='dwt'))[1:]
+    # transpose to correct axis order
+    features = features.transpose((2, 1, 0))
+    return features
 
 class Pipeline:
     def __init__(self):
