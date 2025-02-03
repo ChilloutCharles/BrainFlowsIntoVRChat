@@ -11,5 +11,4 @@ tensorflow~=2.16.1
 wget~=3.2
 pyqt6~=6.7.0
 playsound~=1.2.2
-padasip~=1.2.2
 pywavelets~=1.8.0
