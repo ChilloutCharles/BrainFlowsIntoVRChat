@@ -142,9 +142,10 @@ def main():
 
     ## get class count and input shape from training data
     classes = len(processed_windows)
+    input_shape = X_train.shape[1:]
 
     ## Create Model
-    model = create_classifier(pretrained_encoder, classes)
+    model = create_classifier(pretrained_encoder, classes, input_shape)
 
     ## Compile the model
     model.compile(optimizer=AdamW(0.0001), loss='categorical_crossentropy')
