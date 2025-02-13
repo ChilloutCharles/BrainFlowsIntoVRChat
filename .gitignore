@@ -10,3 +10,5 @@
 
 **/*.keras
 !**/physionet_*.keras
+
+**/logs/

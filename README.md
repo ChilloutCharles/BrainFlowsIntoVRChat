@@ -157,8 +157,9 @@ These Parameters read other biometric data from your device if supported by your
 | BFI/Biometrics/BreathsPerSecond | Estimated breaths taken per second  | Float | [0.0, inf) |
 | BFI/Biometrics/BreathsPerMinute | Estimated breaths taken per minute  | Int | [0, 255] |
 
-## Debugging
-To make it easier to debug, add `--debug` launch argument. This will enable the console to display debug messages for all OSC messages sent as well as make the parameter names shorter so that they are readable on VRChat's OSC debug panel as well as any other OSC displays.
+## Debugging and Logging
+- To make it easier to debug, add `--debug` launch argument. This will enable the console to display debug messages for all OSC messages sent as well as make the parameter names shorter so that they are readable on VRChat's OSC debug panel as well as any other OSC displays.
+- To record values per second, add `--enable-logs` launch argument. This will create timestamped logs under `logs` folder and can help visualize the values to assist with adjusting animations and the like.
 
 ## Using Old Parameter Scheme
 We recommend updating to this schema. However, if your assets are still using the old parameter scheme, you can switch to them by adding the `--use-old-reporter` launch argument.

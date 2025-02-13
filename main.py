@@ -16,6 +16,7 @@ from reporters.osc_reporter import OSC_Reporter
 from reporters.debug_osc_reporter import Debug_Reporter
 from reporters.deprecated_osc_reporter import Old_OSC_Reporter
 from reporters.reporter import Reporter
+from reporters.log_reporter import Log_Reporter
 
 def enable_loggers():
     BoardShim.enable_board_logger()
@@ -74,6 +75,10 @@ def parse_args() -> argparse.Namespace:
     # toggle debug mode
     parser.add_argument("--debug", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to toggle debug mode on')
+    
+    # toggle value logging
+    parser.add_argument("--enable-logs", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to toggle value logging on')
 
     # arguments to configure MLAction
     parser.add_argument("--enable-action", type=bool, action=argparse.BooleanOptionalAction, 
@@ -164,6 +169,8 @@ def setup_reporter(args: argparse.Namespace) -> Reporter:
     
     if args.debug:
         reporters.append(Debug_Reporter(ip, send_port))
+    if args.enable_logs:
+        reporters.append(Log_Reporter(ip, send_port))
 
     reporter_dict = {type(rp).__name__:rp for rp in reporters}
 
