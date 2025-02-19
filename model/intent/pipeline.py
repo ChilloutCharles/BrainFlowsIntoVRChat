@@ -2,7 +2,7 @@ import keras
 import os
 import numpy as np
 import pywt
-import joblib
+import threading
 from scipy import signal
 from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
 
@@ -33,9 +33,44 @@ class Pipeline:
         file_name = "shallow.keras"
         model_path = os.path.join(abs_script_dir, file_name)
         self.classifier = keras.models.load_model(model_path)
+        
+        self.latest_eeg_data = None
+        self.latest_sampling_rate = None
+        self.data_ready = threading.Event()  # Event to new data to be processed
+        
+        self.prediction = None
+        self.prediction_ready = threading.Event()  # Event to signal first prediction
+
+        self.lock = threading.Lock()
+        
+        self.prediction_thread = threading.Thread(target=self._predict_loop, daemon=True)
+        self.prediction_thread.start()
+
+    def _predict_loop(self):
+        while True:
+            # Get latest EEG data
+            self.data_ready.wait()  # Wait till data is ready
+            eeg_data = self.latest_eeg_data
+            sampling_rate = self.latest_sampling_rate
+            
+            # Process data
+            pp_data = preprocess_data(eeg_data, sampling_rate)
+            ft_data = extract_features(pp_data)
+            prediction_probs = self.classifier.predict(ft_data[None, ...], verbose=0)[0]
+
+            # Store latest prediction
+            with self.lock:
+                self.prediction = prediction_probs
+                self.prediction_ready.set()  # Signal that at least one prediction is available
 
     def predict(self, eeg_data, sampling_rate):
-        pp_data = preprocess_data(eeg_data, sampling_rate)
-        ft_data = extract_features(pp_data)
-        prediction_probs = self.classifier.predict(ft_data[None, ...], verbose=0)[0]
-        return prediction_probs
+        # Overwrites the latest EEG data without blocking
+        with self.lock:
+            self.latest_eeg_data = eeg_data
+            self.latest_sampling_rate = sampling_rate
+            self.data_ready.set()
+        
+        self.prediction_ready.wait()  # Wait till first prediction is available
+        with self.lock:
+            self.data_ready.clear()  # Reset so predict loop doesn't cycle when there's no new data
+            return self.prediction
