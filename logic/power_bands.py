@@ -4,10 +4,18 @@ from constants import BAND_POWERS
 import utils
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, NoiseTypes, WaveletTypes, ThresholdTypes 
+from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes, WaveletTypes, ThresholdTypes, WindowOperations
 
 import re
 import numpy as np
+
+import threading
+
+from sklearn.decomposition import FastICA
+from sklearn.exceptions import ConvergenceWarning
+
+import warnings
+warnings.filterwarnings('ignore', category=ConvergenceWarning)
 
 class PwrBands(BaseLogic):
     LEFT = 'Left'
@@ -35,26 +43,84 @@ class PwrBands(BaseLogic):
         self.current_dict = {}
         self.ema_decay = ema_decay
 
-    def get_data_dict(self):
-        # get current data from board
-        data = self.board.get_current_board_data(self.max_sample_size)
+        # threading
+        self.lock = threading.Lock()
+        self.main_ready = threading.Event()
 
-        # denoise and filter data
-        for eeg_chan in self.eeg_channels:
-            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, threshold=ThresholdTypes.SOFT)
-            DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
+        self.location_dict = None
+        self.location_dict_ready = threading.Event()
+
+        self.thread = threading.Thread(target=self._thread_loop, daemon=True)
+        self.thread.start()
+
+        # ICA
+        self.ica = FastICA()
+
+    
+    def _thread_loop(self):
+        self.main_ready.wait()
         
-        # calculate band features for left, right, and overall
-        left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)
-        right_powers, _ = DataFilter.get_avg_band_powers(data, self.right_chans, self.sampling_rate, True)
-        avg_powers, _ = DataFilter.get_avg_band_powers(data, self.eeg_channels, self.sampling_rate, True)
+        while True:
+            # get current data from board
+            data = self.board.get_current_board_data(self.max_sample_size)
 
-        # create location dict
-        location_dict = {
-            PwrBands.LEFT     : left_powers,
-            PwrBands.RIGHT    : right_powers,
-            PwrBands.AVERAGE  : avg_powers
-        }
+            # denoise and filter data
+            for eeg_chan in self.eeg_channels:
+                DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
+                DataFilter.perform_highpass(data[eeg_chan], self.sampling_rate, 1, 1, FilterTypes.BUTTERWORTH_ZERO_PHASE, 0)
+                DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, threshold=ThresholdTypes.SOFT)
+
+            # decompose using ica
+            decomp = self.ica.fit_transform(data[self.eeg_channels].T)
+            components = decomp.shape[1]
+            
+            # find ica components containing blinks or muscle
+            artifact_indices = []
+            for i in range(components):
+                psd = DataFilter.get_psd(decomp[:, i], self.sampling_rate, WindowOperations.BLACKMAN_HARRIS)
+                blink_power = DataFilter.get_band_power(psd, 1, 4)
+                muscle_power = DataFilter.get_band_power(psd, 50, 100)
+                all_power = DataFilter.get_band_power(psd, 1, 100)
+                
+                blink_power_ratio = blink_power / all_power
+                muscle_power_ratio = muscle_power / all_power
+
+                if blink_power_ratio > 0.5 or muscle_power_ratio > 0.3:
+                    artifact_indices.append(i)
+
+            # only continue if at least one component is clean
+            if len(artifact_indices) < components:
+                # zero out the identified noisy ICA components
+                decomp[:, artifact_indices] = 0
+
+                # inverse transform with cleaner decomp
+                data[self.eeg_channels] = self.ica.inverse_transform(decomp).T
+                
+                # calculate band features for left, right, and overall
+                left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)
+                right_powers, _ = DataFilter.get_avg_band_powers(data, self.right_chans, self.sampling_rate, True)
+                avg_powers, _ = DataFilter.get_avg_band_powers(data, self.eeg_channels, self.sampling_rate, True)
+
+                # wait until main thread is ready to read
+                self.main_ready.wait()
+
+                # create location dict
+                with self.lock:
+                    self.location_dict = {
+                        PwrBands.LEFT     : left_powers,
+                        PwrBands.RIGHT    : right_powers,
+                        PwrBands.AVERAGE  : avg_powers
+                    }
+                    self.location_dict_ready.set()
+
+
+    def get_data_dict(self):
+        # signal to thread loop that main thread is ready
+        self.main_ready.set()
+        self.location_dict_ready.wait() # wait till first dict is available
+        with self.lock:
+            location_dict = self.location_dict
+            self.main_ready.clear()
 
         # smooth out powers
         location_dict = {loc : self.location_smooth(loc, powers) for loc, powers in location_dict.items()}
