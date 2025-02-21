@@ -20,14 +20,13 @@ class OSCFrameDeque:
         return self.deque
     
     def get_latest_frames(self, n) :
+
+        #copy the deque
+        copy = deque(self.deque)
+
         if n > len(self.deque):
             return self.get_latest_frames(len(self.deque))
-        return islice(self.deque, 0, n)
-    
-    def get_time_delta(self, n) -> float:
-        if n > len(self.deque):
-            return self.get_time_delta(len(self.deque))
-        return np.sum([frame.secondsSinceLastUpdate for frame in self.deque[-n:]])
+        return islice(copy, 0, n)
     
     def get_frames_count(self):
         return len(self.deque)

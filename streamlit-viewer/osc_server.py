@@ -5,21 +5,48 @@ from pythonosc import osc_server
 
 from osc_dataframes import OSCFrameDeque, OSCFrameCollector
 
-osc_frame_collector = OSCFrameCollector()
+misc_collector = OSCFrameCollector()
+neurofb_collector = OSCFrameCollector()
+pwrbands_collector = OSCFrameCollector()
+biometrics_collector = OSCFrameCollector()
 
-def bfi_data_handler(path, value):
-    osc_frame_collector.process_osc_message(path, value)
+def bfi_data_handler_generic(path, value):
+    misc_collector.process_osc_message(path, value)
+
+def neurofb_data_handler(path, value):
+    neurofb_collector.process_osc_message(path, value)
+
+def pwrbands_data_handler(path, value):
+    pwrbands_collector.process_osc_message(path, value)
+
+def biometrics_data_handler(path, value):
+    biometrics_collector.process_osc_message(path, value)
 
 def bfi_time_handler(path, value):
-    osc_frame_collector.process_osc_deltatime(value)
+    misc_collector.process_osc_deltatime(value)
+    neurofb_collector.process_osc_deltatime(value)
+    pwrbands_collector.process_osc_deltatime(value)
+    biometrics_collector.process_osc_deltatime(value)
 
-def get_dataframes() -> OSCFrameDeque:
-    return osc_frame_collector.get_osc_dataframes()
+def get_misc_dataframes() -> OSCFrameDeque:
+    return misc_collector.get_osc_dataframes()
+
+def get_neurofb_dataframes() -> OSCFrameDeque:
+    return neurofb_collector.get_osc_dataframes()
+
+def get_pwrbands_dataframes() -> OSCFrameDeque:
+    return pwrbands_collector.get_osc_dataframes()
+
+def get_biometrics_dataframes() -> OSCFrameDeque:
+    return biometrics_collector.get_osc_dataframes()
 
 def run_server(ip, port):
     dispatcher = Dispatcher()
-    dispatcher.map("/avatar/parameters/BFI/*", bfi_data_handler)
+    #dispatcher.map("/avatar/parameters/BFI/*", bfi_data_handler)
     dispatcher.map("/avatar/parameters/BFI/Info/SecondsSinceLastUpdate", bfi_time_handler)
+    dispatcher.map("/avatar/parameters/BFI/NeuroFB/*", neurofb_data_handler)
+    dispatcher.map("/avatar/parameters/BFI/PowerBands/*", pwrbands_data_handler)
+    dispatcher.map("/avatar/parameters/BFI/Biometrics/*", biometrics_data_handler)
     
 
     server = osc_server.BlockingOSCUDPServer(
