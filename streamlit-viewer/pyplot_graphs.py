@@ -80,4 +80,4 @@ def plot_all_groups_dark(graphgroups, deltaTime, title="Set Title", yMin=-1.0, y
             ax.legend(loc="upper right")
 
 
-    st.pyplot(fig)
+        st.pyplot(fig)
