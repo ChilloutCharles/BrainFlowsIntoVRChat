@@ -4,7 +4,7 @@ import numpy as np
 import threading
 
 import osc_server  
-from pyplot_graphs import get_graphs_from_slice, split_by_identifierGroups, plot_all_groups_dark
+from pyplot_graphs import get_graphs_and_deltaTime_from_slice, split_by_identifierGroups, plot_all_groups_dark
 
 def run_osc_server(ip, port):
     osc_server.run_server(ip, port)  
@@ -30,7 +30,7 @@ if st.button("NeuroFB"):
 
     groups = [['FocusLeft', 'FocusRight', 'FocusAvg'], ['RelaxLeft', 'RelaxRight', 'RelaxAvg']]
 
-    graphs, deltaTime = get_graphs_from_slice(slice)
+    graphs, deltaTime = get_graphs_and_deltaTime_from_slice(slice)
     graphgroups = split_by_identifierGroups(graphs, groups, exclude="Pos")
 
     plot_all_groups_dark(graphgroups, deltaTime)
@@ -44,16 +44,16 @@ if st.button("PowerBands"):
     groups = [['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']]
     
     for slice in [sliceLeft, sliceRight, sliceAvg]:
-        graphs, deltaTime = get_graphs_from_slice(slice)
+        graphs, deltaTime = get_graphs_and_deltaTime_from_slice(slice)
         graphgroups = split_by_identifierGroups(graphs, groups, exclude="Pos")
         plot_all_groups_dark(graphgroups, deltaTime, title="Power Bands", yMin=-0.1, yMax=1.1)
 
 if st.button("Biometrics"):
     data = osc_server.get_biometrics_dataframes().get_latest_frames(1024)
-    graphs, deltaTime = get_graphs_from_slice(data)
+    graphs, deltaTime = get_graphs_and_deltaTime_from_slice(data)
 
-    groups = [[ 'HeartBeatsPerMinute ', 'BreathsPerMinute ']]
-    graphs = get_graphs_from_slice(slice)
+    groups = [[ 'HeartBeatsPerMinute', 'BreathsPerMinute']]
+    graphgroups = split_by_identifierGroups(graphs, groups, exclude="Pos")
     plot_all_groups_dark(graphgroups, deltaTime, title="Biometrics", yMin=0, yMax=120)
 
 

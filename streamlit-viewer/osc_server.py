@@ -27,7 +27,6 @@ def pwrbands_data_handler_right(path, value):
 def pwrbands_data_handler_avg(path, value):
     pwrbands_collector_avg.process_osc_message(path, value)
 
-
 def biometrics_data_handler(path, value):
     biometrics_collector.process_osc_message(path, value)
 

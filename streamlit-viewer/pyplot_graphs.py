@@ -2,7 +2,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
 
-FIGSIZE=(16, 4)
+FIGSIZE=(20, 8)
 
 def transform_into_data_dict(slice):
 
@@ -22,7 +22,7 @@ def print_info_from_graph_dict(dict: dict):
         st.write("No data streams found.")
         return
 
-def get_graphs_from_slice(slice) -> dict:
+def get_graphs_and_deltaTime_from_slice(slice) -> dict:
 
     dict, deltaTime = transform_into_data_dict(slice)
     print_info_from_graph_dict(dict)
