@@ -2,6 +2,8 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
 
+FIGSIZE=(16, 4)
+
 def transform_into_data_dict(slice):
 
     sumDeltaTime = 0
@@ -16,7 +18,6 @@ def transform_into_data_dict(slice):
     return dict, sumDeltaTime
 
 def print_info_from_graph_dict(dict: dict):
-    st.write("Containing the following data streams:")
     if(dict == None or len(dict) == 0):
         st.write("No data streams found.")
         return
@@ -40,7 +41,7 @@ def split_by_identifierGroups(dataDict, groups, exclude=""):
         splitDictIdentified.append(subDict)
     return splitDictIdentified
 
-def plot_all_groups_dark(graphgroups, time, deltaTime, title="Set Title", yMin=-1.0, yMax = 1.0):
+def plot_all_groups_dark(graphgroups, deltaTime, title="Set Title", yMin=-1.0, yMax = 1.0):
 
     plt.style.use('dark_background')
 
@@ -54,12 +55,12 @@ def plot_all_groups_dark(graphgroups, time, deltaTime, title="Set Title", yMin=-
 
     # For demonstration, set sampling_rate = 1.0
     sampling_rate = 1.0
-    time = np.linspace(0, n_samples / sampling_rate, n_samples)
+    time = np.linspace(0, deltaTime, n_samples)
 
     # Plot all groups/channels on the same Axes
     for g_idx, group_dict in enumerate(graphgroups):
      # Create ONE figure and ONE set of axes
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=FIGSIZE)
 
         # Plot all groups/channels on the same Axes
         for chan_name, channel_data in group_dict.items():
@@ -75,7 +76,7 @@ def plot_all_groups_dark(graphgroups, time, deltaTime, title="Set Title", yMin=-
             # Label axes and show legend
             ax.set_xlabel("Time (s)")
             ax.set_ylabel("Amplitude")
-            ax.set_title( title + " over " + str(deltaTime) + " seconds")
+            ax.set_title( title + ":" + chan_name + " over " + str(deltaTime) + " seconds")
             ax.legend(loc="upper right")
 
 

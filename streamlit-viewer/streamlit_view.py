@@ -17,6 +17,7 @@ def start_server_once():
             daemon=True
         )
         thread.start()
+        print("Server started")
         st.session_state["server_thread"] = thread
         st.write("OSC Server started on port 9000.")
 
@@ -36,12 +37,16 @@ if st.button("NeuroFB"):
 
 
 if st.button("PowerBands"):
-    slice = osc_server.get_pwrbands_dataframes().get_latest_frames(1024)
-    graphs, deltaTime = get_graphs_from_slice(slice)
+    sliceLeft = osc_server.get_pwrbands_dataframes_left().get_latest_frames(1024)
+    sliceRight = osc_server.get_pwrbands_dataframes_right().get_latest_frames(1024)
+    sliceAvg = osc_server.get_pwrbands_dataframes_avg().get_latest_frames(1024)
 
     groups = [['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']]
-    graphgroups = split_by_identifierGroups(graphs, groups)
-    plot_all_groups_dark(graphgroups, deltaTime)
+    
+    for slice in [sliceLeft, sliceRight, sliceAvg]:
+        graphs, deltaTime = get_graphs_from_slice(slice)
+        graphgroups = split_by_identifierGroups(graphs, groups, exclude="Pos")
+        plot_all_groups_dark(graphgroups, deltaTime, title="Power Bands", yMin=-0.1, yMax=1.1)
 
 if st.button("Biometrics"):
     data = osc_server.get_biometrics_dataframes().get_latest_frames(1024)
@@ -49,7 +54,7 @@ if st.button("Biometrics"):
 
     groups = [[ 'HeartBeatsPerMinute ', 'BreathsPerMinute ']]
     graphs = get_graphs_from_slice(slice)
-    plot_all_groups_dark(graphgroups, deltaTime)
+    plot_all_groups_dark(graphgroups, deltaTime, title="Biometrics", yMin=0, yMax=120)
 
 
 
