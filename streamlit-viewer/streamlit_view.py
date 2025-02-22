@@ -8,8 +8,10 @@ import threading
 import osc_server  
 from pyplot_graphs import get_graphs_and_deltaTime_from_slice, split_by_identifierGroups, plot_all_groups_dark
 
-MILLISECONDS_REFRESH = 2000
-TIMESTEPS_WINDOW = 1024/4
+MILLISECONDS_REFRESH = 500
+TIMESTEPS_WINDOW = 256
+
+start_time = time.time()
 
 def run_osc_server(ip, port):
     osc_server.run_server(ip, port)  
@@ -72,12 +74,23 @@ if st.button("Biometrics") or st.session_state["Button Pressed last"] == "Biomet
     st.session_state["Button Pressed last"] = "Biometrics"
 
 
+if "waitTimeMultiplier" not in st.session_state:
+    st.session_state["waitTimeMultiplier"] = 1.0  
 
-count = st_autorefresh (interval=MILLISECONDS_REFRESH)
-if "time" not in st.session_state:
-    st.session_state["time"] = time.time()
-deltasecounds = time.time() - st.session_state["time"]
-st.session_state["time"] = time.time()
-st.write(f"Time since last refresh: {deltasecounds} seconds.")
-st.write(f"Page refreshed {count} times.")
+timeElapsed = time.time() - start_time
+timeElapsedMilliseconds = timeElapsed * 1000
+st.write("Time elapsed in [s]: ", timeElapsed)
+
+waitTime_mul = st.session_state["waitTimeMultiplier"]
+milliseconds_refresh_multiplied = MILLISECONDS_REFRESH * waitTime_mul
+
+if timeElapsedMilliseconds < milliseconds_refresh_multiplied:
+    sleepTime = (milliseconds_refresh_multiplied - timeElapsedMilliseconds) / 1000
+    st.write("Sleeping for: ", sleepTime)
+    time.sleep(sleepTime)
+else:
+    st.warning("Time elapsed is greater than refresh rate. Increased refresh rate by " + str( waitTime_mul))
+    st.session_state["waitTimeMultiplier"] = waitTime_mul + 0.2  
+        
+st.rerun()
 
