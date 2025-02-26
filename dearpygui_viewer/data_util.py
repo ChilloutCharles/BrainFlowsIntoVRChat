@@ -24,13 +24,12 @@ def get_graphs_and_deltaTime_from_slice(slice):
 
 def split_by_identifierGroups(dataDict, groups, exclude="") -> list:
     ArraysOfDataPerGroup = [[] for _ in range(len(dataDict))] #why bnot len(groups)
-    dictIndex = {}
-    for group in groups:
-        for key, value in dataDict.items():
-            # compare key against all elements in group
-            for identifier in group:
-                if identifier in key  and exclude not in key:
-                    if key not in dictIndex:
-                        dictIndex[key] = len(dictIndex)
-                    ArraysOfDataPerGroup[dictIndex[key]].append(value)
+    dictIdxLookup = {}
+    for key, value in dataDict.items():
+        # compare key against all elements in group
+        for identifier in groups:
+            if identifier in key  and exclude not in key:
+                if key not in dictIdxLookup:
+                    dictIdxLookup[key] = len(dictIdxLookup)
+                ArraysOfDataPerGroup[dictIdxLookup[key]].append(value)
     return ArraysOfDataPerGroup

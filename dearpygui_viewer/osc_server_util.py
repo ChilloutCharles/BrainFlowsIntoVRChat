@@ -13,7 +13,5 @@ def start_server_once():
         )
         thread.start()
         print("Server started")
-        st.session_state["server_thread"] = thread
-        st.write("OSC Server started on port 9000.")
 
 start_server_once()

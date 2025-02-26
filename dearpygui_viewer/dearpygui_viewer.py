@@ -12,10 +12,13 @@ from performance_util import write_elapsed_time_till_start
 import time
 
 TIMESTEPS_WINDOW = 1024
+TIMESTEPS_SHOW_OFFSET = 200
 PLOT_WIDTH = 500
 
-t_digital_plot = 0.0
+#state         
 server_started = False
+
+# --------------------------------------------
 
 def run_osc_server(ip, port):
     osc_server.run_server(ip, port)  
@@ -48,23 +51,21 @@ def plot_neurofb():
     #plot 
 
 def powerbands_from_osc():
-    deltaTime = 0.0
-    sliceLeft = osc_server.get_pwrbands_dataframes_left().get_latest_frames(TIMESTEPS_WINDOW)
-    sliceRight = osc_server.get_pwrbands_dataframes_right().get_latest_frames(TIMESTEPS_WINDOW)
-    sliceAvg = osc_server.get_pwrbands_dataframes_avg().get_latest_frames(TIMESTEPS_WINDOW)
+    frames_left = osc_server.get_pwrbands_dataframes_left().get_frames()
+    frames_right = osc_server.get_pwrbands_dataframes_right().get_frames()
+    frames_avg = osc_server.get_pwrbands_dataframes_avg().get_frames()
 
-    write_elapsed_time_till_start("Get PowerBands slices")
+    groups = ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
 
-    groups = [['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']]
-    groupsx = ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
-
-    for slice in [sliceLeft, sliceRight, sliceAvg]:
-        graphs, deltaTime = get_graphs_and_deltaTime_from_slice(slice)
-        graphArrayPerGroup = split_by_identifierGroups(graphs, groups, exclude="Pos")
+    for frames in [frames_left, frames_right, frames_avg]:
+        graphArrayPerGroup = split_by_identifierGroups(frames, groups, exclude="Pos")
     
-    write_elapsed_time_till_start("Plot PowerBands Data")
+    return groups, graphArrayPerGroup
 
-    return  groupsx, graphArrayPerGroup, 0.0, 1.0, deltaTime
+def get_metaData_powerbands():
+    return {
+        "y_range": [0.0, 1.0],
+    }
 
 def plot_biometrics():
     data = osc_server.get_biometrics_dataframes().get_latest_frames(TIMESTEPS_WINDOW)
@@ -95,80 +96,92 @@ with dpg.window(label="Example dynamic plot", autosize=True):
 
     dpg.add_button(label="Fetch Powerbands", callback=fetch_powerbands)
 
-    with dpg.tree_node(label="Digital Plots"):
-        dpg.add_text(default_value="Digital plots do not respond to Y drag and zoom, so that",
-                                     bullet=True)
-        dpg.add_text(default_value="you can drag analog plots over the rising/falling digital edge.",
-                                     indent=20)
+    with dpg.tree_node(label="Digital Plots", default_open=True):
         
-        def set_paused(new_bool, paused):
-            paused = new_bool
-            return paused
+        t_plot = 0.0
+        plot_data_x = []
+        plot_data_y = []
+        plot_show = []
+        plot_lastFrameIndex = -1
 
-        frame_data_dict = {}
 
-        paused = False
-        frame_digital_data = []
-        frame_show = []
-        
-        frame_min_y = 0.0
-        frame_max_y = 0.0
-        frame_deltaTime = 0.0
+        osc_meta_data = get_metaData_powerbands()
 
-        # TODO: Improve handing so that sleep is not needed
-        frame_digital_labels, frame_data_dict, frame_min_y, frame_max_y,frame_deltaTime = fetch_powerbands()
-        if len(frame_digital_labels) == 0:
-            time.sleep(1)
-            frame_digital_labels, frame_data_dict, frame_min_y, frame_max_y,frame_deltaTime = fetch_powerbands()
+        osc_frame_labels, osc_frame_data = fetch_powerbands()      
 
-        data_analog =  [[], []]
-        frame_show = [True for _ in range(len(frame_digital_labels))] 
+        plot_data_x =  [[] for _ in range(len(osc_frame_labels))]
+        plot_data_y =  [[] for _ in range(len(osc_frame_labels))]
+        plot_show = [True for _ in range(len(osc_frame_labels))]
 
-        dpg.add_button(label="Pause", callback=lambda: set_paused(not paused, paused))
-        
+        def _update_plot_data(new_data_frame = []):
+
+            if len(plot_data_x) == 0:
+                return
+            if frame_lastFrameIndex == -1:
+                return
+
+            for _, frame_data_array in enumerate(new_data_frame):
+                if frame_data_array[0].frameIdx > frame_lastFrameIndex:
+                    plot_data_y.append(frame_data_array)
+                if frame_data_array[0].frameIdx < frame_lastFrameIndex:
+                    # make warning on gui
+                    print("Warning: frame data out of order")
+                    dpg.add_text("Warning: frame data out of order") 
+
+                delta = new_data_frame[len(new_data_frame-1)].frameIdx - frame_lastFrameIndex
+                if delta > 1:
+                    # make warning on gui
+                    print("Warning: frame data missing")
+                    # this is formatted string
+                    dpg.add_text(f"Warning: frame data missing {delta} frames")
+
+                frame_lastFrameIndex = frame_data_array[-1].frameIdx
+
+        _update_plot_data(framedata=osc_frame_data, frame_lastFrameIndex=plot_lastFrameIndex)
+
         def change_val(arr, ind, val):
             arr[ind] = val
 
         # ToDo initialize data_frames
         with dpg.group(horizontal=True):
-            for label in frame_digital_labels :
-                dpg.add_checkbox(label=label, callback=lambda s, a: change_val(frame_show, 0, a),
+            for label in osc_frame_labels :
+                dpg.add_checkbox(label=label, callback=lambda s, a: change_val(plot_show, 0, a),
                                                  default_value=True)
 
-            with dpg.plot(tag="_demo_digital_plot", width=PLOT_WIDTH):
-            # TODO: better handling of show/hide (more consistency between checkboxes and legend)
-                dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="x_axis_digital")
-                dpg.set_axis_limits(dpg.last_item(), -TIMESTEPS_WINDOW, 0)
+            with dpg.plot(tag="_powerbands_digital_plot", width=PLOT_WIDTH):
+                # X axis
+                dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="x_axis_time")
+                dpg.set_axis_limits(dpg.last_item(), 0, plot_lastFrameIndex)
                 with dpg.plot_axis(dpg.mvYAxis, label="y"):
-                    dpg.set_axis_limits(dpg.last_item(), frame_min_y, frame_max_y)
-                    for x_label in frame_digital_labels:
+                    dpg.set_axis_limits(dpg.last_item(), osc_meta_data["y_range"][0], osc_meta_data["y_range"][1])
+                    for x_label in osc_frame_labels:
                         dpg.add_line_series([], [], label=x_label, tag=x_label)
 
 
                     def _update_plot():
-                        global t_digital_plot
-                        if not paused:
-                            t_digital_plot += dpg.get_delta_time()
                             
-                            frame_digital_labels, frame_data_array, frame_min_y, frame_max_y,frame_deltaTime = fetch_powerbands()
+                            frame_digital_labels, frame_data_array = fetch_powerbands()
 
-                            dpg.set_axis_limits('x_axis_digital', t_digital_plot - 10, t_digital_plot)
-                                #dpg.set_value(str(frame_digital_labels[i]), [*zip(*data[i])])
-                            print(frame_data_array[0][0])
-                            data_analog[0].append( [t_digital_plot, frame_data_array[0][0][0]]) # =??
-                            dpg.set_value(frame_digital_labels[0], [*zip(*data_analog[0])])
+                            t_plot = frame_data_array[0][0].frameIdx
+                            dpg.set_axis_limits('x_axis_digital', t_plot - TIMESTEPS_WINDOW - TIMESTEPS_SHOW_OFFSET, t_plot)
+                            #print(frame_data_array[0][0])
+                            
+                            _update_plot_data()
+                            for i, data_analog in enumerate(frame_data_array):
+                                if plot_show[i]:
+                                    # set value from slice tplot - TIMESTEPS_WINDOW to tplot?
+                                    dpg.set_value(frame_digital_labels[i], [*zip(*data_analog[i])])
 
 
-                    with dpg.item_handler_registry(tag="__demo_digital_plot_ref"):
+                    with dpg.item_handler_registry(tag="_powerbands_digital_plot_ref"):
                         dpg.add_item_visible_handler(callback=_update_plot)
-                    dpg.bind_item_handler_registry("_demo_digital_plot", dpg.last_container())
+                    dpg.bind_item_handler_registry("_powerbands_digital_plot", dpg.last_container())
                     
 
 
 
 
-    dpg.add_text(t_digital_plot, label="Time:")
-    dpg.add_text(paused, label="Paused:")
+    dpg.add_text(t_plot, label="Time:")
 
 
 dpg.show_viewport()
