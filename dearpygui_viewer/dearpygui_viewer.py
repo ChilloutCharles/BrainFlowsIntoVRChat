@@ -5,18 +5,19 @@ from math import sin, cos
 import numpy as np
 
 import osc_server
-from osc_dataframes import OSCDataFrame, OSCFrameDeque, OSCFrameCollector 
+from osc_dataframes import OSCDataFrame
 from data_util import get_graphs_and_deltaTime_from_slice, split_by_identifierGroups
 from performance_util import write_elapsed_time_till_start
 
 import time
 
-TIMESTEPS_WINDOW = 1024
-TIMESTEPS_SHOW_OFFSET = 200
 PLOT_WIDTH = 500
 
 #state         
 server_started = False
+
+t_digital_plot = 0
+last_processed_counter = 0
 
 # --------------------------------------------
 
@@ -37,40 +38,57 @@ def start_server_once():
 
 start_server_once()
 
-def plot_neurofb():
 
-    slice = osc_server.get_neurofb_dataframes().get_latest_frames(TIMESTEPS_WINDOW)
+def _fetch_complete_data_from_server(osc_keys, last_processed_counter):
 
-    write_elapsed_time_till_start("Get PowerBands slices")
+    osc_and_counter_data = [ osc_server.read_from_osc_buffer(key) for key in osc_keys]
+    delta_time_data, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
 
-    groups = [['FocusLeft', 'FocusRight', 'FocusAvg'], ['RelaxLeft', 'RelaxRight', 'RelaxAvg']]
+    buffer_counters = [ osc_and_counter_data[i][1] for i in range(len(osc_and_counter_data))]
+    buffer_data = [ osc_and_counter_data[i][0] for i in range(len(osc_and_counter_data))]
 
-    graphs, deltaTime = get_graphs_and_deltaTime_from_slice(slice)
-    graphgroups = split_by_identifierGroups(graphs, groups, exclude="Pos")
+    complete_counter_data = min(buffer_counters)
+    complete_frame_counter = min(complete_counter_data, delta_time_counter)
 
-    #plot 
+    index_delta = complete_frame_counter - last_processed_counter
 
-def powerbands_from_osc():
-    frames_left = osc_server.get_pwrbands_dataframes_left().get_frames()
-    frames_right = osc_server.get_pwrbands_dataframes_right().get_frames()
-    frames_avg = osc_server.get_pwrbands_dataframes_avg().get_frames()
+    next_data = []
+    deltaTime = 0
 
-    groups = ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
+    if index_delta > 0 and len(osc_and_counter_data) > 0:
 
-    for frames in [frames_left, frames_right, frames_avg]:
-        graphArrayPerGroup = split_by_identifierGroups(frames, groups, exclude="Pos")
+        for idx_label in range(len(osc_keys)):
+            assert( index_delta > buffer_counters[idx_label],
+             f"Index delta is smaller than buffer counter {len(buffer_data[idx_label])}")
+            data_per_key = buffer_data[idx_label][0::index_delta]
+            next_data.append( data_per_key)
+
+        deltaTime = delta_time_data[index_delta] if index_delta < len(delta_time_data) else 0
+
+    # ToDo get delta times as array for X axis
+    return next_data, deltaTime, complete_frame_counter
+
+def get_labels_from_osc_by_identifier_in_path(identifier):
+    osc_powerband_avg_paths = [ osc_powerband_avg_path for osc_powerband_avg_path 
+        in osc_server.OSC_PATHS_TO_KEY.keys() if identifier in osc_powerband_avg_path]
     
-    return groups, graphArrayPerGroup
+    osc_powerband_avg_labels = [ osc_server.OSC_PATHS_TO_KEY[osc_powerband_avg_path] for osc_powerband_avg_path
+        in osc_powerband_avg_paths]
+    return osc_powerband_avg_labels
 
-def get_metaData_powerbands():
-    return {
-        "y_range": [0.0, 1.0],
-    }
 
-def plot_biometrics():
-    data = osc_server.get_biometrics_dataframes().get_latest_frames(TIMESTEPS_WINDOW)
+def powerbands_from_osc_avg():
+    global last_processed_counter
+    labels = get_labels_from_osc_by_identifier_in_path("Avg")
+
+    data_per_key, deltaTime, complete_frame_counter = _fetch_complete_data_from_server(labels, last_processed_counter)
+    last_processed_counter = complete_frame_counter
+
+    return labels, data_per_key, deltaTime
+
+    data_per_key = osc_server.get_biometrics_dataframes().get_latest_frames(TIMESTEPS_WINDOW)
     write_elapsed_time_till_start("Get Biometrics slice")
-    graphs, deltaTime = get_graphs_and_deltaTime_from_slice(data)
+    graphs, deltaTime = get_graphs_and_deltaTime_from_slice(data_per_key)
 
     groups = [[ 'HeartBeatsPerMinute', 'BreathsPerMinute']]
     graphgroups = split_by_identifierGroups(graphs, groups, exclude="Pos")
@@ -90,87 +108,55 @@ dpg.setup_dearpygui()
 
 with dpg.window(label="Example dynamic plot", autosize=True):
     
-
-    def fetch_powerbands():
-        return powerbands_from_osc()
-
-    dpg.add_button(label="Fetch Powerbands", callback=fetch_powerbands)
-
     with dpg.tree_node(label="Digital Plots", default_open=True):
         
-        t_plot = 0.0
-        plot_data_x = []
-        plot_data_y = []
         plot_show = []
-        plot_lastFrameIndex = -1
 
+        time.sleep(1)
+        osc_labels, osc_frame_dict, maxIdx = powerbands_from_osc_avg()      
 
-        osc_meta_data = get_metaData_powerbands()
+        plot_show = [True for _ in range(len(osc_labels))]
 
-        osc_frame_labels, osc_frame_data = fetch_powerbands()      
+        # ToDo Fix
+        osc_limits = osc_server.OSC_LIMITS[osc_labels[0]]
 
-        plot_data_x =  [[] for _ in range(len(osc_frame_labels))]
-        plot_data_y =  [[] for _ in range(len(osc_frame_labels))]
-        plot_show = [True for _ in range(len(osc_frame_labels))]
-
-        def _update_plot_data(new_data_frame = []):
-
-            if len(plot_data_x) == 0:
-                return
-            if frame_lastFrameIndex == -1:
-                return
-
-            for _, frame_data_array in enumerate(new_data_frame):
-                if frame_data_array[0].frameIdx > frame_lastFrameIndex:
-                    plot_data_y.append(frame_data_array)
-                if frame_data_array[0].frameIdx < frame_lastFrameIndex:
-                    # make warning on gui
-                    print("Warning: frame data out of order")
-                    dpg.add_text("Warning: frame data out of order") 
-
-                delta = new_data_frame[len(new_data_frame-1)].frameIdx - frame_lastFrameIndex
-                if delta > 1:
-                    # make warning on gui
-                    print("Warning: frame data missing")
-                    # this is formatted string
-                    dpg.add_text(f"Warning: frame data missing {delta} frames")
-
-                frame_lastFrameIndex = frame_data_array[-1].frameIdx
-
-        _update_plot_data(framedata=osc_frame_data, frame_lastFrameIndex=plot_lastFrameIndex)
+        data_digital = [[] for _ in range(len(osc_labels))]
 
         def change_val(arr, ind, val):
             arr[ind] = val
 
         # ToDo initialize data_frames
         with dpg.group(horizontal=True):
-            for label in osc_frame_labels :
-                dpg.add_checkbox(label=label, callback=lambda s, a: change_val(plot_show, 0, a),
+            with dpg.group(horizontal=False):
+                for label in osc_labels :
+                    dpg.add_checkbox(label=label, callback=lambda s, a: change_val(plot_show, 0, a),
                                                  default_value=True)
 
             with dpg.plot(tag="_powerbands_digital_plot", width=PLOT_WIDTH):
                 # X axis
                 dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="x_axis_time")
-                dpg.set_axis_limits(dpg.last_item(), 0, plot_lastFrameIndex)
+                dpg.set_axis_limits(dpg.last_item(), -5, 0)
                 with dpg.plot_axis(dpg.mvYAxis, label="y"):
-                    dpg.set_axis_limits(dpg.last_item(), osc_meta_data["y_range"][0], osc_meta_data["y_range"][1])
-                    for x_label in osc_frame_labels:
+                    dpg.set_axis_limits(dpg.last_item(), osc_limits[0], osc_limits[1])
+                    for x_label in osc_labels:
+                        pass
                         dpg.add_line_series([], [], label=x_label, tag=x_label)
 
 
                     def _update_plot():
-                            
-                            frame_digital_labels, frame_data_array = fetch_powerbands()
+                        global t_digital_plot
+                        t_digital_plot += dpg.get_delta_time()
+                        dpg.set_axis_limits('x_axis_time', t_digital_plot - 5, t_digital_plot)
+                        osc_new_labels, osc_new_data, newDeltaTime = powerbands_from_osc_avg()
+                    
+                        if len(osc_new_labels) > 0:
 
-                            t_plot = frame_data_array[0][0].frameIdx
-                            dpg.set_axis_limits('x_axis_digital', t_plot - TIMESTEPS_WINDOW - TIMESTEPS_SHOW_OFFSET, t_plot)
-                            #print(frame_data_array[0][0])
-                            
-                            _update_plot_data()
-                            for i, data_analog in enumerate(frame_data_array):
-                                if plot_show[i]:
-                                    # set value from slice tplot - TIMESTEPS_WINDOW to tplot?
-                                    dpg.set_value(frame_digital_labels[i], [*zip(*data_analog[i])])
+                            for idx in range(len(osc_new_data)):
+                                
+                                x = np.linspace(t_digital_plot - newDeltaTime, t_digital_plot, len(osc_new_data[idx]))[-1]
+                                y = osc_new_data[idx][-1]
+                                data_digital[idx].append([x,y])
+                                dpg.set_value(osc_new_labels[idx],  [*zip(*data_digital[idx])])
 
 
                     with dpg.item_handler_registry(tag="_powerbands_digital_plot_ref"):
@@ -181,7 +167,6 @@ with dpg.window(label="Example dynamic plot", autosize=True):
 
 
 
-    dpg.add_text(t_plot, label="Time:")
 
 
 dpg.show_viewport()
