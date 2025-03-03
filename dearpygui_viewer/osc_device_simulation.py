@@ -1,5 +1,5 @@
 from pythonosc import udp_client
-from osc_server import OSC_KEY_BASIS, OSC_PATHS_TO_KEY, OSC_LIMITS
+from osc_server import OSC_PATHS_TO_KEY, ELAPSED_TIME_PATH
 
 import time
 
