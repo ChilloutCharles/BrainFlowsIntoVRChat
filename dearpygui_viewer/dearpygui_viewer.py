@@ -52,46 +52,29 @@ def _fetch_complete_data_from_server(osc_keys, last_processed_counter):
     if index_delta > 0 and len(osc_and_counter_data) > 0:
 
         for idx_label in range(len(osc_keys)):
-            assert( index_delta > buffer_counters[idx_label],
-             f"Index delta is smaller than buffer counter {len(buffer_data[idx_label])}")
             data_per_key = buffer_data[idx_label][0::index_delta]
             next_data.append( data_per_key)
 
-        deltaTime = delta_time_data[index_delta] if index_delta < len(delta_time_data) else 0
+        deltaTime = delta_time_data[index_delta-1] if index_delta-1 < len(delta_time_data) else 0
 
     # ToDo get delta times as array for X axis
     return next_data, deltaTime, complete_frame_counter
 
-def get_labels_from_osc(key_subset=None):
+def get_labels_from_osc():
 
-    if key_subset is None:
-        osc_powerband_avg_labels = [ key for key in osc_server.OSC_PATHS_TO_KEY.values()]
-    else:
-        osc_powerband_avg_labels = [ key for key in key_subset
-            if key in osc_server.OSC_PATHS_TO_KEY.values()]
+    osc_powerband_avg_labels = [ key for key in osc_server.OSC_PATHS_TO_KEY.values()]
+
     return osc_powerband_avg_labels
 
 
-def osc_labels_data_and_deltaTime(key_subset=None):
+def osc_labels_data_and_deltaTime():
     global last_processed_counter
-    labels = get_labels_from_osc(key_subset)
+    labels = get_labels_from_osc()
 
-    data_per_key, deltaTime, complete_frame_counter = _fetch_complete_data_from_server(labels, last_processed_counter)
+    dataArrayOfPerKeyValues, deltaTime, complete_frame_counter = _fetch_complete_data_from_server(labels, last_processed_counter)
     last_processed_counter = complete_frame_counter
 
-    return labels, data_per_key, deltaTime
-
-    data_per_key = osc_server.get_biometrics_dataframes().get_latest_frames(TIMESTEPS_WINDOW)
-    write_elapsed_time_till_start("Get Biometrics slice")
-    graphs, deltaTime = get_graphs_and_deltaTime_from_slice(data_per_key)
-
-    groups = [[ 'HeartBeatsPerMinute', 'BreathsPerMinute']]
-    graphgroups = split_by_identifierGroups(graphs, groups, exclude="Pos")
-    write_elapsed_time_till_start("Prep Biometrics Data")
-
-    #plot
-
-    write_elapsed_time_till_start("Plot Biometrics Data")
+    return labels, dataArrayOfPerKeyValues, deltaTime
 
 
 def save_callback():
