@@ -5,6 +5,8 @@ import time
 
 SLEEP_TIME = 0.1 #seconds
 
+startTime = time.time()
+
 osc_paths = [ key for key in OSC_PATHS_TO_KEY.keys()]
 
 def run_client():
@@ -19,8 +21,11 @@ def run_client():
     try:
         while True:
             for idx, path in enumerate(osc_paths):
-                client.send_message(path, _get_debuggable_times(time.time()) + 0.05 * idx)
+                client.send_message(path, _get_debuggable_times(time.time() + 0.1 * idx))
 
+            elapsedTime = time.time() - startTime
+            client.send_message(ELAPSED_TIME_PATH, elapsedTime)
+            print(f"Elapsed time send: {elapsedTime}")
             time.sleep(SLEEP_TIME)
     except KeyboardInterrupt:
         print("Shutting down testing client...")
