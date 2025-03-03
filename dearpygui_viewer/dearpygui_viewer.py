@@ -81,90 +81,114 @@ def save_callback():
     print("Save Clicked")
 
 dpg.create_context()
-dpg.create_viewport( title="Dearpygui Viewer", width=800*2, height=800*2)
+dpg.create_viewport( title="Dearpygui Viewer")
 dpg.setup_dearpygui()
 
-def make_plot_range_subset(osc_labels):
-    osc_limits = [osc_server.OSC_LIMITS[ osc_labels[idx]] for idx in range(len(osc_labels))]
-        # group keys by different set to plot multiple plots per limit group
-    osc_map_limitset_indices_to_osc_key = { idx : [].append(key) for idx, key in enumerate(osc_labels) if
-            osc_server.OSC_LIMITS[osc_labels[idx]] == osc_limits[idy] for idy in range(len(osc_limits))}
-        
-    return osc_limits,osc_map_limitset_indices_to_osc_key
+def unique_range_to_sublabels(osc_labels):
+    # osc_server.OSC_LIMITS[ key] is a tuple
+    osc_unique_limits = set([ osc_server.OSC_LIMITS[key] for key in osc_labels])
+    dict_unique_range_to_labels = { limit : [] for limit in osc_unique_limits}
+    for key in osc_labels:
+        osc_limits = osc_server.OSC_LIMITS[key]
+        dict_unique_range_to_labels[osc_limits].append(key)
+    
+    return dict_unique_range_to_labels
+
 
 with dpg.window(label="Example dynamic plot", autosize=True):
     
-    with dpg.tree_node(label="Digital Plots", default_open=True):
+    with dpg.tree_node(label="Digital Plots", tag="Digital Plots", default_open=True):
         
-        plot_show = []
 
         time.sleep(1)
         osc_labels, osc_frame_dict, delta_time = osc_labels_data_and_deltaTime()      
 
         plot_show = { osc_label : True for osc_label in osc_labels}
-        data_digital = { idx : [] for idx in range(len(osc_labels))}
+        data_digital = { osc_label : [] for osc_label in osc_labels}
 
-        osc_limits, osc_map_limitset_index_to_osc_key = make_plot_range_subset(osc_labels)
+        unique_range_to_sublabels = unique_range_to_sublabels(osc_labels)
 
-
-        def change_val_in_index(dict, ind, val):
-            key = list(dict.keys())[ind]
-            dict[key] = val
-
+        def change_val_in_dict(sender, key, val):
+            plot_show[key] = val
+            print(f"Changed {key} to {val}")
 
         # ToDo initialize data_frames
-        with dpg.group(horizontal=True):
-            with dpg.group(horizontal=False):
-                for label in osc_labels :
-                    dpg.add_checkbox(label=label, callback=lambda s, a: change_val_in_index(plot_show, 0, a),
-                                                 default_value=True)
-
-            def setup_plot_with_limits_and_message_subset(osc_limit_index):
-
-                osc_plot_limits = osc_limits[osc_limit_index]
-                osc_subset_labels = osc_map_limitset_index_to_osc_key[osc_limit_index]
-
+        with dpg.group(horizontal=False):
+            
+            def setup_plot_with_limits_and_message_subset(osc_limit_index, osc_plot_limits, osc_subset_labels):
                 tag_plot = f"_bmi_plot_{osc_limit_index}"
                 tag_x_axis = f"_bmi_plot_x_time_{osc_limit_index}"
                 tag_y_axis = f"_bmi_plot_y_axis_{osc_limit_index}"
 
-                with dpg.plot(tag=tag_plot, width=PLOT_WIDTH):
-                        # X axis
-                    dpg.add_plot_axis(dpg.mvXAxis, label=tag_x_axis, tag=tag_x_axis)
-                    dpg.set_axis_limits(dpg.last_item(), -5, 0)
-                    with dpg.plot_axis(dpg.mvYAxis, label=tag_y_axis):
-                        dpg.set_axis_limits(dpg.last_item(), osc_plot_limits[0], osc_plot_limits[1])
-                        for x_label in osc_subset_labels:
-                            pass
-                            dpg.add_line_series([], [], label=x_label, tag=x_label)
+                with dpg.group(horizontal=True):
+                    with dpg.plot(tag=tag_plot, width=PLOT_WIDTH):
+                            # X axis
+                        dpg.add_plot_axis(dpg.mvXAxis, label=tag_x_axis, tag=tag_x_axis)
+                        dpg.set_axis_limits(dpg.last_item(), -5, 0)
+                        with dpg.plot_axis(dpg.mvYAxis, label=tag_y_axis):
+                            dpg.set_axis_limits(dpg.last_item(), osc_plot_limits[0], osc_plot_limits[1])
+                            for x_label in osc_subset_labels:
+                                dpg.add_line_series([], [], label=x_label, tag=x_label)
+
+                    with dpg.group(horizontal=False):
+                        print( osc_subset_labels)
+                        for xlabel in osc_subset_labels:
+                            # Todo get done as lamnda
+                            def create_callback(current_label):
+                                def callback(sender, app_data):
+                                    change_val_in_dict(sender, current_label, app_data)
+                                return callback
+                            
+                            dpg.add_checkbox(label=xlabel, 
+                                             callback=create_callback(xlabel), 
+                                             default_value=True)
+
+                dpg.add_separator()
+
+            def _update_plot():
+                global t_digital_plot
+                t_digital_plot += dpg.get_delta_time()
+                osc_new_labels, osc_new_data, newDeltaTime = osc_labels_data_and_deltaTime()
+
+                def _update_subplots(index, key_subset: list[str]):
+                    tag_x_axis = f"_bmi_plot_x_time_{index}"
+                    dpg.set_axis_limits(tag_x_axis, t_digital_plot - 5, t_digital_plot)
+
+                    if len(osc_new_data) <= 0:
+                        return
+
+                    sub_new_labels = [ label for label in key_subset if label in osc_new_labels]
+                    #ToDo Fix
+                    x = [osc_new_labels.index(label) for label in sub_new_labels]
+                    sub_new_data = [ osc_new_data[idx] for idx in x]
+
+                    assert len(sub_new_labels) == len(sub_new_data)
+
+                    if len(osc_new_labels) > 0:
+                        for idx, sub_label in enumerate(sub_new_labels):
+                            assert sub_label in data_digital.keys()
+                            if plot_show[sub_label] and len(sub_new_data[idx]) > 0:
+                                x = np.linspace(t_digital_plot - newDeltaTime, t_digital_plot, len(sub_new_data[idx]))[-1]
+                                y = sub_new_data[idx][-1]
+                                data_digital[sub_label].append([x,y])
+                                dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
 
 
-                        def _update_plot(key_subset: list[str]):
-                            global t_digital_plot
-                            t_digital_plot += dpg.get_delta_time()
-                            dpg.set_axis_limits(tag_x_axis, t_digital_plot - 5, t_digital_plot)
-                            osc_new_labels, osc_new_data, newDeltaTime = osc_labels_data_and_deltaTime(key_subset=key_subset)
-                            #osc_limits, osc_map_limitset_index_to_osc_key = make_plot_range_subset(osc_new_labels)
+                for plot_subset_idx, (key, value) in enumerate(unique_range_to_sublabels.items()):
+                    _update_subplots(plot_subset_idx, value)
 
-                            assert(len(osc_new_labels) == len(osc_new_data))
+            tag_plot_first = f"_bmi_plot_{0}"
 
-                            if len(osc_new_labels) > 0:
-                                for idx, sub_label in enumerate(osc_new_labels):
-                                    assert( sub_label in data_digital.keys() and sub_label in plot_show.keys())
-                                    if plot_show[sub_label]:
-                                        x = np.linspace(t_digital_plot - newDeltaTime, t_digital_plot, len(osc_new_data[idx]))[-1]
-                                        y = osc_new_data[idx][-1]
-                                        data_digital[sub_label].append([x,y])
-                                        dpg.set_value(sub_label,  [*zip(*data_digital[idx])])
+            for plot_subset_idx, (key, value) in enumerate(unique_range_to_sublabels.items()):
+                setup_plot_with_limits_and_message_subset(plot_subset_idx, key, value)
 
-                        handler_tag_ref = f"_plot_ref_{osc_limit_index}"
-                        handler_tag = f"_plot_handler_{osc_limit_index}"
-                        with dpg.item_handler_registry(tag=handler_tag_ref):
-                            dpg.add_item_visible_handler(callback=_update_plot(osc_subset_labels))
-                        dpg.bind_item_handler_registry(handler_tag, dpg.last_container())
+            with dpg.item_handler_registry(tag="handler_tag_ref"):
+                dpg.add_item_visible_handler(callback=_update_plot)
+            dpg.bind_item_handler_registry(tag_plot_first, dpg.last_container())
 
-            for plot_subset_idx in range(len(osc_limits)):
-                setup_plot_with_limits_and_message_subset(plot_subset_idx)
+        
+
+                
                     
 
 
