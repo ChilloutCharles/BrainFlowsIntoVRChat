@@ -4,8 +4,6 @@ from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server
 from collections import deque
 
-from osc_dataframes import OSCFrameDeque, OSCFrameCollector
-
 OSC_KEY_BASIS = "/avatar/parameters/BFI"
 MAX_STORED_TIMESTEPS = 20
 

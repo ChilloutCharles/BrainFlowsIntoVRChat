@@ -5,11 +5,6 @@ from math import sin, cos
 import numpy as np
 
 import osc_server
-from osc_dataframes import OSCDataFrame
-from data_util import get_graphs_and_deltaTime_from_slice, split_by_identifierGroups
-from performance_util import write_elapsed_time_till_start
-
-import time
 
 PLOT_WIDTH = 500
 
