@@ -32,7 +32,7 @@ OSC_PATHS_TO_KEY = {
     "/avatar/parameters/BFI/PwrBands/Avg/Beta": "PwrBands_Avg_Beta",
     "/avatar/parameters/BFI/PwrBands/Avg/Gamma": "PwrBands_Avg_Gamma",
     # Handle situation where message is not send
-    #"/avatar/parameters/BFI/Biometrics/HeartbeatsPerMinute": "Biometrics_HeartbeatsPerMinute",
+    "/avatar/parameters/BFI/Biometrics/HeartBeatsPerMinute": "Biometrics_HeartBeatsPerMinute",
     "/avatar/parameters/BFI/Biometrics/BreathsPerMinute": "Biometrics_BreathsPerMinute",
     "/avatar/parameters/BFI/Biometrics/OxygenPercent": "OxygenPercent"
 }
@@ -60,7 +60,7 @@ OSC_LIMITS = {
     "PwrBands_Avg_Alpha": (0.0, 1.0),
     "PwrBands_Avg_Beta": (0.0, 1.0),
     "PwrBands_Avg_Gamma": (0.0, 1.0),
-   # "Biometrics_HeartbeatsPerMinute": (0.0, 255.0),
+    "Biometrics_HeartBeatsPerMinute": (0.0, 255.0),
     "Biometrics_BreathsPerMinute": (0.0, 255.0),
     "OxygenPercent": (0.0, 100.0)   
 }
