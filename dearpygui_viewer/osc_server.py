@@ -95,6 +95,13 @@ def read_from_osc_buffer(path):
     osc_buffers[path].lock.release()
     return data, idxCount
 
+def read_last_from_osc_buffer(path) -> float:
+    osc_buffers[path].lock.acquire()
+    data = list(osc_buffers[path].deque)[-1]
+    idxCount = osc_buffers[path].countingDataPoints
+    osc_buffers[path].lock.release()
+    return data, idxCount
+
 def read_from_osc_buffer_elapsedTime():
     osc_elapsed_time_buffer.lock.acquire()
     data = list(osc_elapsed_time_buffer.deque)[-1] # reverse the list
