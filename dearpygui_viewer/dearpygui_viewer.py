@@ -33,10 +33,12 @@ def start_server_once():
 start_server_once()
 
 
-def _fetch_complete_data_from_server(osc_keys, last_processed_counter):
+def fetch_last_datapoint_per_key_from_server(osc_keys, last_processed_counter):
 
-    osc_and_counter_data = [ osc_server.read_from_osc_buffer(key) for key in osc_keys]
-    delta_time_data, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
+    function_start_time = time.time()
+
+    osc_and_counter_data = [ osc_server.read_last_from_osc_buffer(key) for key in osc_keys]
+    delta_time, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
 
     buffer_counters = [ osc_and_counter_data[i][1] for i in range(len(osc_and_counter_data))]
     buffer_data = [ osc_and_counter_data[i][0] for i in range(len(osc_and_counter_data))]
@@ -47,18 +49,14 @@ def _fetch_complete_data_from_server(osc_keys, last_processed_counter):
     index_delta = complete_frame_counter - last_processed_counter
 
     next_data = []
-    deltaTime = 0
 
     if index_delta > 0 and len(osc_and_counter_data) > 0:
 
         for idx_label in range(len(osc_keys)):
-            data_per_key = buffer_data[idx_label][0::index_delta]
+            data_per_key = buffer_data[idx_label]
             next_data.append( data_per_key)
 
-        deltaTime = delta_time_data[index_delta-1] if index_delta-1 < len(delta_time_data) else 0
-
-    # ToDo get delta times as array for X axis
-    return next_data, deltaTime, complete_frame_counter
+    return next_data, delta_time, complete_frame_counter
 
 def get_labels_from_osc():
 
@@ -71,7 +69,7 @@ def osc_labels_data_and_deltaTime():
     global last_processed_counter
     labels = get_labels_from_osc()
 
-    dataArrayOfPerKeyValues, deltaTime, complete_frame_counter = _fetch_complete_data_from_server(labels, last_processed_counter)
+    dataArrayOfPerKeyValues, deltaTime, complete_frame_counter = fetch_last_datapoint_per_key_from_server(labels, last_processed_counter)
     last_processed_counter = complete_frame_counter
 
     return labels, dataArrayOfPerKeyValues, deltaTime
@@ -167,9 +165,9 @@ with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
                     if len(osc_new_labels) > 0:
                         for idx, sub_label in enumerate(sub_new_labels):
                             assert sub_label in data_digital.keys()
-                            if plot_show[sub_label] and len(sub_new_data[idx]) > 0:
-                                x = np.linspace(t_digital_plot - newDeltaTime, t_digital_plot, len(sub_new_data[idx]))[-1]
-                                y = sub_new_data[idx][-1]
+                            if plot_show[sub_label] :
+                                x = newDeltaTime
+                                y = sub_new_data[idx]
                                 data_digital[sub_label].append([x,y])
                                 dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
 
