@@ -94,8 +94,8 @@ def unique_range_to_sublabels(osc_labels):
     
     return dict_unique_range_to_labels
 
-
-with dpg.window(label="Example dynamic plot", autosize=True):
+window_tag = "window_tag"
+with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
     
     with dpg.tree_node(label="Digital Plots", tag="Digital Plots", default_open=True):
         
@@ -184,7 +184,7 @@ with dpg.window(label="Example dynamic plot", autosize=True):
 
             with dpg.item_handler_registry(tag="handler_tag_ref"):
                 dpg.add_item_visible_handler(callback=_update_plot)
-            dpg.bind_item_handler_registry(tag_plot_first, dpg.last_container())
+            dpg.bind_item_handler_registry(window_tag, dpg.last_container())
 
         
 
