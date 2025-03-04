@@ -82,7 +82,7 @@ def write_to_osc_buffer(path, value):
 
 def _write_to_osc_elapsed_time_buffer(deltatime):
     osc_elapsed_time_buffer.lock.acquire()
-    x = osc_elapsed_time_buffer.deque[0] if len(osc_elapsed_time_buffer.deque) > 0 else 0
+    x = osc_elapsed_time_buffer.deque[-1] if len(osc_elapsed_time_buffer.deque) > 0 else 0
     osc_elapsed_time_buffer.deque.append (x + deltatime)
     osc_elapsed_time_buffer.countingDataPoints += 1
     osc_elapsed_time_buffer.lock.release()
