@@ -35,12 +35,10 @@ def start_server_once():
 start_server_once()
 
 
-def fetch_last_datapoint_per_key_from_server(osc_keys, last_processed_counter):
-
-    function_start_time = time.time()
+def fetch_last_complete_frame_from_server(osc_keys, last_processed_counter):
 
     osc_and_counter_data = [ osc_server.read_last_from_osc_buffer(key) for key in osc_keys]
-    delta_time, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
+    _, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
 
     buffer_counters = [ osc_and_counter_data[i][1] for i in range(len(osc_and_counter_data))]
     buffer_data = [ osc_and_counter_data[i][0] for i in range(len(osc_and_counter_data))]
@@ -48,6 +46,11 @@ def fetch_last_datapoint_per_key_from_server(osc_keys, last_processed_counter):
     complete_counter_data = min(buffer_counters)
     complete_frame_counter = min(complete_counter_data, delta_time_counter)
 
+    relative_counters = [ -(complete_frame_counter - buffer_counters[i]) for i in range(len(buffer_counters))]
+
+    for relative_counter in relative_counters:
+        assert relative_counter >= 0 and relative_counter < len(buffer_data[0]), f"Relative counter {relative_counter} is out of bounds by {complete_frame_counter}"
+            
     index_delta = complete_frame_counter - last_processed_counter
 
     next_data = []
@@ -55,10 +58,11 @@ def fetch_last_datapoint_per_key_from_server(osc_keys, last_processed_counter):
     if index_delta > 0 and len(osc_and_counter_data) > 0:
 
         for idx_label in range(len(osc_keys)):
-            data_per_key = buffer_data[idx_label]
+            data_per_key = buffer_data[idx_label][relative_counters[idx_label]]
             next_data.append( data_per_key)
 
-    return next_data, delta_time, complete_frame_counter
+
+    return next_data, complete_frame_counter
 
 def get_labels_from_osc():
 
@@ -71,10 +75,10 @@ def osc_labels_data_and_deltaTime():
     global last_processed_counter
     labels = get_labels_from_osc()
 
-    dataArrayOfPerKeyValues, deltaTime, complete_frame_counter = fetch_last_datapoint_per_key_from_server(labels, last_processed_counter)
+    dataArrayOfPerKeyValues, complete_frame_counter = fetch_last_complete_frame_from_server(labels, last_processed_counter)
     last_processed_counter = complete_frame_counter
 
-    return labels, dataArrayOfPerKeyValues, deltaTime
+    return labels, dataArrayOfPerKeyValues
 
 
 def save_callback():
@@ -101,7 +105,7 @@ with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
         
 
         time.sleep(1)
-        osc_labels, osc_frame_dict, delta_time = osc_labels_data_and_deltaTime()      
+        osc_labels, osc_frame_dict = osc_labels_data_and_deltaTime()      
 
         plot_show = { osc_label : True for osc_label in osc_labels}
         data_digital = { osc_label : deque(maxlen=DEQUEUE_SIZE) for osc_label in osc_labels}
@@ -148,7 +152,7 @@ with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
             def _update_plot():
                 global t_digital_plot
                 t_digital_plot += dpg.get_delta_time()
-                osc_new_labels, osc_new_data, newDeltaTime = osc_labels_data_and_deltaTime()
+                osc_new_labels, osc_new_data = osc_labels_data_and_deltaTime()
 
                 def _update_subplots(index, key_subset: list[str]):
                     tag_x_axis = f"_bmi_plot_x_time_{index}"
@@ -168,7 +172,7 @@ with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
                         for idx, sub_label in enumerate(sub_new_labels):
                             assert sub_label in data_digital.keys()
                             if plot_show[sub_label] :
-                                x = newDeltaTime
+                                x = t_digital_plot
                                 y = sub_new_data[idx]
                                 data_digital[sub_label].append([x,y])
                                 dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
