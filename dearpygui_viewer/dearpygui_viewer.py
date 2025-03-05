@@ -2,10 +2,12 @@ import threading
 import dearpygui.dearpygui as dpg
 import numpy as np
 import time
+from collections import deque
 
 import osc_server
 
 PLOT_WIDTH = 500
+DEQUEUE_SIZE = 1024
 
 #state         
 server_started = False
@@ -102,7 +104,7 @@ with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
         osc_labels, osc_frame_dict, delta_time = osc_labels_data_and_deltaTime()      
 
         plot_show = { osc_label : True for osc_label in osc_labels}
-        data_digital = { osc_label : [] for osc_label in osc_labels}
+        data_digital = { osc_label : deque(maxlen=DEQUEUE_SIZE) for osc_label in osc_labels}
 
         unique_range_to_sublabels = unique_range_to_sublabels(osc_labels)
 
