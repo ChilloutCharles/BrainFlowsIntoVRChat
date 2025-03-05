@@ -6,8 +6,9 @@ from collections import deque
 
 import osc_server
 
-PLOT_WIDTH = 500
+PLOT_WIDTH = 800
 DEQUEUE_SIZE = 1024
+EPS = 0.01
 
 #state         
 server_started = False
@@ -126,11 +127,12 @@ with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
 
                 with dpg.group(horizontal=True):
                     with dpg.plot(tag=tag_plot, width=PLOT_WIDTH):
+                        dpg.add_plot_legend()
                             # X axis
                         dpg.add_plot_axis(dpg.mvXAxis, label=tag_x_axis, tag=tag_x_axis)
                         dpg.set_axis_limits(dpg.last_item(), -5, 0)
                         with dpg.plot_axis(dpg.mvYAxis, label=tag_y_axis):
-                            dpg.set_axis_limits(dpg.last_item(), osc_plot_limits[0], osc_plot_limits[1])
+                            dpg.set_axis_limits(dpg.last_item(), osc_plot_limits[0] - EPS, osc_plot_limits[1]+ EPS)
                             for x_label in osc_subset_labels:
                                 dpg.add_line_series([], [], label=x_label, tag=x_label)
 
