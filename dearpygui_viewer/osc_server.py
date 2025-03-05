@@ -5,7 +5,7 @@ from pythonosc import osc_server
 from collections import deque
 
 OSC_KEY_BASIS = "/avatar/parameters/BFI"
-MAX_STORED_TIMESTEPS = 20
+MAX_STORED_TIMESTEPS = 200
 
 ELAPSED_TIME_PATH = "/avatar/parameters/BFI/Info/SecondsSinceLastUpdate"
 
@@ -32,7 +32,7 @@ OSC_PATHS_TO_KEY = {
     "/avatar/parameters/BFI/PwrBands/Avg/Beta": "PwrBands_Avg_Beta",
     "/avatar/parameters/BFI/PwrBands/Avg/Gamma": "PwrBands_Avg_Gamma",
     # Handle situation where message is not send
-    #"/avatar/parameters/BFI/Biometrics/HeartbeatsPerMinute": "Biometrics_HeartbeatsPerMinute",
+    "/avatar/parameters/BFI/Biometrics/HeartBeatsPerMinute": "Biometrics_HeartBeatsPerMinute",
     "/avatar/parameters/BFI/Biometrics/BreathsPerMinute": "Biometrics_BreathsPerMinute",
     "/avatar/parameters/BFI/Biometrics/OxygenPercent": "OxygenPercent"
 }
@@ -60,7 +60,7 @@ OSC_LIMITS = {
     "PwrBands_Avg_Alpha": (0.0, 1.0),
     "PwrBands_Avg_Beta": (0.0, 1.0),
     "PwrBands_Avg_Gamma": (0.0, 1.0),
-   # "Biometrics_HeartbeatsPerMinute": (0.0, 255.0),
+    "Biometrics_HeartBeatsPerMinute": (0.0, 255.0),
     "Biometrics_BreathsPerMinute": (0.0, 255.0),
     "OxygenPercent": (0.0, 100.0)   
 }
@@ -82,7 +82,7 @@ def write_to_osc_buffer(path, value):
 
 def _write_to_osc_elapsed_time_buffer(deltatime):
     osc_elapsed_time_buffer.lock.acquire()
-    x = osc_elapsed_time_buffer.deque[0] if len(osc_elapsed_time_buffer.deque) > 0 else 0
+    x = osc_elapsed_time_buffer.deque[-1] if len(osc_elapsed_time_buffer.deque) > 0 else 0
     osc_elapsed_time_buffer.deque.append (x + deltatime)
     osc_elapsed_time_buffer.countingDataPoints += 1
     osc_elapsed_time_buffer.lock.release()
@@ -95,9 +95,16 @@ def read_from_osc_buffer(path):
     osc_buffers[path].lock.release()
     return data, idxCount
 
+def read_last_from_osc_buffer(path):
+    osc_buffers[path].lock.acquire()
+    data = list(osc_buffers[path].deque)[::-1]
+    idxCount = osc_buffers[path].countingDataPoints
+    osc_buffers[path].lock.release()
+    return data, idxCount
+
 def read_from_osc_buffer_elapsedTime():
     osc_elapsed_time_buffer.lock.acquire()
-    data = list(osc_elapsed_time_buffer.deque)[::-1] # reverse the list
+    data = list(osc_elapsed_time_buffer.deque)[-1] # reverse the list
     idxCount = osc_elapsed_time_buffer.countingDataPoints
     osc_elapsed_time_buffer.lock.release()
     return data, idxCount

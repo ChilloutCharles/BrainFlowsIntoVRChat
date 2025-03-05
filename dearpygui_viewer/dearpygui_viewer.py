@@ -2,10 +2,13 @@ import threading
 import dearpygui.dearpygui as dpg
 import numpy as np
 import time
+from collections import deque
 
 import osc_server
 
-PLOT_WIDTH = 500
+PLOT_WIDTH = 800
+DEQUEUE_SIZE = 1024
+EPS = 0.01
 
 #state         
 server_started = False
@@ -33,10 +36,10 @@ def start_server_once():
 start_server_once()
 
 
-def _fetch_complete_data_from_server(osc_keys, last_processed_counter):
+def fetch_last_complete_frame_from_server(osc_keys, last_processed_counter):
 
-    osc_and_counter_data = [ osc_server.read_from_osc_buffer(key) for key in osc_keys]
-    delta_time_data, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
+    osc_and_counter_data = [ osc_server.read_last_from_osc_buffer(key) for key in osc_keys]
+    _, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
 
     buffer_counters = [ osc_and_counter_data[i][1] for i in range(len(osc_and_counter_data))]
     buffer_data = [ osc_and_counter_data[i][0] for i in range(len(osc_and_counter_data))]
@@ -44,21 +47,23 @@ def _fetch_complete_data_from_server(osc_keys, last_processed_counter):
     complete_counter_data = min(buffer_counters)
     complete_frame_counter = min(complete_counter_data, delta_time_counter)
 
+    relative_counters = [ -(complete_frame_counter - buffer_counters[i]) for i in range(len(buffer_counters))]
+
+    for relative_counter in relative_counters:
+        assert relative_counter >= 0 and relative_counter < len(buffer_data[0]), f"Relative counter {relative_counter} is out of bounds by {complete_frame_counter}"
+            
     index_delta = complete_frame_counter - last_processed_counter
 
     next_data = []
-    deltaTime = 0
 
     if index_delta > 0 and len(osc_and_counter_data) > 0:
 
         for idx_label in range(len(osc_keys)):
-            data_per_key = buffer_data[idx_label][0::index_delta]
+            data_per_key = buffer_data[idx_label][relative_counters[idx_label]]
             next_data.append( data_per_key)
 
-        deltaTime = delta_time_data[index_delta-1] if index_delta-1 < len(delta_time_data) else 0
 
-    # ToDo get delta times as array for X axis
-    return next_data, deltaTime, complete_frame_counter
+    return next_data, complete_frame_counter
 
 def get_labels_from_osc():
 
@@ -71,10 +76,10 @@ def osc_labels_data_and_deltaTime():
     global last_processed_counter
     labels = get_labels_from_osc()
 
-    dataArrayOfPerKeyValues, deltaTime, complete_frame_counter = _fetch_complete_data_from_server(labels, last_processed_counter)
+    dataArrayOfPerKeyValues, complete_frame_counter = fetch_last_complete_frame_from_server(labels, last_processed_counter)
     last_processed_counter = complete_frame_counter
 
-    return labels, dataArrayOfPerKeyValues, deltaTime
+    return labels, dataArrayOfPerKeyValues
 
 
 def save_callback():
@@ -94,17 +99,17 @@ def unique_range_to_sublabels(osc_labels):
     
     return dict_unique_range_to_labels
 
-
-with dpg.window(label="Example dynamic plot", autosize=True):
+window_tag = "window_tag"
+with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
     
     with dpg.tree_node(label="Digital Plots", tag="Digital Plots", default_open=True):
         
 
         time.sleep(1)
-        osc_labels, osc_frame_dict, delta_time = osc_labels_data_and_deltaTime()      
+        osc_labels, osc_frame_dict = osc_labels_data_and_deltaTime()      
 
         plot_show = { osc_label : True for osc_label in osc_labels}
-        data_digital = { osc_label : [] for osc_label in osc_labels}
+        data_digital = { osc_label : deque(maxlen=DEQUEUE_SIZE) for osc_label in osc_labels}
 
         unique_range_to_sublabels = unique_range_to_sublabels(osc_labels)
 
@@ -122,11 +127,12 @@ with dpg.window(label="Example dynamic plot", autosize=True):
 
                 with dpg.group(horizontal=True):
                     with dpg.plot(tag=tag_plot, width=PLOT_WIDTH):
+                        dpg.add_plot_legend()
                             # X axis
                         dpg.add_plot_axis(dpg.mvXAxis, label=tag_x_axis, tag=tag_x_axis)
                         dpg.set_axis_limits(dpg.last_item(), -5, 0)
                         with dpg.plot_axis(dpg.mvYAxis, label=tag_y_axis):
-                            dpg.set_axis_limits(dpg.last_item(), osc_plot_limits[0], osc_plot_limits[1])
+                            dpg.set_axis_limits(dpg.last_item(), osc_plot_limits[0] - EPS, osc_plot_limits[1]+ EPS)
                             for x_label in osc_subset_labels:
                                 dpg.add_line_series([], [], label=x_label, tag=x_label)
 
@@ -148,7 +154,7 @@ with dpg.window(label="Example dynamic plot", autosize=True):
             def _update_plot():
                 global t_digital_plot
                 t_digital_plot += dpg.get_delta_time()
-                osc_new_labels, osc_new_data, newDeltaTime = osc_labels_data_and_deltaTime()
+                osc_new_labels, osc_new_data = osc_labels_data_and_deltaTime()
 
                 def _update_subplots(index, key_subset: list[str]):
                     tag_x_axis = f"_bmi_plot_x_time_{index}"
@@ -167,9 +173,9 @@ with dpg.window(label="Example dynamic plot", autosize=True):
                     if len(osc_new_labels) > 0:
                         for idx, sub_label in enumerate(sub_new_labels):
                             assert sub_label in data_digital.keys()
-                            if plot_show[sub_label] and len(sub_new_data[idx]) > 0:
-                                x = np.linspace(t_digital_plot - newDeltaTime, t_digital_plot, len(sub_new_data[idx]))[-1]
-                                y = sub_new_data[idx][-1]
+                            if plot_show[sub_label] :
+                                x = t_digital_plot
+                                y = sub_new_data[idx]
                                 data_digital[sub_label].append([x,y])
                                 dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
 
@@ -184,7 +190,7 @@ with dpg.window(label="Example dynamic plot", autosize=True):
 
             with dpg.item_handler_registry(tag="handler_tag_ref"):
                 dpg.add_item_visible_handler(callback=_update_plot)
-            dpg.bind_item_handler_registry(tag_plot_first, dpg.last_container())
+            dpg.bind_item_handler_registry(window_tag, dpg.last_container())
 
         
 
