@@ -5,7 +5,7 @@ from pythonosc import osc_server
 from collections import deque
 
 OSC_KEY_BASIS = "/avatar/parameters/BFI"
-MAX_STORED_TIMESTEPS = 20
+MAX_STORED_TIMESTEPS = 200
 
 ELAPSED_TIME_PATH = "/avatar/parameters/BFI/Info/SecondsSinceLastUpdate"
 
