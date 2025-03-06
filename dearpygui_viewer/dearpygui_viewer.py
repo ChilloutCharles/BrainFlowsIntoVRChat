@@ -1,6 +1,5 @@
 import threading
 import dearpygui.dearpygui as dpg
-import numpy as np
 import time
 from collections import deque
 
