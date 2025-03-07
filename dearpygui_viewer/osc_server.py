@@ -72,7 +72,12 @@ class ProtectedOSCBuffer:
         self.deque = deque(maxlen=max_len)
 
 osc_buffers = { key : ProtectedOSCBuffer(MAX_STORED_TIMESTEPS) for path, key in OSC_PATHS_TO_KEY.items() }
+
+for osc_buffer in osc_buffers.values():
+    osc_buffer.deque.append([0.0] * len(osc_buffers))
+
 osc_elapsed_time_buffer = ProtectedOSCBuffer(MAX_STORED_TIMESTEPS)
+osc_elapsed_time_buffer.deque.append(0.0)
 
 def write_to_osc_buffer(path, value):
     osc_buffers[path].lock.acquire()
