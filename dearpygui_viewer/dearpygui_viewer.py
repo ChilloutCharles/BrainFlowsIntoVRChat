@@ -17,23 +17,23 @@ t_digital_plot = 0
 last_processed_counter = 0
 
 # --------------------------------------------
-def main(osc_port):
-    def run_osc_server(ip, osc_port):
-        osc_server.run_server(ip, osc_port)  
+def main(args):
+    def run_osc_server(osc_ip, osc_port_listen, osc_port_forward):
+        osc_server.run_server(osc_ip, osc_port_listen, osc_port_forward)  
 
-    def start_server_once(osc_port):
+    def start_server_once(osc_ip, osc_port_listen, osc_port_forward):
         global server_started
         if not server_started:
             thread = threading.Thread(
                 target=run_osc_server,
-                args=("127.0.0.1", osc_port),
+                args=(osc_ip, osc_port_listen, osc_port_forward),
                 daemon=True
             )
             thread.start()
             print("Server started")
             server_started = True
 
-    start_server_once(osc_port)
+    start_server_once(args.ip, args.port_listen, args.port_forward)
 
 
     def fetch_last_complete_frame_from_server(osc_keys, last_processed_counter):
@@ -198,6 +198,8 @@ def main(osc_port):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=9000, help="The port to listen on")
+    parser.add_argument("--ip", type=str, default="127.0.0.1", help="IP address for OSC messages")
+    parser.add_argument("--port_listen", type=int, default=9001, help="The port to listen on")
+    parser.add_argument("--port_forward", type=int, help="The port to forward the data", required=False)
     args = parser.parse_args()
-    main(args.port)
+    main(args)

@@ -1,7 +1,7 @@
 import threading
 
 from pythonosc.dispatcher import Dispatcher
-from pythonosc import osc_server
+from pythonosc import osc_server, udp_client
 from collections import deque
 
 OSC_KEY_BASIS = "/avatar/parameters/BFI"
@@ -121,19 +121,26 @@ def _osc_message_data_handler(path, value):
     if path in OSC_PATHS_TO_KEY:
         write_to_osc_buffer(OSC_PATHS_TO_KEY[path], value)
 
+def _osc_message_forward_handler(path, args, value):
+    args[0].send_message(path, value)
 
-def run_server(ip, port):
+def run_server(osc_ip, osc_port_listen, osc_port_forward = None):
     dispatcher = Dispatcher()
     #dispatcher.map("/avatar/parameters/BFI/*", bfi_data_handler)
+    if osc_port_forward is not None:
+        client = udp_client.SimpleUDPClient(osc_ip, osc_port_forward)
+        dispatcher.map( "/*", _osc_message_forward_handler, client)
+        print(f"Forwarding consumed messages to {osc_ip}:{osc_port_forward}")
     dispatcher.map( ELAPSED_TIME_PATH, _osc_elapsed_time_handler)
     dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)
 
     server = osc_server.BlockingOSCUDPServer(
-        (ip, port), dispatcher)
+        (osc_ip, osc_port_listen), dispatcher)
     print("Serving on {}".format(server.server_address))
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("KeyboardInterrupt received, stopping server.")
+        print("KeyboardInterrupt received, stopping server(s).")
     finally:
         server.server_close()
+        client.server_close()
