@@ -7,7 +7,7 @@ from collections import deque
 import osc_server
 
 PLOT_WIDTH = 800
-DEQUEUE_SIZE = 1024
+DEQUEUE_SIZE = 1024*2
 EPS = 0.01
 
 #state         
