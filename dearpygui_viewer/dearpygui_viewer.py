@@ -22,7 +22,10 @@ def main(args):
     def run_osc_server(osc_ip, osc_port_listen, osc_port_forward):
         osc_server.run_server(osc_ip, osc_port_listen, osc_port_forward)  
 
-    def start_server_once(osc_ip, osc_port_listen, osc_port_forward):
+    def run_osc_forward(osc_ip, osc_port_listen, osc_port_forward):
+        osc_server.forward_messages(osc_ip, osc_port_listen, osc_port_forward)
+
+    def start_servers_once(osc_ip, osc_port_listen, osc_port_forward):
         global server_started
         if not server_started:
             thread = threading.Thread(
@@ -32,9 +35,19 @@ def main(args):
             )
             thread.start()
             print("Server started")
+
+            if osc_port_forward is not None:
+                thread_forward = threading.Thread(
+                    target=run_osc_forward,
+                    args=(osc_ip, osc_port_listen, osc_port_forward),
+                    daemon=True
+                )
+                thread_forward.start()
+                print("Forwarding started")
+
             server_started = True
 
-    start_server_once(args.ip, args.port_listen, args.port_forward)
+    start_servers_once(args.ip, args.port_listen, args.port_forward)
 
 
     def fetch_set_label_data_and_timestep_for_keys(osc_keys):
@@ -56,9 +69,6 @@ def main(args):
 
         return osc_powerband_avg_labels
 
-
-    def save_callback():
-        print("Save Clicked")
 
     dpg.create_context()
     dpg.create_viewport( title="Dearpygui Viewer")
@@ -154,13 +164,8 @@ def main(args):
                                     dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
                                     
 
-
-
                     for plot_subset_idx, (key, value) in enumerate(unique_range_to_sublabels.items()):
                         _update_subplots(plot_subset_idx, value)
-
-
-                tag_plot_first = f"_bmi_plot_{0}"
 
                 for plot_subset_idx, (key, value) in enumerate(unique_range_to_sublabels.items()):
                     setup_plot_with_limits_and_message_subset(plot_subset_idx, key, value)
