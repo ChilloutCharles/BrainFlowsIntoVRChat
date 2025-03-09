@@ -12,9 +12,10 @@ EPS = 0.01
 
 #state         
 server_started = False
+time_viewer_started = time.time()
 
 t_digital_plot = 0
-last_processed_counter = 0
+t_count_plots = 0
 
 # --------------------------------------------
 def main(args):
@@ -36,50 +37,24 @@ def main(args):
     start_server_once(args.ip, args.port_listen, args.port_forward)
 
 
-    def fetch_last_complete_frame_from_server(osc_keys, last_processed_counter):
+    def fetch_set_label_data_and_timestep_for_keys(osc_keys):
 
-        osc_and_counter_data = [ osc_server.read_last_from_osc_buffer(key) for key in osc_keys]
-        _, delta_time_counter = osc_server.read_from_osc_buffer_elapsedTime()
+        osc_data_per_key = [ osc_server.read_last_from_osc_buffer(key) for key in osc_keys]
 
-        buffer_counters = [ osc_and_counter_data[i][1] for i in range(len(osc_and_counter_data))]
-        buffer_data = [ osc_and_counter_data[i][0] for i in range(len(osc_and_counter_data))]
+        next_data = {}
 
-        complete_counter_data = min(buffer_counters)
-        complete_frame_counter = min(complete_counter_data, delta_time_counter)
+        if len(osc_data_per_key) > 0:
+            for idx_label, label in enumerate(osc_keys):
+                data, time = osc_data_per_key[idx_label]
+                next_data[label] = (data, time)
 
-        relative_counters = [ -(complete_frame_counter - buffer_counters[i]) for i in range(len(buffer_counters))]
-
-        for relative_counter in relative_counters:
-            assert relative_counter >= 0 and relative_counter < len(buffer_data[0]), f"Relative counter {relative_counter} is out of bounds by {complete_frame_counter}"
-                
-        index_delta = complete_frame_counter - last_processed_counter
-
-        next_data = []
-
-        if index_delta > 0 and len(osc_and_counter_data) > 0:
-
-            for idx_label in range(len(osc_keys)):
-                data_per_key = buffer_data[idx_label][relative_counters[idx_label]]
-                next_data.append( data_per_key)
-
-
-        return next_data, complete_frame_counter
+        return next_data
 
     def get_labels_from_osc():
 
         osc_powerband_avg_labels = [ key for key in osc_server.OSC_PATHS_TO_KEY.values()]
 
         return osc_powerband_avg_labels
-
-
-    def osc_labels_data_and_deltaTime():
-        global last_processed_counter
-        labels = get_labels_from_osc()
-
-        dataArrayOfPerKeyValues, complete_frame_counter = fetch_last_complete_frame_from_server(labels, last_processed_counter)
-        last_processed_counter = complete_frame_counter
-
-        return labels, dataArrayOfPerKeyValues
 
 
     def save_callback():
@@ -106,7 +81,8 @@ def main(args):
             
 
             time.sleep(1)
-            osc_labels, osc_frame_dict = osc_labels_data_and_deltaTime()      
+            osc_labels = get_labels_from_osc()
+            osc_data_dict = fetch_set_label_data_and_timestep_for_keys(osc_labels)      
 
             plot_show = { osc_label : True for osc_label in osc_labels}
             data_digital = { osc_label : deque(maxlen=DEQUEUE_SIZE) for osc_label in osc_labels}
@@ -152,36 +128,37 @@ def main(args):
                     dpg.add_separator()
 
                 def _update_plot():
-                    global t_digital_plot
-                    t_digital_plot += dpg.get_delta_time()
-                    osc_new_labels, osc_new_data = osc_labels_data_and_deltaTime()
+                    global t_count_plots
+                    t_count_plots += 1
+                    t_digital_plot = time.time() - time_viewer_started
+                    osc_new_data_dict = fetch_set_label_data_and_timestep_for_keys(osc_labels) 
+
+                    if len(osc_new_data_dict) <= 0:
+                            return
 
                     def _update_subplots(index, key_subset: list[str]):
                         tag_x_axis = f"_bmi_plot_x_time_{index}"
+                        
                         dpg.set_axis_limits(tag_x_axis, t_digital_plot - 5, t_digital_plot)
 
-                        if len(osc_new_data) <= 0:
-                            return
+                        sub_new_labels = [ label for label in key_subset if label in osc_new_data_dict.keys()]
 
-                        sub_new_labels = [ label for label in key_subset if label in osc_new_labels]
-                        #ToDo Fix
-                        x = [osc_new_labels.index(label) for label in sub_new_labels]
-                        sub_new_data = [ osc_new_data[idx] for idx in x]
-
-                        assert len(sub_new_labels) == len(sub_new_data)
-
-                        if len(osc_new_labels) > 0:
+                        if len(sub_new_labels) > 0:
                             for idx, sub_label in enumerate(sub_new_labels):
                                 assert sub_label in data_digital.keys()
                                 if plot_show[sub_label] :
-                                    x = t_digital_plot
-                                    y = sub_new_data[idx]
-                                    data_digital[sub_label].append([x,y])
+                                    #time relative to t_digital_plor
+                                    x_relate = osc_new_data_dict[sub_label][1] - time_viewer_started
+                                    y = osc_new_data_dict[sub_label][0]
+                                    data_digital[sub_label].append([x_relate,y])
                                     dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
+                                    
+
 
 
                     for plot_subset_idx, (key, value) in enumerate(unique_range_to_sublabels.items()):
                         _update_subplots(plot_subset_idx, value)
+
 
                 tag_plot_first = f"_bmi_plot_{0}"
 
