@@ -1,8 +1,9 @@
 import threading
 
 from pythonosc.dispatcher import Dispatcher
-from pythonosc import osc_server
+from pythonosc import osc_server, udp_client
 from collections import deque
+import time
 
 OSC_KEY_BASIS = "/avatar/parameters/BFI"
 MAX_STORED_TIMESTEPS = 200
@@ -68,72 +69,51 @@ OSC_LIMITS = {
 class ProtectedOSCBuffer:
     def __init__(self, max_len = 50):
         self.lock = threading.Lock()
-        self.countingDataPoints = 0
         self.deque = deque(maxlen=max_len)
 
 osc_buffers = { key : ProtectedOSCBuffer(MAX_STORED_TIMESTEPS) for path, key in OSC_PATHS_TO_KEY.items() }
 
 for osc_buffer in osc_buffers.values():
-    osc_buffer.deque.append([0.0] * len(osc_buffers))
+    osc_buffer.deque.append((0.0,0.0)) # vuffer shaped (value, time)
 
 osc_elapsed_time_buffer = ProtectedOSCBuffer(MAX_STORED_TIMESTEPS)
 osc_elapsed_time_buffer.deque.append(0.0)
 
 def write_to_osc_buffer(path, value):
     osc_buffers[path].lock.acquire()
-    osc_buffers[path].deque.append(value)
-    osc_buffers[path].countingDataPoints += 1
+    osc_buffers[path].deque.append( (value, time.time()))
     osc_buffers[path].lock.release()
-
-def _write_to_osc_elapsed_time_buffer(deltatime):
-    osc_elapsed_time_buffer.lock.acquire()
-    x = osc_elapsed_time_buffer.deque[-1] if len(osc_elapsed_time_buffer.deque) > 0 else 0
-    osc_elapsed_time_buffer.deque.append (x + deltatime)
-    osc_elapsed_time_buffer.countingDataPoints += 1
-    osc_elapsed_time_buffer.lock.release()
-
-def read_from_osc_buffer(path):
-    osc_buffers[path].lock.acquire()
-    # reversed makes sure that the latest data is at the end of the list
-    data = list(osc_buffers[path].deque)[::-1] # reverse the list
-    idxCount = osc_buffers[path].countingDataPoints
-    osc_buffers[path].lock.release()
-    return data, idxCount
 
 def read_last_from_osc_buffer(path):
     osc_buffers[path].lock.acquire()
-    data = list(osc_buffers[path].deque)[::-1]
-    idxCount = osc_buffers[path].countingDataPoints
+    # reversed makes sure that the latest data is at the end of the list
+    data = list(osc_buffers[path].deque)[-1] # reverse the list
     osc_buffers[path].lock.release()
-    return data, idxCount
-
-def read_from_osc_buffer_elapsedTime():
-    osc_elapsed_time_buffer.lock.acquire()
-    data = list(osc_elapsed_time_buffer.deque)[-1] # reverse the list
-    idxCount = osc_elapsed_time_buffer.countingDataPoints
-    osc_elapsed_time_buffer.lock.release()
-    return data, idxCount
-
-def _osc_elapsed_time_handler(path, value):
-    _write_to_osc_elapsed_time_buffer(value)
+    return data
 
 def _osc_message_data_handler(path, value):
     if path in OSC_PATHS_TO_KEY:
         write_to_osc_buffer(OSC_PATHS_TO_KEY[path], value)
 
+def _osc_message_forward_handler(path, args, value):
+    args[0].send_message(path, value)
 
-def run_server(ip, port):
+def run_server(osc_ip, osc_port_listen, osc_port_forward = None):
     dispatcher = Dispatcher()
     #dispatcher.map("/avatar/parameters/BFI/*", bfi_data_handler)
-    dispatcher.map( ELAPSED_TIME_PATH, _osc_elapsed_time_handler)
+    if osc_port_forward is not None:
+        client = udp_client.SimpleUDPClient(osc_ip, osc_port_forward)
+        dispatcher.map( "/*", _osc_message_forward_handler, client)
+        print(f"Forwarding consumed messages to {osc_ip}:{osc_port_forward}")
     dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)
 
     server = osc_server.BlockingOSCUDPServer(
-        (ip, port), dispatcher)
+        (osc_ip, osc_port_listen), dispatcher)
     print("Serving on {}".format(server.server_address))
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("KeyboardInterrupt received, stopping server.")
+        print("KeyboardInterrupt received, stopping server(s).")
     finally:
         server.server_close()
+        client.server_close()

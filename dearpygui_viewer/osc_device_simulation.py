@@ -26,7 +26,6 @@ def run_client(port):
 
             elapsedTime = time.time() - startTime
             client.send_message(ELAPSED_TIME_PATH, elapsedTime)
-            print(f"Elapsed time send: {elapsedTime}")
             time.sleep(SLEEP_TIME)
     except KeyboardInterrupt:
         print("Shutting down testing client...")
