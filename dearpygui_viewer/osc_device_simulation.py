@@ -4,7 +4,7 @@ import argparse
 
 import time
 
-SLEEP_TIME = 0.1 #seconds
+SLEEP_TIME = 0.08 #seconds
 
 startTime = time.time()
 

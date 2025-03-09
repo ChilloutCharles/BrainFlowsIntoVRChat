@@ -3,6 +3,7 @@ import threading
 from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server, udp_client
 from collections import deque
+import queue
 import time
 
 OSC_KEY_BASIS = "/avatar/parameters/BFI"
@@ -72,6 +73,7 @@ class ProtectedOSCBuffer:
         self.deque = deque(maxlen=max_len)
 
 osc_buffers = { key : ProtectedOSCBuffer(MAX_STORED_TIMESTEPS) for path, key in OSC_PATHS_TO_KEY.items() }
+forward_queue = queue.Queue()
 
 for osc_buffer in osc_buffers.values():
     osc_buffer.deque.append((0.0,0.0)) # vuffer shaped (value, time)
@@ -95,16 +97,28 @@ def _osc_message_data_handler(path, value):
     if path in OSC_PATHS_TO_KEY:
         write_to_osc_buffer(OSC_PATHS_TO_KEY[path], value)
 
-def _osc_message_forward_handler(path, args, value):
-    args[0].send_message(path, value)
+def _osc_message_forward_handler(path, value):
+    forward_queue.put( (path, value))
+
+osc_forward_deque = deque(maxlen=MAX_STORED_TIMESTEPS)
+
+def forward_messages(osc_ip, osc_port_listen, osc_port_forward):
+    client = udp_client.SimpleUDPClient(osc_ip, osc_port_forward)
+    try:
+        while True:
+            address, args = forward_queue.get()
+            client.send_message(address, args)
+            forward_queue.task_done()
+    except queue.Empty:
+        time.sleep(0.001)
+    except KeyboardInterrupt:
+            print("Shutting down forwarder...")
+
 
 def run_server(osc_ip, osc_port_listen, osc_port_forward = None):
     dispatcher = Dispatcher()
-    #dispatcher.map("/avatar/parameters/BFI/*", bfi_data_handler)
     if osc_port_forward is not None:
-        client = udp_client.SimpleUDPClient(osc_ip, osc_port_forward)
-        dispatcher.map( "/*", _osc_message_forward_handler, client)
-        print(f"Forwarding consumed messages to {osc_ip}:{osc_port_forward}")
+        dispatcher.map( "/avatar/parameters/BFI/*", _osc_message_forward_handler)
     dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)
 
     server = osc_server.BlockingOSCUDPServer(
@@ -116,4 +130,3 @@ def run_server(osc_ip, osc_port_listen, osc_port_forward = None):
         print("KeyboardInterrupt received, stopping server(s).")
     finally:
         server.server_close()
-        client.server_close()
