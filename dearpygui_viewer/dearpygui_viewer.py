@@ -181,7 +181,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ip", type=str, default="127.0.0.1", help="IP address for OSC messages")
-    parser.add_argument("--port_listen", type=int, default=9001, help="The port to listen on")
+    parser.add_argument("--port_listen", type=int, default=9000, help="The port to listen on")
     parser.add_argument("--port_forward", type=int, help="The port to forward the data", required=False)
     args = parser.parse_args()
     main(args)
