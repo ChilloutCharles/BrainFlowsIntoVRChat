@@ -8,6 +8,8 @@ import joblib
 from multiprocess import Pool
 from sklearn.preprocessing import StandardScaler as Scaler
 
+from constants import LOW_CUT, HIGH_CUT
+
 if __name__ == '__main__':
     start_time = time.time()
 
@@ -30,7 +32,7 @@ if __name__ == '__main__':
             # preprocessing
             raw.notch_filter(freqs=50)
             raw.notch_filter(freqs=60)
-            raw.filter(l_freq=.5, h_freq=40)
+            raw.filter(l_freq=LOW_CUT, h_freq=HIGH_CUT)
             
             events, event_id = mne.events_from_annotations(raw)
             if len(event_id) != 3:

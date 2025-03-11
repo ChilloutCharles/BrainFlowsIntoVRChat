@@ -6,6 +6,11 @@ import threading
 from scipy import signal
 from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
 
+try:
+    from .constants import LOW_CUT, HIGH_CUT
+except ImportError:
+    from constants import LOW_CUT, HIGH_CUT
+
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
@@ -15,14 +20,14 @@ def preprocess_data(session_data, sampling_rate):
     for eeg_chan in range(len(session_data)):
         # remove line noise
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-        # bandpass to alpha, beta, gamma, 80 for resample effect mitigation
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, 0.5, 40, 1, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
+        # bandpass to LOW_CUT, HIGH_CUT
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, LOW_CUT, HIGH_CUT, 1, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
     return session_data
 
 def extract_features(preprocessed_data):
     # resample to expected 160hz sampling rate
     features = signal.resample(preprocessed_data, 160, axis=-1)
-    # do multi resolution analysis and discard approx coeffs
+    # do multi resolution analysis
     features = np.array(pywt.mra(features, 'db4', level=2, transform='dwt'))
     # transpose to correct axis order
     features = features.transpose((2, 1, 0))

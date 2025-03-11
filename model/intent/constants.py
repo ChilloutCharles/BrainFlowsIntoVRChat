@@ -1,0 +1,2 @@
+LOW_CUT = 0.5
+HIGH_CUT = 40.0
