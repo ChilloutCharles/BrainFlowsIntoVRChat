@@ -32,7 +32,7 @@ if __name__ == '__main__':
             # preprocessing
             raw.notch_filter(freqs=50)
             raw.notch_filter(freqs=60)
-            raw.filter(l_freq=LOW_CUT, h_freq=HIGH_CUT)
+            raw.filter(l_freq=LOW_CUT, h_freq=HIGH_CUT, method='iir') # using iir to match brainflow filter
             
             events, event_id = mne.events_from_annotations(raw)
             if len(event_id) != 3:
