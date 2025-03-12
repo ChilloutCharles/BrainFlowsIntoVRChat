@@ -71,7 +71,7 @@ def main(args):
 
 
     dpg.create_context()
-    dpg.create_viewport( title="Dearpygui Viewer")
+    dpg.create_viewport( title="Dynamic BFiVRC Plot")
     dpg.setup_dearpygui()
 
     def unique_range_to_sublabels(osc_labels):
@@ -85,9 +85,9 @@ def main(args):
         return dict_unique_range_to_labels
 
     window_tag = "window_tag"
-    with dpg.window(label="Example dynamic plot", autosize=True, tag=window_tag):
+    with dpg.window(label="Dynamic BFiVRC Plot", autosize=True, tag=window_tag):
         
-        with dpg.tree_node(label="Digital Plots", tag="Digital Plots", default_open=True):
+        with dpg.tree_node(label="Live Plot", tag="Digital Plots", default_open=True):
             
 
             time.sleep(1)
@@ -181,7 +181,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ip", type=str, default="127.0.0.1", help="IP address for OSC messages")
-    parser.add_argument("--port_listen", type=int, default=9000, help="The port to listen on")
-    parser.add_argument("--port_forward", type=int, help="The port to forward the data", required=False)
+    parser.add_argument("--port_listen", type=int, default=9010, help="The port to listen on")
+    parser.add_argument("--port_forward", type=int, default=9000, help="The port to forward the data", required=False)
     args = parser.parse_args()
     main(args)
