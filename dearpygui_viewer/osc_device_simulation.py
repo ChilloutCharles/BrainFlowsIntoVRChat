@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     ## Parse argument port
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=9000, help="The port to listen on")
+    parser.add_argument("--port", type=int, default=9010, help="The port to listen on")
     args = parser.parse_args()
 
     run_client(port=args.port)  
