@@ -30,11 +30,7 @@ For more information visit [DearPyGui](https://github.com/hoffstadt/DearPyGui)
 ## Testing
 To test the viewer without BFI device, you can run osc_device_simulation.py
 
-## Additional Installation
-On top of the requrements.txt in BFiVRC the module dearpygui needs to be installed
-```
-pip install dearpygui
-```
+
 ## Further Work
 - The color of the message toggles' text in the viewer should match the graph color 
 - Implement a pipeline to extract the osc_messages data, such as paths and limits from the main project
