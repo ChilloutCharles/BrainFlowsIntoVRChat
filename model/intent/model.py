@@ -3,7 +3,7 @@ import numpy as np
 import keras
 
 from keras.models import Sequential, Model, clone_model
-from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D
+from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D, MaxPooling2D
 from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
 from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
@@ -439,13 +439,21 @@ class ShuffleLayer(Layer):
     def build(self, input_shape):
         super(ShuffleLayer, self).build(input_shape)
 
-def create_classifier(feature_extractor, classes):
+def create_classifier(feature_extractor, classes, input_shape):
     [
         patcher,
         project,
         _,
         encoder
     ] = feature_extractor.layers
+
+    # create a pooling layer to map input channels to what the patcher can handle
+    chans = input_shape[1]
+    pool_size = (1, 1)
+    if chans % 4 != 0:
+        new_chans = (chans // 4) * 4
+        pool_size = (1, max(2, chans - new_chans))
+    patch_matcher = MaxPooling2D(pool_size=pool_size)
     
     # freeze patcher and projection layers
     patcher.trainable = False
@@ -477,6 +485,7 @@ def create_classifier(feature_extractor, classes):
     ], name='GlobalSelfAttentionPooling1D')
 
     return Sequential([
+        patch_matcher,
         patcher,
         project,
         patch_position,

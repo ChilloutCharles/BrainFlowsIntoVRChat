@@ -8,6 +8,8 @@ import joblib
 from multiprocess import Pool
 from sklearn.preprocessing import StandardScaler as Scaler
 
+from constants import LOW_CUT, HIGH_CUT
+
 if __name__ == '__main__':
     start_time = time.time()
 
@@ -30,7 +32,7 @@ if __name__ == '__main__':
             # preprocessing
             raw.notch_filter(freqs=50)
             raw.notch_filter(freqs=60)
-            raw.filter(l_freq=8, h_freq=None)
+            raw.filter(l_freq=LOW_CUT, h_freq=HIGH_CUT, method='iir') # using iir to match brainflow filter
             
             events, event_id = mne.events_from_annotations(raw)
             if len(event_id) != 3:
@@ -78,12 +80,12 @@ if __name__ == '__main__':
     # multi-resolution analysis
     print('MRA...', data.shape)
     with Pool(16) as p:
-        level = 3
-        d_shape = (data.shape[0], level, *data.shape[1:])
+        level = 2
+        d_shape = (data.shape[0], level + 1, *data.shape[1:])
         d = np.memmap('large_arr.tmp', dtype='float32', mode='w+', shape=d_shape)
 
         def create_mra_func(level):
-            return lambda row: np.array(pywt.mra(row, 'db4', level, transform='dwt'))[1:]
+            return lambda row: np.array(pywt.mra(row, 'db4', level, transform='dwt'))
         generator = p.imap_unordered(create_mra_func(level), data)
         
         for i, result in enumerate(generator):
