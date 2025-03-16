@@ -39,6 +39,34 @@ OSC_PATHS_TO_KEY = {
     "/avatar/parameters/BFI/Biometrics/OxygenPercent": "OxygenPercent"
 }
 
+class OSC_ML_ACTIONS_DATA:
+
+    def __init__(self, num_actions):
+        self.num_actions = num_actions
+        self.osc_key_actions_dict = self._make_osc_key_actions_dict(num_actions)
+        self._make_buffers()
+        
+    def _make_buffers(self):
+        self.osc_buffers = { key : ProtectedOSCBuffer(MAX_STORED_TIMESTEPS) for path, key in OSC_PATHS_TO_KEY.items() }
+
+        for osc_buffer in self.osc_buffers.values():
+            osc_buffer.deque.append((0.0,0.0))
+
+    def _make_osc_key_actions_dict(self, num_actions):
+        pattern = "/avatar/parameters/BFI/Action"
+        return { pattern + str(i) : "Action{}".format(i) for i in range(num_actions)}
+
+    def read_from_osc_ml_action_buffer(self, path):
+        self.osc_buffers[path].lock.acquire()
+        data = list(self.osc_buffers[path].deque)[-1]
+        self.osc_buffers[path].lock.release()
+        return data
+
+    def write_to_osc_ml_action_buffer(self, path, value):
+        self.osc_buffers[path].lock.acquire()
+        self.osc_buffers[path].deque.append((value, time.time()))
+        self.osc_buffers[path].lock.release()
+
 
 OSC_LIMITS = {
     "NeuroFB_FocusLeft": (-1.0, 1.0),
@@ -66,6 +94,8 @@ OSC_LIMITS = {
     "Biometrics_BreathsPerMinute": (0.0, 255.0),
     "OxygenPercent": (0.0, 100.0)   
 }
+
+OSC_ACTION_LIMIT = (0.0, 1.0)
 
 class ProtectedOSCBuffer:
     def __init__(self, max_len = 50):
@@ -115,11 +145,12 @@ def forward_messages(osc_ip, osc_port_listen, osc_port_forward):
             print("Shutting down forwarder...")
 
 
-def run_server(osc_ip, osc_port_listen, osc_port_forward = None):
+def run_server(osc_ip, osc_port_listen, osc_port_forward = None, ml_actions_num = 0):
     dispatcher = Dispatcher()
     if osc_port_forward is not None:
         dispatcher.map( "/avatar/parameters/BFI/*", _osc_message_forward_handler)
-    dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)
+    dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)    
+        
 
     server = osc_server.BlockingOSCUDPServer(
         (osc_ip, osc_port_listen), dispatcher)

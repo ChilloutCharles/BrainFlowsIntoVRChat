@@ -74,7 +74,8 @@ def main(args):
     dpg.create_viewport( title="Dynamic BFiVRC Plot")
     dpg.setup_dearpygui()
 
-    def unique_range_to_sublabels(osc_labels):
+    #todo get sublabelset from osc_server.py
+    def graph_sublabels(osc_labels):
         # osc_server.OSC_LIMITS[ key] is a tuple
         osc_unique_limits = set([ osc_server.OSC_LIMITS[key] for key in osc_labels])
         dict_unique_range_to_labels = { limit : [] for limit in osc_unique_limits}
@@ -97,7 +98,7 @@ def main(args):
             plot_show = { osc_label : True for osc_label in osc_labels}
             data_digital = { osc_label : deque(maxlen=DEQUEUE_SIZE) for osc_label in osc_labels}
 
-            unique_range_to_sublabels = unique_range_to_sublabels(osc_labels)
+            graph_sublabels = graph_sublabels(osc_labels)
 
             def change_val_in_dict(sender, key, val):
                 plot_show[key] = val
@@ -164,10 +165,10 @@ def main(args):
                                     dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
                                     
 
-                    for plot_subset_idx, (key, value) in enumerate(unique_range_to_sublabels.items()):
+                    for plot_subset_idx, (key, value) in enumerate(graph_sublabels.items()):
                         _update_subplots(plot_subset_idx, value)
 
-                for plot_subset_idx, (key, value) in enumerate(unique_range_to_sublabels.items()):
+                for plot_subset_idx, (key, value) in enumerate(graph_sublabels.items()):
                     setup_plot_with_limits_and_message_subset(plot_subset_idx, key, value)
 
                 with dpg.item_handler_registry(tag="handler_tag_ref"):
