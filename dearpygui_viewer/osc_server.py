@@ -48,9 +48,11 @@ class MLActionBuffer:
         self.num_actions = 0
         if num_actions <= 0:
             raise ValueError("num_actions must be a non-negative integer.")
-        else:
-            self.num_actions = num_actions
-            self._make_buffers(num_actions - 1) 
+        if num_actions > 16: 
+            num_actions = 16
+            print("viewer does not support more than 16 actions, reducing to 16...")
+        self.num_actions = num_actions
+        self._make_buffers(num_actions - 1) 
         
     def _make_buffers(self, num_actions):
 
