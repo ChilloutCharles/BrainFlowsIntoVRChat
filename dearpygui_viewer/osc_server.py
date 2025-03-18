@@ -39,33 +39,38 @@ OSC_PATHS_TO_KEY = {
     "/avatar/parameters/BFI/Biometrics/OxygenPercent": "OxygenPercent"
 }
 
-class OSC_ML_ACTIONS_DATA:
+
+class MLActionBuffer:
 
     def __init__(self, num_actions):
-        self.num_actions = num_actions
-        self.osc_key_actions_dict = self._make_osc_key_actions_dict(num_actions)
-        self._make_buffers()
+        self.action_buffers = {}
+        self._key_actions_dict = {}
+        self.num_actions = 0
+        if num_actions <= 0:
+            raise ValueError("num_actions must be a non-negative integer.")
+        else:
+            self.num_actions = num_actions
+            self._make_buffers(num_actions - 1) 
         
-    def _make_buffers(self):
-        self.osc_buffers = { key : ProtectedOSCBuffer(MAX_STORED_TIMESTEPS) for path, key in OSC_PATHS_TO_KEY.items() }
+    def _make_buffers(self, num_actions):
 
-        for osc_buffer in self.osc_buffers.values():
-            osc_buffer.deque.append((0.0,0.0))
-
-    def _make_osc_key_actions_dict(self, num_actions):
         pattern = "/avatar/parameters/BFI/Action"
-        return { pattern + str(i) : "Action{}".format(i) for i in range(num_actions)}
+        self._key_actions_dict = { pattern + str(i) : "Action" + str(i) for i in range(num_actions + 1)}
+
+        for key in self._key_actions_dict.values():
+            self.action_buffers[key] = ProtectedOSCBuffer(MAX_STORED_TIMESTEPS)
+            self.action_buffers[key].deque.append((0.0, 0.0))
 
     def read_from_osc_ml_action_buffer(self, path):
-        self.osc_buffers[path].lock.acquire()
-        data = list(self.osc_buffers[path].deque)[-1]
-        self.osc_buffers[path].lock.release()
+        self.action_buffers[path].lock.acquire()
+        data = list(self.action_buffers[path].deque)[-1]
+        self.action_buffers[path].lock.release()
         return data
 
     def write_to_osc_ml_action_buffer(self, path, value):
-        self.osc_buffers[path].lock.acquire()
-        self.osc_buffers[path].deque.append((value, time.time()))
-        self.osc_buffers[path].lock.release()
+        self.action_buffers[path].lock.acquire()
+        self.action_buffers[path].deque.append((value, time.time()))
+        self.action_buffers[path].lock.release()
 
 
 OSC_LIMITS = {
