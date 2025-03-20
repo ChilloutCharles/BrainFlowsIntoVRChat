@@ -5,6 +5,7 @@ import argparse
 from collections import deque
 
 import osc_server
+from ml_actions_buffer import MLActionsBuffer
 
 PLOT_WIDTH = 800
 DEQUEUE_SIZE = 1024*2
@@ -55,7 +56,7 @@ def main(args):
     start_servers_once(args.ip, args.port_listen, args.port_forward, ml_action_buffer)
 
 
-    def fetch_set_label_data_and_timestep_for_keys(osc_keys):
+    def fetch_set_label_data_and_timestep_for_keys(osc_keys, ml_action_buffer=None):
 
         osc_data_per_key = [ osc_server.read_last_from_osc_buffer(key) for key in osc_keys]
 
@@ -66,44 +67,54 @@ def main(args):
                 data, time = osc_data_per_key[idx_label]
                 next_data[label] = (data, time)
 
+        if ml_action_buffer is not None:
+            for key in ml_action_buffer._key_actions_dict.keys():
+                data, time = ml_action_buffer.read_from_osc_ml_action_buffer(key)
+                next_data[key] = (data, time)
+
+
         return next_data
 
     def get_labels_from_osc():
 
-        osc_powerband_avg_labels = [ key for key in osc_server.OSC_PATHS_TO_KEY.values()]
+        osc_powerband_avg_labels = [ key for key in osc_server.BMI_PATHS_TO_KEY.values()]
 
         return osc_powerband_avg_labels
 
+    def make_dict_subgraphkey_to_limit_and_label(osc_labels):
+        # osc_server.OSC_LIMITS[ key] is a tuple
+        graph_id_to_limits = osc_server.GRAPH_ID_TO_LIMITS
+        dict_range_to_labels = { subid : (limit,[]) for subid, limit in graph_id_to_limits.items()}
+        for label in osc_labels:
+            graph_id = osc_server.BMI_KEY_TO_GRAPH_ID[label]
+            dict_range_to_labels[graph_id] = (dict_range_to_labels[graph_id][0], dict_range_to_labels[graph_id][1] + [label])
+        
+        return dict_range_to_labels
+
+    def make_dict_action_subgraph(ml_action_buffer):
+        if ml_action_buffer is None:
+            return {}
+        return { "Actions" : ( ml_action_buffer.get_action_limits(), list(ml_action_buffer._key_actions_dict.values())) }
+
 
     dpg.create_context()
-    dpg.create_viewport( title="Dynamic BFiVRC Plot")
+    dpg.create_viewport(title="Dynamic BFiVRC Plot")
     dpg.setup_dearpygui()
-
-    #todo get sublabelset from osc_server.py
-    def graph_sublabels(osc_labels):
-        # osc_server.OSC_LIMITS[ key] is a tuple
-        osc_unique_limits = set([ osc_server.OSC_LIMITS[key] for key in osc_labels])
-        dict_unique_range_to_labels = { limit : [] for limit in osc_unique_limits}
-        for key in osc_labels:
-            osc_limits = osc_server.OSC_LIMITS[key]
-            dict_unique_range_to_labels[osc_limits].append(key)
-        
-        return dict_unique_range_to_labels
 
     window_tag = "window_tag"
     with dpg.window(label="Dynamic BFiVRC Plot", autosize=True, tag=window_tag):
         
         with dpg.tree_node(label="Live Plot", tag="Digital Plots", default_open=True):
             
-
             time.sleep(1)
             osc_labels = get_labels_from_osc()
-            osc_data_dict = fetch_set_label_data_and_timestep_for_keys(osc_labels)      
+            action_labels = list(ml_action_buffer._key_actions_dict.values() if ml_action_buffer is not None else [])
 
-            plot_show = { osc_label : True for osc_label in osc_labels}
-            data_digital = { osc_label : deque(maxlen=DEQUEUE_SIZE) for osc_label in osc_labels}
+            plot_show = { osc_label : True for osc_label in osc_labels + action_labels}
+            data_digital = { osc_label : deque(maxlen=DEQUEUE_SIZE) for osc_label in osc_labels + action_labels}
 
-            graph_sublabels = graph_sublabels(osc_labels)
+            make_dict_subgraph_to_limit_and_label = make_dict_subgraphkey_to_limit_and_label(osc_labels)
+            make_dict_action_subgraph_to_limit_and_label = make_dict_action_subgraph(ml_action_buffer)
 
             def change_val_in_dict(sender, key, val):
                 plot_show[key] = val
@@ -170,11 +181,24 @@ def main(args):
                                     dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
                                     
 
-                    for plot_subset_idx, (key, value) in enumerate(graph_sublabels.items()):
-                        _update_subplots(plot_subset_idx, value)
+                    for plot_subset_idx, (key, value) in enumerate(make_dict_subgraph_to_limit_and_label.items()):
+                        (limit, key_subset) = value
+                        _update_subplots(plot_subset_idx, key_subset)
 
-                for plot_subset_idx, (key, value) in enumerate(graph_sublabels.items()):
-                    setup_plot_with_limits_and_message_subset(plot_subset_idx, key, value)
+                    for plot_subset_idx, (key, value) in enumerate(make_dict_action_subgraph_to_limit_and_label.items()):
+                        (limit, key_subset) = value
+                        _update_subplots(plot_subset_idx, key_subset)
+
+                plotIndex = 0
+                for plot_subset_idx, (key, value) in enumerate(make_dict_subgraph_to_limit_and_label.items()):
+                    (limit, key_subset) = value
+                    setup_plot_with_limits_and_message_subset(plot_subset_idx, limit, key_subset)
+                    plotIndex += 1
+
+                for plot_subset_idx, (key, value) in enumerate(make_dict_action_subgraph_to_limit_and_label.items()):
+                    (limit, key_subset) = value
+                    setup_plot_with_limits_and_message_subset(plotIndex, limit, key_subset)
+                    plotIndex += 1
 
                 with dpg.item_handler_registry(tag="handler_tag_ref"):
                     dpg.add_item_visible_handler(callback=_update_plot)
