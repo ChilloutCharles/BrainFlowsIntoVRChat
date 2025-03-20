@@ -7,14 +7,17 @@ viewer_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(viewer_path)
 
 # Now you can import your module
-import osc_server
+import ml_actions_buffer as ml_actions_buffer
 
 import unittest
 
 class TestMLActionBuffer(unittest.TestCase):
 
+    maxStoredTimesteps = 10
+
     def test_init_with_actions(self):
-        buffer = osc_server.MLActionBuffer(3)
+        buffer = ml_actions_buffer.MLActionsBuffer(3, self.maxStoredTimesteps)
+        self.assertEqual(buffer.max_stored_timesteps, self.maxStoredTimesteps)
         self.assertEqual(buffer.num_actions, 3)
         self.assertEqual(buffer._key_actions_dict, {"/avatar/parameters/BFI/Action0": "Action0",
                                                       "/avatar/parameters/BFI/Action1": "Action1",
@@ -23,18 +26,18 @@ class TestMLActionBuffer(unittest.TestCase):
 
     def test_init_empty_behaviour(self):
         with self.assertRaises(ValueError):
-            buffer = osc_server.MLActionBuffer(0)
+            buffer = ml_actions_buffer.MLActionsBuffer(0,  self.maxStoredTimesteps)
 
     def test_init_negative_num_actions(self):
         with self.assertRaises(ValueError):
-            osc_server.MLActionBuffer(-1)
+            ml_actions_buffer.MLActionsBuffer(-1,  self.maxStoredTimesteps)
     
     def test_init_non_integer_num_actions(self):
         with self.assertRaises(TypeError):
-            osc_server.MLActionBuffer(1.5)
+            ml_actions_buffer.MLActionsBuffer(1.5,  self.maxStoredTimesteps)
 
     def test_init_too_many_actions(self):
-        buffer = osc_server.MLActionBuffer(17)
+        buffer = ml_actions_buffer.MLActionsBuffer(17,  self.maxStoredTimesteps)
         self.assertEqual(buffer.num_actions, 16)
         self.assertEqual(buffer._key_actions_dict, {"/avatar/parameters/BFI/Action0": "Action0",
                                                       "/avatar/parameters/BFI/Action1": "Action1",
@@ -55,7 +58,7 @@ class TestMLActionBuffer(unittest.TestCase):
         self.assertEqual(len(buffer.action_buffers), 16)
     
     def test_functioning_read_and_write(self):
-        buffer = osc_server.MLActionBuffer(3)
+        buffer = ml_actions_buffer.MLActionsBuffer(3,  self.maxStoredTimesteps)
         print(buffer.action_buffers)
         self.assertEqual(buffer.read_from_osc_ml_action_buffer("Action0")[0], 0.0)
         self.assertEqual(buffer.read_from_osc_ml_action_buffer("Action1")[0], 0.0)
