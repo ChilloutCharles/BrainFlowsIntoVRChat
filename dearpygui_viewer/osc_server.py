@@ -2,6 +2,8 @@ import threading
 
 from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server, udp_client
+from ml_actions_buffer import MLActionsBuffer
+from protected_osc_buffer import ProtectedOSCBuffer
 from collections import deque
 import queue
 import time
@@ -131,11 +133,15 @@ def read_last_from_osc_buffer(path):
     return data
 
 def _osc_message_data_handler(path, value):
-    if path in OSC_PATHS_TO_KEY:
-        write_to_osc_buffer(OSC_PATHS_TO_KEY[path], value)
+    if path in BMI_PATHS_TO_KEY:
+        write_to_osc_buffer(BMI_PATHS_TO_KEY[path], value)
 
 def _osc_message_forward_handler(path, value):
     forward_queue.put( (path, value))
+
+def _osc_message_action_handler(path, ml_actions_buffer, value):
+    assert isinstance(ml_actions_buffer, MLActionsBuffer)
+    ml_actions_buffer.write_to_osc_ml_action_buffer(path, value)
 
 osc_forward_deque = deque(maxlen=MAX_STORED_TIMESTEPS)
 
@@ -152,12 +158,14 @@ def forward_messages(osc_ip, osc_port_listen, osc_port_forward):
             print("Shutting down forwarder...")
 
 
-def run_server(osc_ip, osc_port_listen, osc_port_forward = None, ml_actions_num = 0):
+def run_buffer_server(osc_ip, osc_port_listen, osc_port_forward = None, ml_actions_buffer = None):
     dispatcher = Dispatcher()
     if osc_port_forward is not None:
         dispatcher.map( "/avatar/parameters/BFI/*", _osc_message_forward_handler)
-    dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)    
-        
+    dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)
+
+    if ml_actions_buffer is not None:
+        dispatcher.map("/avatar/parameters/BFI/Actions/*", ml_actions_buffer, _osc_message_action_handler)    
 
     server = osc_server.BlockingOSCUDPServer(
         (osc_ip, osc_port_listen), dispatcher)
