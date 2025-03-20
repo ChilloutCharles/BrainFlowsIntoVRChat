@@ -19,18 +19,23 @@ t_count_plots = 0
 
 # --------------------------------------------
 def main(args):
-    def run_osc_server(osc_ip, osc_port_listen, osc_port_forward):
-        osc_server.run_server(osc_ip, osc_port_listen, osc_port_forward)  
+
+    ml_action_buffer = None
+    if args.num_ml_actions > 0:
+        ml_action_buffer = MLActionsBuffer(args.num_ml_actions, osc_server.MAX_STORED_TIMESTEPS)
+
+    def run_osc_server(osc_ip, osc_port_listen, osc_port_forward, ml_action_buffer):
+        osc_server.run_buffer_server(osc_ip, osc_port_listen, osc_port_forward, ml_action_buffer)  
 
     def run_osc_forward(osc_ip, osc_port_listen, osc_port_forward):
         osc_server.forward_messages(osc_ip, osc_port_listen, osc_port_forward)
 
-    def start_servers_once(osc_ip, osc_port_listen, osc_port_forward):
+    def start_servers_once(osc_ip, osc_port_listen, osc_port_forward, ml_action_buffer=None):
         global server_started
         if not server_started:
             thread = threading.Thread(
                 target=run_osc_server,
-                args=(osc_ip, osc_port_listen, osc_port_forward),
+                args=(osc_ip, osc_port_listen, osc_port_forward, ml_action_buffer),
                 daemon=True
             )
             thread.start()
@@ -47,7 +52,7 @@ def main(args):
 
             server_started = True
 
-    start_servers_once(args.ip, args.port_listen, args.port_forward)
+    start_servers_once(args.ip, args.port_listen, args.port_forward, ml_action_buffer)
 
 
     def fetch_set_label_data_and_timestep_for_keys(osc_keys):
@@ -184,5 +189,6 @@ if __name__ == "__main__":
     parser.add_argument("--ip", type=str, default="127.0.0.1", help="IP address for OSC messages")
     parser.add_argument("--port_listen", type=int, default=9010, help="The port to listen on")
     parser.add_argument("--port_forward", type=int, default=9000, help="The port to forward the data", required=False)
+    parser.add_argument("--num_ml_actions", type=int, default=0, help="The number of actions to be displayed", required=False)
     args = parser.parse_args()
     main(args)
