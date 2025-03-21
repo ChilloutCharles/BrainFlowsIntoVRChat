@@ -19,7 +19,7 @@ class TestMLActionBuffer(unittest.TestCase):
         buffer = ml_actions_buffer.MLActionsBuffer(3, self.maxStoredTimesteps)
         self.assertEqual(buffer.max_stored_timesteps, self.maxStoredTimesteps)
         self.assertEqual(buffer.num_actions, 3)
-        self.assertEqual(buffer._key_actions_dict, {"/avatar/parameters/BFI/Action0": "Action0",
+        self.assertEqual(buffer._action_paths_to_key, {"/avatar/parameters/BFI/Action0": "Action0",
                                                       "/avatar/parameters/BFI/Action1": "Action1",
                                                       "/avatar/parameters/BFI/Action2": "Action2"})
         self.assertEqual(len(buffer.action_buffers), 3)
@@ -39,7 +39,7 @@ class TestMLActionBuffer(unittest.TestCase):
     def test_init_too_many_actions(self):
         buffer = ml_actions_buffer.MLActionsBuffer(17,  self.maxStoredTimesteps)
         self.assertEqual(buffer.num_actions, 16)
-        self.assertEqual(buffer._key_actions_dict, {"/avatar/parameters/BFI/Action0": "Action0",
+        self.assertEqual(buffer._action_paths_to_key, {"/avatar/parameters/BFI/Action0": "Action0",
                                                       "/avatar/parameters/BFI/Action1": "Action1",
                                                       "/avatar/parameters/BFI/Action2": "Action2",
                                                       "/avatar/parameters/BFI/Action3": "Action3",
