@@ -56,7 +56,7 @@ def main(args):
     start_servers_once(args.ip, args.port_listen, args.port_forward, ml_action_buffer)
 
 
-    def fetch_set_label_data_and_timestep_for_keys(osc_keys, ml_action_buffer=None):
+    def fetch_bmi_data_and_timestep_for_keys(osc_keys):
 
         osc_data_per_key = [ osc_server.read_last_from_osc_buffer(key) for key in osc_keys]
 
