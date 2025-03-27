@@ -125,10 +125,10 @@ def main(args):
             def change_val_in_dict(sender, key, val):
                 plot_show[key] = val
                 print(f"Changed {key} to {val}")
-
+               
             # ToDo initialize data_frames
             with dpg.group(horizontal=False):
-                
+                               
                 def setup_plot_with_limits_and_message_subset(osc_limit_index, osc_plot_limits, osc_subset_labels):
                     tag_plot = f"_bmi_plot_{osc_limit_index}"
                     tag_x_axis = f"_bmi_plot_x_time_{osc_limit_index}"
@@ -153,10 +153,17 @@ def main(args):
                                     def callback(sender, app_data):
                                         change_val_in_dict(sender, current_label, app_data)
                                     return callback
-                                
+
                                 dpg.add_checkbox(label=xlabel, 
                                                 callback=create_callback(xlabel), 
                                                 default_value=True)
+
+                                    
+
+                                if xlabel == 'Action':
+                                    dpg.add_text(" Selected Action is <>",
+                                    label="SelectedActionText", tag="SelectedActionText")
+                                   
 
                     dpg.add_separator()
 
@@ -174,11 +181,16 @@ def main(args):
                             for idx, sub_label in enumerate(key_subset):
                                 assert sub_label in data_digital.keys()
                                 if plot_show[sub_label] :
+
                                     #time relative to t_digital_plor
                                     x_relate = new_data_dict[sub_label][1] - time_viewer_started
                                     y = new_data_dict[sub_label][0]
                                     data_digital[sub_label].append([x_relate,y])
                                     dpg.set_value(sub_label,  [*zip(*data_digital[sub_label])])
+
+                                    if sub_label == 'Action': #todo refactor none check
+                                        value = y
+                                        dpg.set_value("SelectedActionText", "Selected Action is " + str(value))
                                     
                     for plot_subset_idx, (key, value) in enumerate(make_dict_subgraph_to_limit_and_label.items()):
                         (limit, key_subset) = value
