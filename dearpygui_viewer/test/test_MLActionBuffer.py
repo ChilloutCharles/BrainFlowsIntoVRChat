@@ -19,10 +19,12 @@ class TestMLActionBuffer(unittest.TestCase):
         buffer = ml_actions_buffer.MLActionsBuffer(3, self.maxStoredTimesteps)
         self.assertEqual(buffer.max_stored_timesteps, self.maxStoredTimesteps)
         self.assertEqual(buffer.num_actions, 3)
-        self.assertEqual(buffer._action_paths_to_key, {"/avatar/parameters/BFI/Action0": "Action0",
-                                                      "/avatar/parameters/BFI/Action1": "Action1",
-                                                      "/avatar/parameters/BFI/Action2": "Action2"})
-        self.assertEqual(len(buffer.action_buffers), 3)
+        self.assertEqual(buffer._action_paths_to_key, {
+                                                      "/avatar/parameters/BFI/MLAction/Action": "Action",
+                                                      "/avatar/parameters/BFI/MLAction/Action0": "Action0",
+                                                      "/avatar/parameters/BFI/MLAction/Action1": "Action1",
+                                                      "/avatar/parameters/BFI/MLAction/Action2": "Action2"})
+        self.assertEqual(len(buffer.action_buffers), 4)
 
     def test_init_empty_behaviour(self):
         with self.assertRaises(ValueError):
@@ -39,23 +41,24 @@ class TestMLActionBuffer(unittest.TestCase):
     def test_init_too_many_actions(self):
         buffer = ml_actions_buffer.MLActionsBuffer(17,  self.maxStoredTimesteps)
         self.assertEqual(buffer.num_actions, 16)
-        self.assertEqual(buffer._action_paths_to_key, {"/avatar/parameters/BFI/Action0": "Action0",
-                                                      "/avatar/parameters/BFI/Action1": "Action1",
-                                                      "/avatar/parameters/BFI/Action2": "Action2",
-                                                      "/avatar/parameters/BFI/Action3": "Action3",
-                                                      "/avatar/parameters/BFI/Action4": "Action4",
-                                                      "/avatar/parameters/BFI/Action5": "Action5",
-                                                      "/avatar/parameters/BFI/Action6": "Action6",
-                                                      "/avatar/parameters/BFI/Action7": "Action7",
-                                                      "/avatar/parameters/BFI/Action8": "Action8",
-                                                      "/avatar/parameters/BFI/Action9": "Action9",
-                                                      "/avatar/parameters/BFI/Action10": "Action10",
-                                                      "/avatar/parameters/BFI/Action11": "Action11",
-                                                      "/avatar/parameters/BFI/Action12": "Action12",
-                                                      "/avatar/parameters/BFI/Action13": "Action13",
-                                                      "/avatar/parameters/BFI/Action14": "Action14",
-                                                      "/avatar/parameters/BFI/Action15": "Action15"})
-        self.assertEqual(len(buffer.action_buffers), 16)
+        self.assertEqual(buffer._action_paths_to_key, {"/avatar/parameters/BFI/MLAction/Action": "Action",
+                                                      "/avatar/parameters/BFI/MLAction/Action0": "Action0",
+                                                      "/avatar/parameters/BFI/MLAction/Action1": "Action1",
+                                                      "/avatar/parameters/BFI/MLAction/Action2": "Action2",
+                                                      "/avatar/parameters/BFI/MLAction/Action3": "Action3",
+                                                      "/avatar/parameters/BFI/MLAction/Action4": "Action4",
+                                                      "/avatar/parameters/BFI/MLAction/Action5": "Action5",
+                                                      "/avatar/parameters/BFI/MLAction/Action6": "Action6",
+                                                      "/avatar/parameters/BFI/MLAction/Action7": "Action7",
+                                                      "/avatar/parameters/BFI/MLAction/Action8": "Action8",
+                                                      "/avatar/parameters/BFI/MLAction/Action9": "Action9",
+                                                      "/avatar/parameters/BFI/MLAction/Action10": "Action10",
+                                                      "/avatar/parameters/BFI/MLAction/Action11": "Action11",
+                                                      "/avatar/parameters/BFI/MLAction/Action12": "Action12",
+                                                      "/avatar/parameters/BFI/MLAction/Action13": "Action13",
+                                                      "/avatar/parameters/BFI/MLAction/Action14": "Action14",
+                                                      "/avatar/parameters/BFI/MLAction/Action15": "Action15"})
+        self.assertEqual(len(buffer.action_buffers), 17)
     
     def test_functioning_read_and_write(self):
         buffer = ml_actions_buffer.MLActionsBuffer(3,  self.maxStoredTimesteps)
