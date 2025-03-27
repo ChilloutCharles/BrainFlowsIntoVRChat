@@ -18,21 +18,23 @@ class MLActionsBuffer:
 
     def generate_action_paths(self, max_actions):
         paths = []
+        paths.append("/avatar/parameters/BFI/MLAction/Action")
         for i in range(max_actions):
-            paths.append("/avatar/parameters/BFI/Action" + str(i))
+            paths.append("/avatar/parameters/BFI/MLAction/Action" + str(i))
         return paths
         
     def _make_buffers(self, num_actions):
 
         paths  = self.generate_action_paths(num_actions)
-        self._action_paths_to_key = { path : "Action" + str(i) for i, path in enumerate(paths)}
+        self._action_paths_to_key = { path : "Action" + str(i - 1) for i, path in enumerate(paths)}
+        self._action_paths_to_key["/avatar/parameters/BFI/MLAction/Action"] = "Action" # todo refactor generation of paths
 
         for key in self._action_paths_to_key.values():
             self.action_buffers[key] = ProtectedOSCBuffer(self.max_stored_timesteps)
             self.action_buffers[key].deque.append((0.0, 0.0))
 
     def get_action_key(self, path):
-        return self._action_paths_to_key[path]
+        return self._action_paths_to_key[path] # current selected action  # todo review
 
     def read_from_osc_ml_action_buffer(self, key):
         self.action_buffers[key].lock.acquire()
