@@ -202,6 +202,9 @@ def main(args):
                         new_data_dict = fetch_action_data_and_timestep_for_keys(ml_action_buffer)
                         _update_subplots(plot_subset_idx + len(make_dict_subgraph_to_limit_and_label.keys()), key_subset, new_data_dict)
 
+                    time.sleep(0.001) #reduce stress caused by readers
+                    # end of function _update_plot 
+
                 for plot_subset_idx, (key, value) in enumerate(make_dict_subgraph_to_limit_and_label.items()):
                     (limit, key_subset) = value
                     setup_plot_with_limits_and_message_subset(plot_subset_idx, limit, key_subset)
