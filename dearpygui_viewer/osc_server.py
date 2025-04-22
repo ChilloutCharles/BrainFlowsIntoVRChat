@@ -115,14 +115,16 @@ def run_buffer_server(osc_ip, osc_port_listen, osc_port_forward = None, ml_actio
     dispatcher.map("/avatar/parameters/BFI/*", _osc_message_data_handler)
 
     if ml_actions_buffer is not None:
+        ignored_paths = []
 
         def _osc_message_action_handler(path, value):
             try :
                 key = ml_actions_buffer.get_action_key(path)
                 ml_actions_buffer.write_to_osc_ml_action_buffer(key, value)
             except KeyError:
-                print("Key not found in action buffer, ignoring..." + path + str(value))
-                return
+                if path not in ignored_paths:
+                    ignored_paths.append(key)
+                    print("Key not found in action buffer, ignoring... " + path + "/"+ str(value))
 
         dispatcher.map("/avatar/parameters/BFI/MLAction*", _osc_message_action_handler)    
 
