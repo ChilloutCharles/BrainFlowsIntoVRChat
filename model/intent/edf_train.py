@@ -23,6 +23,8 @@ from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
 from keras.layers import Activation
 
+from sklearn.preprocessing import StandardScaler as Scaler
+
 from model import MaskedAutoEncoder
 
 # Load the data
@@ -39,6 +41,20 @@ pivot = int(data.shape[0] * 0.2)
 X_val_orig = data[:pivot]
 X_train = data[pivot:]
 del data
+
+
+print('Normalizing train and test seperately...')
+def inplace_normalize(data):
+    scaler = Scaler()
+    entries = data.shape[0]
+    for batch in data:
+        scaler.partial_fit(batch.reshape(-1, 1))
+    for i in range(entries):
+        data[i] = scaler.transform(data[i].reshape(-1, 1)).reshape(data[i].shape)
+
+inplace_normalize(X_train)
+inplace_normalize(X_val_orig)
+
 
 # Setup variables for batch generation and training
 print('Data Processed. Setting up...')

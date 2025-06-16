@@ -6,7 +6,6 @@ import pywt
 import joblib
 
 from multiprocess import Pool
-from sklearn.preprocessing import StandardScaler as Scaler
 
 from constants import LOW_CUT, HIGH_CUT
 
@@ -68,15 +67,6 @@ if __name__ == '__main__':
     data = list(filter(lambda d: d.shape[0] == window_count and d.shape[-1] == sample_count, data))
     data = np.array(data)
 
-    # normalize
-    # print('Normalizing...')
-    # scaler = Scaler()
-    # entries = data.shape[0]
-    # for batch in data:
-    #     scaler.partial_fit(batch.reshape(-1, 1))
-    # for i in range(entries):
-    #     data[i] = scaler.transform(data[i].reshape(-1, 1)).reshape(data[i].shape)
-
     # multi-resolution analysis
     print('MRA...', data.shape)
     with Pool(16) as p:
@@ -105,7 +95,6 @@ if __name__ == '__main__':
 
     # serialize
     print('Saving...')
-    # joblib.dump(scaler, 'scaler.gz')
     joblib.dump(data, 'dataset.pkl')
 
     # cleanup

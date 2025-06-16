@@ -4,7 +4,7 @@ import keras
 
 from keras.models import Sequential, Model, clone_model
 from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D, MaxPooling2D
-from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input, GlobalAveragePooling2D, Dropout
 from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
 
@@ -313,57 +313,84 @@ class SinusoidPositionalEmbedding(Layer):
         return inputs + self.positional_embeddings[:seq_len, :]
 
 @keras.saving.register_keras_serializable()
+class Preprocessor(Layer):
+    def __init__(self, input_shape, patch_shape, embed_dim, **kwargs):
+        super(Preprocessor, self).__init__(**kwargs)
+
+        self.patch_project = Sequential([
+            Input((None, None, input_shape[2])),
+            PatchLayer(patch_shape),
+            Dense(embed_dim, use_bias=False),
+        ], name='patch_project')
+
+        self.average_token = Sequential([
+            Input((None, None, input_shape[2])),
+            GlobalAveragePooling2D(),
+            Dense(embed_dim, use_bias=False),
+            Reshape((1, -1))
+        ], name='average_token')
+    
+    def call(self, inputs):
+        start_token = self.average_token(inputs)
+        other_tokens = self.patch_project(inputs)
+        return tf.concat([start_token, other_tokens], axis=1)
+    
+    def remove(self, outputs):
+        return tf.slice(outputs, [0, 1, 0], [-1, -1, -1])
+    
+    def build(self, input_shape):
+        super(Preprocessor, self).build(input_shape)
+
+
+@keras.saving.register_keras_serializable()
 class MaskedAutoEncoder(Model):
-    def __init__(self, input_shape, patch_shape, mask_ratio=0.8, num_heads=5, ae_size=(10, 1), loss_func=None, loss_p=0.9, **kwargs):
+    def __init__(self, input_shape, patch_shape, mask_ratio=0.8, num_heads=5, ae_size=(10, 1), **kwargs):
         super(MaskedAutoEncoder, self).__init__(**kwargs)
         self.input_shape = input_shape
 
         patch_dim = patch_shape[0] * patch_shape[1] * input_shape[2]
         patch_count_h = input_shape[0]//patch_shape[0]
         patch_count_w = input_shape[1]//patch_shape[1]
-        patch_count = patch_count_h * patch_count_w
+        patch_count = patch_count_h * patch_count_w + 1 # accounting for extra start token
 
         embed_dim = patch_dim * 2
         ffn_dim = embed_dim * 4
 
+        self.preprocessor = Preprocessor(input_shape, patch_shape, embed_dim)
         self.patch_position = SinusoidPositionalEmbedding(patch_count, embed_dim)
-
-        self.patcher = Sequential([
-            Input((None, None, input_shape[2])),
-            PatchLayer(patch_shape)
-        ], name='patcher')
-
-        self.project = Sequential([
-            Input((None, patch_dim)),
-            Dense(embed_dim, use_bias=False),
-        ], name='project')
 
         self.encoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(ae_size[0])], name='encoder')
         self.decoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(ae_size[1])], name='decoder')
 
-        self.unproject = Dense(patch_dim, use_bias=False)
-        self.recover = Reshape(self.input_shape)
+        self.unprocess = Sequential([
+            Dense(patch_dim, use_bias=False),
+            Reshape(self.input_shape)
+        ])
         
         self.mask_token = tf.Variable(tf.random.normal((1, patch_count, 1)), trainable=True)
         self.num_mask = int(mask_ratio * patch_count)
 
-        # Internal Loss 
-        self.loss_func = loss_func
-        self.loss_p = loss_p
-
     def call(self, inputs):
-        # patch, linearly project, and apply static position embedding
-        input_patches = self.patcher(inputs)
-        embedding = self.project(input_patches)
+        # patch, linearly project, and add attention sink
+        embedding = self.preprocessor(inputs)
+
+        # apply position embedding
         embedding = self.patch_position(embedding)
         
         # get embedding shape for later use
         embed_shape = tf.shape(embedding)
 
+        # create indices and gather unmasked patches (excluding zero)
+        rand_indices = tf.argsort(tf.random.uniform(shape=(embed_shape[0], embed_shape[1] - 1)), axis=-1)
+        rand_indices += 1  # shift to exclude index 0
+
         # create indices and gather unmasked patches
-        rand_indices = tf.argsort(tf.random.uniform(shape=embed_shape[:2]), axis=-1)
-        mask_indices = rand_indices[:, :self.num_mask]
         unmask_indices = rand_indices[:, self.num_mask :]
+
+        # prepend 0 (attention sink) to unmask_indices
+        unmask_indices = tf.concat([tf.zeros((embed_shape[0], 1), dtype=tf.int32), unmask_indices], axis=1)
+
+        # gather unmasked with start token in front
         unmasked_embeds = tf.gather(embedding, unmask_indices, axis=1, batch_dims=1)
 
         # send unmasked patches through encoder
@@ -377,24 +404,12 @@ class MaskedAutoEncoder(Model):
         # send mask tokenized full patch sequence to decoder
         reconstruct_embedding = self.decoder(decoder_input)
 
-        # project back to patch dims
-        reconstruct_patches = self.unproject(reconstruct_embedding)
+        # discard start token
+        reconstruct_embedding = self.preprocessor.remove(reconstruct_embedding)
 
-        # do patches loss if a loss function was set
-        if self.loss_func:
-            masked_reconstruct = tf.gather(reconstruct_patches, mask_indices, axis=1, batch_dims=1)
-            masked_input = tf.gather(input_patches, mask_indices, axis=1, batch_dims=1)
-            mask_loss = self.loss_func(masked_input, masked_reconstruct)
-
-            unmasked_reconstruct = tf.gather(reconstruct_patches, unmask_indices, axis=1, batch_dims=1)
-            unmasked_input = tf.gather(input_patches, unmask_indices, axis=1, batch_dims=1)
-            unmask_loss = self.loss_func(unmasked_input, unmasked_reconstruct)
-
-            loss = self.loss_p * mask_loss + (1.0 - self.loss_p) * unmask_loss
-            self.add_loss(loss)
-        
         # stich patches back together
-        reconstruct = self.recover(reconstruct_patches)
+        reconstruct = self.unprocess(reconstruct_embedding)
+        
         return reconstruct
     
     def hard_ass_scatter_update(self, tensor, indices, updates):
@@ -416,8 +431,7 @@ class MaskedAutoEncoder(Model):
     
     def assemble_feature_extractor(self):
         feature_extractor = Sequential([
-            self.patcher,
-            self.project,
+            self.preprocessor,
             self.patch_position,
             self.encoder
         ])
@@ -441,8 +455,7 @@ class ShuffleLayer(Layer):
 
 def create_classifier(feature_extractor, classes, input_shape):
     [
-        patcher,
-        project,
+        preprocessor,
         _,
         encoder
     ] = feature_extractor.layers
@@ -455,18 +468,13 @@ def create_classifier(feature_extractor, classes, input_shape):
         pool_size = (1, max(2, chans - new_chans))
     patch_matcher = MaxPooling2D(pool_size=pool_size)
     
-    # freeze patcher and projection layers
-    patcher.trainable = False
-    project.trainable = False
+    # freeze patcher, projection, and attn_sink layers
+    preprocessor.trainable = False
 
     # freeze all layers of encoder
-    # except first transform layer norms and last half of the last transform
-    for layer in encoder.layers[1:-1]:
+    # except last half of the last transform
+    for layer in encoder.layers[0:-1]:
         layer.trainable = False
-    
-    first_tfm = encoder.layers[0]
-    first_tfm.attn.trainable = False
-    first_tfm.ffn.trainable = False
 
     last_tfm = encoder.layers[-1]
     last_tfm.ln1.trainable = False
@@ -479,17 +487,15 @@ def create_classifier(feature_extractor, classes, input_shape):
     embed_dim = encoder.input_shape[-1]
     num_heads = 8
     pool = Sequential([
-        LayerNormalization(),
         MultiHeadSelfAttention(num_heads, embed_dim//num_heads),
         GlobalAveragePooling1D(),
-    ], name='GlobalSelfAttentionPooling1D')
+        Dropout(0.2)
+    ], name='GlobalSelfAttnAvgPooling1D')
 
     return Sequential([
         patch_matcher,
-        patcher,
-        project,
+        preprocessor,
         patch_position,
-        ShuffleLayer(),
         encoder,
         pool,
         Dense(classes, activation='softmax')
