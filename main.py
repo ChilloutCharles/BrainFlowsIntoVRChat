@@ -10,7 +10,7 @@ from logic.telemetry import Info
 from logic.power_bands import PwrBands
 from logic.neuro_feedback import NeuroFB
 from logic.biometrics import Biometrics
-from logic.addons import Addons
+from logic.addons import Addons, BlinkDetect
 
 from reporters.osc_reporter import OSC_Reporter
 from reporters.debug_osc_reporter import Debug_Reporter
@@ -138,6 +138,7 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
         PwrBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
         NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay),
         Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
+        BlinkDetect(board, window_seconds=window_seconds, ema_decay=ema_decay * 10), # faster reaction for blinks
         biometrics_logic
     ]
 

@@ -5,7 +5,6 @@ import utils
 
 from brainflow.board_shim import BoardShim
 from brainflow.data_filter import DataFilter, NoiseTypes, WaveletTypes, ThresholdTypes
-from scipy.signal import butter, filtfilt
 
 import re
 import numpy as np
@@ -35,26 +34,6 @@ class PwrBands(BaseLogic):
         # ema smoothing variables
         self.current_dict = {}
         self.ema_decay = ema_decay
-
-        # detect_artifacts settings
-        self.f_params = butter(2, 10 / (self.sampling_rate / 2), btype='low')  # 10 Hz lowpass filter
-        self.art_thresh = 100  # 100 uV difference is indicative of blink
-    
-    def detect_artifacts(self, data):
-        ## artifact detection inspired by openbci algorithm
-        ## https://openbci.com/community/automated-eye-blink-detection-online-2/
-        b, a = self.f_params
-        
-        # lowpass filter to blink range
-        filtered = filtfilt(b, a, data)
-
-        # find median and use difference to it to threshold mask
-        median = np.median(filtered, axis=1, keepdims=True)
-        diff = np.abs(filtered - median)
-        mask = diff > self.art_thresh
-
-        # return true if any artifacts detected
-        return np.any(mask)
     
     def get_data_dict(self):
         # get current data from board
@@ -66,7 +45,8 @@ class PwrBands(BaseLogic):
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
         
         # check if artifact in window
-        has_artifact = self.detect_artifacts(data[self.eeg_channels])
+        artifact_mask = utils.get_artifact_mask(data[self.eeg_channels], self.sampling_rate)
+        has_artifact = np.any(artifact_mask)
 
         # calculate band features for left, right, and overall
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, True)
