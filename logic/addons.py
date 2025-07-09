@@ -58,7 +58,7 @@ class BlinkDetect(BaseLogic):
         self.ema_decay = ema_decay
 
         # bigger threshold to only detect blinks
-        self.art_thresh = 150
+        self.art_thresh = 200
 
     def get_data_dict(self):
         # get current data from board
