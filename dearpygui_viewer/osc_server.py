@@ -31,10 +31,12 @@ BMI_PATHS_TO_KEY = {
     "/avatar/parameters/BFI/PwrBands/Avg/Alpha": "PwrBands_Avg_Alpha",
     "/avatar/parameters/BFI/PwrBands/Avg/Beta": "PwrBands_Avg_Beta",
     "/avatar/parameters/BFI/PwrBands/Avg/Gamma": "PwrBands_Avg_Gamma",
+    "/avatar/parameters/BFI/BlinkDetect/Left": "BlinkLeft",
+    "/avatar/parameters/BFI/BlinkDetect/Right": "BlinkRight",
     # Handle situation where message is not send
     "/avatar/parameters/BFI/Biometrics/HeartBeatsPerMinute": "Biometrics_HeartBeatsPerMinute",
     "/avatar/parameters/BFI/Biometrics/BreathsPerMinute": "Biometrics_BreathsPerMinute",
-    "/avatar/parameters/BFI/Biometrics/OxygenPercent": "OxygenPercent"
+    "/avatar/parameters/BFI/Biometrics/OxygenPercent": "OxygenPercent",
 }
 
 BMI_KEY_TO_GRAPH_ID = {
@@ -59,16 +61,19 @@ BMI_KEY_TO_GRAPH_ID = {
     "PwrBands_Avg_Alpha": "PwrBands",
     "PwrBands_Avg_Beta": "PwrBands",
     "PwrBands_Avg_Gamma": "PwrBands",
+    "BlinkLeft": "BlinkDetect",
+    "BlinkRight": "BlinkDetect",
     "Biometrics_HeartBeatsPerMinute": "Biometrics",
     "Biometrics_BreathsPerMinute": "Biometrics",
-    "OxygenPercent": "BiometricsPercent"
+    "OxygenPercent": "BiometricsPercent",
 }
 
 GRAPH_ID_TO_LIMITS = {
     "NeuroFB": (-1.0, 1.0),
     "PwrBands": (0.0, 1.0),
+    "BlinkDetect": (0.0, 1.0),
     "Biometrics": (0.0, 255.0),
-    "BiometricsPercent": (0.0, 100.0)   
+    "BiometricsPercent": (0.0, 100.0),
 }
 
 osc_buffers = { key : ProtectedOSCBuffer(MAX_STORED_TIMESTEPS) for path, key in BMI_PATHS_TO_KEY.items() }
