@@ -34,11 +34,27 @@ class MLAction(BaseLogic):
 
         # smooth
         self.current_value = utils.smooth(self.current_value, target_value, self.ema_decay)
-        
+        count = len(self.current_value)
+
+        # generate angles from output count
+        angles = (2.0 * np.pi) * (np.arange(0, count) / count)
+
+        # treat outputs as magnitudes and create vectors
+        xs = self.current_value * np.cos(angles)
+        ys = self.current_value * np.sin(angles)
+
+        # sum vectors
+        x = np.sum(xs)
+        y = np.sum(ys)
+
         # get action index with highest score
         action_idx = np.argmax(self.current_value)
 
         # return as dictionary
         ret_dict['Action'] = action_idx.item()
         ret_dict |= {'Action{}'.format(i): value for i, value in enumerate(self.current_value.tolist())}
+        ret_dict |= {
+            'ActionH' : x,
+            'ActionV' : y
+        }
         return ret_dict
