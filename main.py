@@ -149,7 +149,9 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
     
     ### Add ml action to logics if enabled
     if args.enable_action:
-        logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier))
+        action_window_size = 1
+        logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier, window_size=action_window_size))
+        startup_time = max(startup_time, action_window_size)
 
     ### Adding one second to startup time for adaptive filters ###
     startup_time += 1

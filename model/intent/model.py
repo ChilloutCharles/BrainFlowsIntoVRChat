@@ -439,59 +439,85 @@ class ShuffleLayer(Layer):
     def build(self, input_shape):
         super(ShuffleLayer, self).build(input_shape)
 
-def create_classifier(feature_extractor, classes, input_shape):
-    [
-        patcher,
-        project,
-        _,
-        encoder
-    ] = feature_extractor.layers
+# def create_classifier(feature_extractor, classes, input_shape):
+#     [
+#         patcher,
+#         project,
+#         _,
+#         encoder
+#     ] = feature_extractor.layers
 
-    # create a pooling layer to map input channels to what the patcher can handle
-    chans = input_shape[1]
-    pool_size = (1, 1)
-    if chans % 4 != 0:
-        new_chans = (chans // 4) * 4
-        pool_size = (1, max(2, chans - new_chans))
-    patch_matcher = MaxPooling2D(pool_size=pool_size)
+#     # create a pooling layer to map input channels to what the patcher can handle
+#     chans = input_shape[1]
+#     pool_size = (1, 1)
+#     if chans % 4 != 0:
+#         new_chans = (chans // 4) * 4
+#         pool_size = (1, max(2, chans - new_chans))
+#     patch_matcher = MaxPooling2D(pool_size=pool_size)
     
-    # freeze patcher and projection layers
-    patcher.trainable = False
-    project.trainable = False
+#     # freeze patcher and projection layers
+#     patcher.trainable = False
+#     project.trainable = False
 
-    # freeze all layers of encoder
-    # except first transform layer norms and last half of the last transform
-    for layer in encoder.layers[1:-1]:
-        layer.trainable = False
+#     # freeze all layers of encoder
+#     # except first transform layer norms and last half of the last transform
+#     for layer in encoder.layers[1:-1]:
+#         layer.trainable = False
     
-    first_tfm = encoder.layers[0]
-    first_tfm.attn.trainable = False
-    first_tfm.ffn.trainable = False
+#     first_tfm = encoder.layers[0]
+#     first_tfm.attn.trainable = False
+#     first_tfm.ffn.trainable = False
 
-    last_tfm = encoder.layers[-1]
-    last_tfm.ln1.trainable = False
-    last_tfm.attn.trainable = False
+#     last_tfm = encoder.layers[-1]
+#     last_tfm.ln1.trainable = False
+#     last_tfm.attn.trainable = False
 
-    # replace positional embedder with user custom
-    patch_position = TrainablePositionalEmbedding()
+#     # replace positional embedder with user custom
+#     patch_position = TrainablePositionalEmbedding()
 
-    # create self attention pooling
-    embed_dim = encoder.input_shape[-1]
-    num_heads = 8
-    pool = Sequential([
-        LayerNormalization(),
-        MultiHeadSelfAttention(num_heads, embed_dim//num_heads),
-        GlobalAveragePooling1D(),
-    ], name='GlobalSelfAttentionPooling1D')
+#     # create self attention pooling
+#     embed_dim = encoder.input_shape[-1]
+#     num_heads = 8
+#     pool = Sequential([
+#         LayerNormalization(),
+#         MultiHeadSelfAttention(num_heads, embed_dim//num_heads),
+#         GlobalAveragePooling1D(),
+#     ], name='GlobalSelfAttentionPooling1D')
 
-    return Sequential([
-        patch_matcher,
-        patcher,
-        project,
-        patch_position,
-        ShuffleLayer(),
-        encoder,
-        pool,
-        Dense(classes, activation='softmax')
-    ], name='classifier')
+#     return Sequential([
+#         patch_matcher,
+#         patcher,
+#         project,
+#         patch_position,
+#         ShuffleLayer(),
+#         encoder,
+#         pool,
+#         Dense(classes, activation='softmax')
+#     ], name='classifier')
 
+### lightweight CNN again
+# use MRA input into a small CNN i think
+
+from keras.layers import DepthwiseConv2D, Conv2D, MaxPooling2D, SeparableConv2D, GlobalAveragePooling2D, Dropout
+
+def create_classifier(classes):
+    def create_block():
+        return Sequential([
+            Conv2D(64, 3, activation='gelu', padding='same'),
+            MaxPooling2D(2),
+            DepthwiseConv2D(2, padding='same'),
+        ])
+    
+    model = Sequential([
+        create_block(),
+        create_block(),
+
+        Conv2D(64, 2, padding='same'),
+        SeparableConv2D(16, 2, padding='same'),
+
+        GlobalAveragePooling2D(),
+        Dense(16, activation='gelu'),
+        Dense(classes, activation='softmax'),
+    ])
+
+    return model

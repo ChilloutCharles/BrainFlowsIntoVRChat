@@ -160,10 +160,11 @@ def main():
     input_shape = X_train.shape[1:]
 
     ## Create Model
-    model = create_classifier(pretrained_encoder, classes, input_shape)
+    # model = create_classifier(pretrained_encoder, classes, input_shape)
+    model = create_classifier(classes)
 
     ## Compile the model
-    model.compile(optimizer=AdamW(0.0001), loss='categorical_crossentropy')
+    model.compile(optimizer='adamw', loss='categorical_crossentropy')
 
     ## Set up EarlyStopping
     early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True, verbose=0)

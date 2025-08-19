@@ -21,14 +21,14 @@ def preprocess_data(session_data, sampling_rate):
         # remove line noise
         DataFilter.remove_environmental_noise(session_data[eeg_chan], sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
         # bandpass to LOW_CUT, HIGH_CUT
-        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, LOW_CUT, HIGH_CUT, 1, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
+        DataFilter.perform_bandpass(session_data[eeg_chan], sampling_rate, LOW_CUT, HIGH_CUT, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
     return session_data
 
 def extract_features(preprocessed_data):
     # resample to expected 160hz sampling rate
-    features = signal.resample(preprocessed_data, 160, axis=-1)
-    # do multi resolution analysis
-    features = np.array(pywt.mra(features, 'db4', level=2, transform='dwt'))
+    # preprocessed_data = signal.resample(preprocessed_data, 160, axis=-1)
+    # do multi resolution analysis, discard approx level
+    features = np.array(pywt.mra(preprocessed_data, 'db4', level=4, transform='dwt')[1:])
     # transpose to correct axis order
     features = features.transpose((2, 1, 0))
     return features

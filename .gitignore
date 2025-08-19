@@ -12,3 +12,5 @@
 !**/physionet_*.keras
 
 **/logs/
+
+*_env

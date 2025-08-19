@@ -9,7 +9,7 @@ from brainflow.board_shim import BoardShim
 import model.intent.model as model
 
 class MLAction(BaseLogic):
-    def __init__(self, board, ema_decay=1/60):
+    def __init__(self, board, ema_decay=1/60, window_size=1.0):
         super().__init__(board)
 
         board_id = board.get_board_id()
@@ -20,7 +20,7 @@ class MLAction(BaseLogic):
         self.ema_decay = ema_decay
         self.current_value = 0
 
-        self.sample_size = int(1.0 * self.sampling_rate)
+        self.sample_size = int(window_size * self.sampling_rate)
     
     def get_data_dict(self):
         ret_dict = super().get_data_dict()
@@ -29,7 +29,7 @@ class MLAction(BaseLogic):
         data = self.board.get_current_board_data(self.sample_size)
         eeg_data = data[self.eeg_channels]
         
-        # predict binary thought
+        # predict singular thought
         target_value = self.pipeline.predict(eeg_data, self.sampling_rate)
 
         # smooth
@@ -38,7 +38,21 @@ class MLAction(BaseLogic):
         # get action index with highest score
         action_idx = np.argmax(self.current_value)
 
+        # generate angles from output count
+        count = len(self.current_value)
+        angles = (2.0 * np.pi) * (np.arange(0, count) / count)
+
+        # treat outputs as magnitudes and create vectors
+        vectors = self.current_value * np.exp(1j * angles)
+
+        # sum vectors
+        summed_vector = np.sum(vectors)
+        
         # return as dictionary
         ret_dict['Action'] = action_idx.item()
         ret_dict |= {'Action{}'.format(i): value for i, value in enumerate(self.current_value.tolist())}
+        ret_dict |= {
+            'ActionH' : np.real(summed_vector),
+            'ActionV' : np.imag(summed_vector)
+        }
         return ret_dict
