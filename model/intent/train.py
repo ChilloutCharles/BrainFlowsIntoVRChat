@@ -6,6 +6,7 @@ from brainflow.board_shim import BoardShim
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+import numpy.lib.stride_tricks as stride_tricks
 
 import keras
 from keras.models import Sequential
@@ -94,54 +95,68 @@ def main():
 
     action_dict = recorded_data['action_dict']
     window_size = int(1.0 * sampling_rate)
-    overlap = window_size - 1 # maximum overlap!
 
-    ## Segment time series data and split for train test sets
-    def windows_from_datas(datas, test_size, sample_size):
-        eegs = [data[eeg_channels] for data in datas]
-        windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
-        all_windows = np.concatenate(windows_per_session)
+    # get class count
+    classes = len(action_dict)
 
-        # time based split: last windows used for validation 
-        split_idx = int(len(all_windows) * (1 - test_size))
-        windows_train = list(all_windows[:split_idx - overlap])
-        windows_test = list(all_windows[split_idx:])
+    # unpack action data
+    action_items = action_dict.items()
 
-        # random sample windows for faster training
-        windows_train = random.sample(windows_train, k=int(len(windows_train) * sample_size))
-        windows_test = random.sample(windows_test, k=int(len(windows_test) * sample_size))
-
-        return windows_train, windows_test
-
-    action_windows = {action_label:windows_from_datas(datas, test_size=args.test_size, sample_size=args.sample_size) for action_label, datas in action_dict.items()}
-
-    ## extract the features from the windows
-    def process_windows(windows):
-        feature_windows = []
-        for session_data in windows:
-            preprocessed_data = preprocess_data(session_data, sampling_rate)
-            features = extract_features(preprocessed_data)
-            feature_windows.append(features)
-        return feature_windows
+    # duplicate indices for each piece of data
+    action_items = [([action_index]*len(a_datas), a_datas) for action_index, a_datas in action_items]
     
-    processed_windows = {action_label:(process_windows(windows_train),process_windows(windows_test)) for action_label, (windows_train, windows_test) in action_windows.items()}
-    
-    ## create train and test sets and labels
-    i_train = np.concatenate([[action_label] * len(windows_train) for action_label, (windows_train, _) in processed_windows.items()])
-    shuffle_indexes = list(range(len(i_train)))
-    random.shuffle(shuffle_indexes)
-    X_train = np.concatenate([windows_train for windows_train, _ in processed_windows.values()])[shuffle_indexes]
-    y_train = to_categorical(i_train, num_classes=len(processed_windows))[shuffle_indexes]
+    # aggregate indices and datas in parallel
+    a_index, a_data = zip(*action_items)
+    a_index = sum(a_index, [])
+    a_data = sum(a_data, [])
 
-    i_test = np.concatenate([[action_label] * len(windows_test) for action_label, (_, windows_test) in processed_windows.items()])
-    X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
-    y_test = to_categorical(i_test, num_classes=len(processed_windows))
+    # extract only eeg data
+    a_data = np.stack([a_d[eeg_channels] for a_d in a_data])
+
+    # split a_data to train and test
+    split_idx = int(a_data.shape[-1] * args.test_size)
+    train_data = a_data[:, :, split_idx:]
+    test_data = a_data[:, :, :split_idx]
+    
+    # create sliding windows
+    train_data = stride_tricks.sliding_window_view(train_data, axis=-1, window_shape=window_size)
+    test_data = stride_tricks.sliding_window_view(test_data, axis=-1, window_shape=window_size)
+
+    # dupe indices to align with flattening
+    train_index = np.repeat(a_index, train_data.shape[2])
+    test_index = np.repeat(a_index, test_data.shape[2])
+
+    # transpose and flatten windows
+    train_data = train_data.transpose(0, 2, 1, 3)
+    train_data = train_data.reshape(-1, *train_data.shape[2:])
+    test_data = test_data.transpose(0, 2, 1, 3)
+    test_data = test_data.reshape(-1, *test_data.shape[2:])
+
+    # shuffle training data
+    shuffle_indices = np.arange(len(train_data))
+    np.random.shuffle(shuffle_indices)
+    train_data = train_data[shuffle_indices]
+    train_index = train_index[shuffle_indices]
+
+    # rename X, y, and i for training
+    X_train = train_data
+    X_test = test_data
+    y_train = to_categorical(train_index, num_classes=classes)
+    y_test = to_categorical(test_index, num_classes=classes)
+    i_test = test_index
+
+    # preproccess 
+    def preprocess(session_data):
+        session_data = preprocess_data(session_data, sampling_rate)
+        session_data = extract_features(session_data)
+        return session_data
+    X_train = np.stack([preprocess(d) for d in X_train])
+    X_test = np.stack([preprocess(d) for d in X_test])
 
     ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
 
     ## get class count and input shape from training data
-    classes = len(processed_windows)
     input_shape = X_train.shape[1:]
 
     ## Create Model
