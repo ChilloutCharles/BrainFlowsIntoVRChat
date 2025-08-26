@@ -503,17 +503,17 @@ from keras.layers import DepthwiseConv2D, Conv2D, MaxPooling2D, SeparableConv2D,
 def create_classifier(classes):
     def create_block():
         return Sequential([
-            Conv2D(32, (3, 1), activation='gelu', padding='same'), # timewise
-            Conv2D(16, (3, 1), activation='gelu', padding='same'), # timewise
-            Conv2D(16, (1, 3), activation='gelu', padding='same'), # chanwise
+            Conv2D(64, 3, activation='gelu', padding='same'),
+            MaxPooling2D(2),
+            DepthwiseConv2D(2, padding='same'),
         ])
     
     model = Sequential([
         create_block(),
-        MaxPooling2D((2, 1)),
         create_block(),
-        MaxPooling2D((2, 1)),
-        create_block(),
+
+        Conv2D(64, 2, padding='same'),
+        SeparableConv2D(16, 2, padding='same'),
 
         GlobalAveragePooling2D(),
         Dense(16, activation='gelu'),
