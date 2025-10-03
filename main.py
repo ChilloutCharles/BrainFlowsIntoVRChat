@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
 
     # custom command line arguments
     parser.add_argument('--window-seconds', type=int,
-                        help='data window in seconds into the past to do calculations on', required=False, default=2)
+                        help='data window in seconds into the past to do calculations on', required=False, default=1)
     parser.add_argument('--refresh-rate', type=int,
                         help='refresh rate for the main loop to run at', required=False, default=60)
     parser.add_argument('--ema-decay', type=float,

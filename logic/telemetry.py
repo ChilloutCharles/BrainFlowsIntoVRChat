@@ -41,9 +41,14 @@ class Info(Meta):
     def get_data_dict(self):
         data = self.board.get_current_board_data(self.max_sample_size)
         ret_dict = super().get_data_dict()
+        time_data = data[self.time_channel]
+
+        # no data check
+        data_size = len(time_data)
+        if data_size == 0:
+            raise EOFError("No data samples available")
 
         # timeout check
-        time_data = data[self.time_channel]
         last_sample_time = time_data[-1]
         current_time = time.time()
         time_diff = current_time - last_sample_time

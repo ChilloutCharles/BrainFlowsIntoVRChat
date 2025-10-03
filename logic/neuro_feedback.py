@@ -1,6 +1,6 @@
 from logic.power_bands import PwrBands
 from constants import BAND_POWERS
-from utils import tanh_normalize
+from utils import tanh_log
 
 class NeuroFB(PwrBands):
     FOCUS = "Focus"
@@ -42,4 +42,4 @@ class NeuroFB(PwrBands):
         return ret_dict
     
     def calculate_ratio(self, numerator, denominator):
-        return tanh_normalize(numerator / denominator, self.normalize_scale, -1)
+        return tanh_log(numerator/denominator, self.normalize_scale)

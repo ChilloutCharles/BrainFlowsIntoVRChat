@@ -1,6 +1,7 @@
 from logic.base_logic import BaseLogic
 from logic.neuro_feedback import NeuroFB
-from utils import map2dto1d
+
+import math
 
 class Addons(BaseLogic):
     def __init__(self, board, window_seconds=2, normalize_scale=1.1, ema_decay=0.025):
@@ -17,7 +18,9 @@ class Addons(BaseLogic):
         relax = nf_dict[NeuroFB.RELAX + NeuroFB.AVERAGE + NeuroFB.SIGNED]
 
         # remap focus and relax to 1D
-        hueshift = map2dto1d(focus + 1, relax + 1, 2) / 8
+        # convert to polar, discard magnitude
+        angle = math.atan2(focus, relax)
+        hueshift = angle / (2.0 * math.pi) + 0.5
 
         return {
             "HueShift": hueshift
