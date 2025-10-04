@@ -9,14 +9,14 @@ from brainflow.board_shim import BoardShim
 import model.intent.model as model
 
 class MLAction(BaseLogic):
-    def __init__(self, board, ema_decay=1/60, window_size=1.0):
+    def __init__(self, board, ema_decay=1/60, window_size=1.0, reject_artifacts=True):
         super().__init__(board)
 
         board_id = board.get_board_id()
         self.sampling_rate = BoardShim.get_sampling_rate(board_id)
         self.eeg_channels = BoardShim.get_eeg_channels(board_id)
 
-        self.pipeline = Pipeline()
+        self.pipeline = Pipeline(reject_artifacts)
         self.ema_decay = ema_decay
         self.current_value = 0
 

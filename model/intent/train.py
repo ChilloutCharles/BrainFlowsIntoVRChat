@@ -20,6 +20,13 @@ import tensorflow as tf
 from model import create_classifier
 from pipeline import preprocess_data, extract_features
 
+import sys
+import os
+
+# Add parent directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from utils import get_artifact_mask
+
 SAVE_FILENAME = "recorded_eeg"
 SAVE_EXTENSION = ".pkl"
 
@@ -138,26 +145,38 @@ def main():
     train_data = train_data[shuffle_indices]
     train_index = train_index[shuffle_indices]
 
-    # rename X, y, and i for training
+    # rename to X_data
     X_train = train_data
     X_test = test_data
+
+    # preproccess
+    X_train = np.stack([preprocess_data(d, sampling_rate) for d in X_train])
+    X_test = np.stack([preprocess_data(d, sampling_rate) for d in X_test])
+
+    # artifact rejection, remove corresponding indicies as well
+    X_train_has_artifact = np.logical_not([np.sum(get_artifact_mask(d, sampling_rate)) for d in X_train])
+    X_test_has_artifact = np.logical_not([np.sum(get_artifact_mask(d, sampling_rate)) for d in X_test])
+    
+    X_train = X_train[X_train_has_artifact]
+    X_test = X_test[X_test_has_artifact]
+
+    train_index = train_index[X_train_has_artifact]
+    test_index = test_index[X_test_has_artifact]
+
+    # extract features
+    X_train = np.stack([extract_features(d) for d in X_train])
+    X_test = np.stack([extract_features(d) for d in X_test])
+
+    # create y and i data
     y_train = to_categorical(train_index, num_classes=classes)
     y_test = to_categorical(test_index, num_classes=classes)
     i_test = test_index
 
-    # preproccess 
-    def preprocess(session_data):
-        session_data = preprocess_data(session_data, sampling_rate)
-        session_data = extract_features(session_data)
-        return session_data
-    X_train = np.stack([preprocess(d) for d in X_train])
-    X_test = np.stack([preprocess(d) for d in X_test])
+    # ## load pretrained encoder freeze it for use in perceptual loss
+    # pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
 
-    ## load pretrained encoder freeze it for use in perceptual loss
-    pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
-
-    ## get class count and input shape from training data
-    input_shape = X_train.shape[1:]
+    # ## get class count and input shape from training data
+    # input_shape = X_train.shape[1:]
 
     ## Create Model
     # model = create_classifier(pretrained_encoder, classes, input_shape)

@@ -83,6 +83,8 @@ def parse_args() -> argparse.Namespace:
     # arguments to configure MLAction
     parser.add_argument("--enable-action", type=bool, action=argparse.BooleanOptionalAction, 
                         help='add this argument to enable ml action logic')
+    parser.add_argument("--disable-artifact-rejection", type=bool, action=argparse.BooleanOptionalAction, 
+                        help='add this argument to disable artifact rejection in ml action logic')
     parser.add_argument("--action-ema-multiplier", type=float, required=False, default=5.0,
                         help='multiplier to speed up or slow down the reactiveness of ml action logic')
     
@@ -150,7 +152,10 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
     ### Add ml action to logics if enabled
     if args.enable_action:
         action_window_size = 1
-        logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier, window_size=action_window_size))
+        logics.append(MLAction(board, 
+                               ema_decay = ema_decay * args.action_ema_multiplier, 
+                               window_size=action_window_size, 
+                               reject_artifacts = not args.disable_artifact_rejection))
         startup_time = max(startup_time, action_window_size)
 
     ### Adding one second to startup time for adaptive filters ###

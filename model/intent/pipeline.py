@@ -3,13 +3,14 @@ import os
 import numpy as np
 import pywt
 import threading
-from scipy import signal
 from brainflow.data_filter import DataFilter, NoiseTypes, FilterTypes
 
 try:
     from .constants import LOW_CUT, HIGH_CUT
 except ImportError:
     from constants import LOW_CUT, HIGH_CUT
+
+from utils import get_artifact_mask
 
 
 abs_script_path = os.path.abspath(__file__)
@@ -34,10 +35,12 @@ def extract_features(preprocessed_data):
     return features
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self, reject_artifacts=True):
         file_name = "shallow.keras"
         model_path = os.path.join(abs_script_dir, file_name)
         self.classifier = keras.models.load_model(model_path)
+
+        self.reject_artifacts = reject_artifacts
         
         self.latest_eeg_data = None
         self.latest_sampling_rate = None
@@ -58,15 +61,24 @@ class Pipeline:
             eeg_data = self.latest_eeg_data
             sampling_rate = self.latest_sampling_rate
             
-            # Process data
+            # preprocess data
             pp_data = preprocess_data(eeg_data, sampling_rate)
-            ft_data = extract_features(pp_data)
-            prediction_probs = self.classifier.predict(ft_data[None, ...], verbose=0)[0]
 
-            # Store latest prediction
-            with self.lock:
-                self.prediction = prediction_probs
-                self.prediction_ready.set()  # Signal that at least one prediction is available
+            has_artifact = False
+            if self.reject_artifacts:
+                # check if artifact in window
+                artifact_mask = get_artifact_mask(pp_data, sampling_rate)
+                has_artifact = np.any(artifact_mask)
+
+            if not has_artifact:
+                # extract features
+                ft_data = extract_features(pp_data)
+                prediction_probs = self.classifier.predict(ft_data[None, ...], verbose=0)[0]
+
+                # Store latest prediction
+                with self.lock:
+                    self.prediction = prediction_probs
+                    self.prediction_ready.set()  # Signal that at least one prediction is available
 
     def predict(self, eeg_data, sampling_rate):
         # Overwrites the latest EEG data without blocking
