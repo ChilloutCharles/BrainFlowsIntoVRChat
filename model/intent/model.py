@@ -498,13 +498,13 @@ class ShuffleLayer(Layer):
 ### lightweight CNN again
 # use MRA input into a small CNN i think
 
-from keras.layers import DepthwiseConv2D, Conv2D, MaxPooling2D, SeparableConv2D, GlobalAveragePooling2D, Dropout
+from keras.layers import DepthwiseConv2D, Conv2D, MaxPooling2D, SeparableConv2D, GlobalAveragePooling2D, Flatten
 
 def create_classifier(classes):
     def create_block():
         return Sequential([
             Conv2D(64, 3, activation='gelu', padding='same'),
-            MaxPooling2D(2),
+            MaxPooling2D((2, 1)),
             DepthwiseConv2D(2, padding='same'),
         ])
     

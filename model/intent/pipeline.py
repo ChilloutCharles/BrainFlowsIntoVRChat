@@ -10,8 +10,6 @@ try:
 except ImportError:
     from constants import LOW_CUT, HIGH_CUT
 
-from utils import get_artifact_mask
-
 
 abs_script_path = os.path.abspath(__file__)
 abs_script_dir = os.path.dirname(abs_script_path)
@@ -28,8 +26,8 @@ def preprocess_data(session_data, sampling_rate):
 def extract_features(preprocessed_data):
     # resample to expected 160hz sampling rate
     # preprocessed_data = signal.resample(preprocessed_data, 160, axis=-1)
-    # do multi resolution analysis, discard approx level
-    features = np.array(pywt.mra(preprocessed_data, 'db4', level=4, transform='dwt')[1:])
+    # do multi resolution analysis
+    features = np.array(pywt.mra(preprocessed_data, 'db4', level=4, transform='dwt'))
     # transpose to correct axis order
     features = features.transpose((2, 1, 0))
     return features
@@ -55,6 +53,8 @@ class Pipeline:
         self.prediction_thread.start()
 
     def _predict_loop(self):
+        from utils import get_artifact_mask
+        
         while True:
             # Get latest EEG data
             self.data_ready.wait()  # Wait till data is ready
