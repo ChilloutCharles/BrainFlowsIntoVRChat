@@ -17,6 +17,9 @@ class Biometrics(OptionalBaseLogic):
     def __init__(self, board, supported=True, fft_size=1024, ema_decay=0.025):
         super().__init__(board, supported)
 
+        self.last_hr = None
+        self.hr_threshold = 0.01
+
         if supported:
             board_id = board.get_board_id()
         
@@ -91,7 +94,7 @@ class Biometrics(OptionalBaseLogic):
         # create data dictionary
         ppg_dict = {
             Biometrics.OXYGEN_PERCENT : oxygen_level,
-            Biometrics.HEART_FREQ : heart_bpm / 60,
+            Biometrics.HEART_FREQ : heart_bpm / 60 / 4,
             Biometrics.HEART_BPM : heart_bpm,
             Biometrics.RESP_FREQ : resp_bpm / 60,
             Biometrics.RESP_BPM : resp_bpm
@@ -108,8 +111,14 @@ class Biometrics(OptionalBaseLogic):
         ppg_dict = {k:v for k,v in zip(ppg_dict.keys(), self.current_values.tolist())}
         for k in (Biometrics.HEART_BPM, Biometrics.RESP_BPM):
             ppg_dict[k] = int(ppg_dict[k] + 0.5)
+
+        current_hr = ppg_dict[Biometrics.HEART_FREQ]
+        if self.last_hr is None or abs(current_hr - self.last_hr) > self.hr_threshold:
+            self.last_hr = current_hr
+            ret_dict[Biometrics.HEART_FREQ] = current_hr
         
-        ret_dict.update(ppg_dict)
+        stable_params = {k: v for k, v in ppg_dict.items() if k != Biometrics.HEART_FREQ}
+        ret_dict.update(stable_params)
 
         return ret_dict
 
