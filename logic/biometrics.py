@@ -1,8 +1,8 @@
 from logic.base_logic import OptionalBaseLogic
 
 from brainflow.board_shim import BoardShim, BrainFlowPresets
-from brainflow.data_filter import DataFilter, AggOperations, NoiseTypes, FilterTypes, DetrendOperations, WindowOperations
-from scipy.signal import find_peaks
+from brainflow.data_filter import DataFilter
+from scipy.signal import find_peaks, iirnotch, butter, filtfilt
 
 import numpy as np
 import utils
@@ -17,7 +17,7 @@ class Biometrics(OptionalBaseLogic):
     VRCHAT_HEART_FREQ_DIVISOR = 4
     HEART_FREQ_UPDATE_THRESHOLD = 0.01
 
-    def __init__(self, board, supported=True, fft_size=1024, ema_decay=0.025):
+    def __init__(self, board, supported=True, window_size=5, ema_decay=0.025):
         super().__init__(board, supported)
 
         self.last_hr = None
@@ -31,45 +31,54 @@ class Biometrics(OptionalBaseLogic):
             self.ppg_sampling_rate = BoardShim.get_sampling_rate(
                 board_id, BrainFlowPresets.ANCILLARY_PRESET)
 
-            self.window_seconds = int(fft_size / self.ppg_sampling_rate) + 1
+            self.window_seconds = window_size
             self.max_sample_size = self.ppg_sampling_rate * self.window_seconds
-            self.fft_size = fft_size
 
             # ema smoothing variables
             self.current_values = None
             self.ema_decay = ema_decay
 
-    def estimate_heart_rate(self, hr_ir, hr_red, ppg_ambient):
+            # hr filters
+            lowcut =  40.0 / 60.0 
+            highcut = 180 / 60.0
+            order = 3
+            self.notch_params = iirnotch(0.05, 0.005, self.ppg_sampling_rate) # baseline wander filter
+            self.bp_params = butter(order, (2 * lowcut, 2 * highcut), 'bandpass', fs=self.ppg_sampling_rate) # multiplied by 2 due to double peaks
+
+    def estimate_heart_rate(self, hr_ir, hr_red):
         # do not modify data
-        hr_ir, hr_red, hr_ambient = np.copy(hr_ir), np.copy(hr_red), np.copy(ppg_ambient)
+        hr_ir, hr_red = np.copy(hr_ir), np.copy(hr_red)
 
-        # Possible min and max heart rate in hz
-        lowcut = 0.5
-        highcut = 4.25
-        order = 4
-
-        # remove ambient light
-        hr_ir = np.clip(hr_ir - hr_ambient, 0, None)
-        hr_red = np.clip(hr_red - hr_ambient, 0, None)
-
-        # detrend and filter down to possible heart rates
-        DataFilter.detrend(hr_red, DetrendOperations.LINEAR)
-        DataFilter.detrend(hr_ir, DetrendOperations.LINEAR)
-        DataFilter.perform_bandpass(hr_red, self.ppg_sampling_rate, lowcut, highcut, order, FilterTypes.BUTTERWORTH, 0)
-        DataFilter.perform_bandpass(hr_ir, self.ppg_sampling_rate, lowcut, highcut, order, FilterTypes.BUTTERWORTH, 0)
+        def hr_preprocess(hr_arr):
+            filted = filtfilt(*self.notch_params, x=hr_arr)
+            filted = filted - np.mean(filted)
+            filted = filted ** 2 # doubles peak count
+            filted = filtfilt(*self.bp_params, x=filted)
+            return filted
         
-        # find peaks in signal
-        red_peaks, _ = find_peaks(hr_red, distance=self.ppg_sampling_rate/2)
-        ir_peaks, _ = find_peaks(hr_ir, distance=self.ppg_sampling_rate/2)
+        hr_red = hr_preprocess(hr_red)
+        hr_ir = hr_preprocess(hr_ir)
 
-        # get inter-peak intervals
-        red_ipis = np.diff(red_peaks) / self.ppg_sampling_rate
-        ir_ipis = np.diff(ir_peaks) / self.ppg_sampling_rate
-        ipis = np.concatenate((red_ipis, ir_ipis))
+        ## peak count approach
+
+        # find peaks
+        red_peaks, _ = find_peaks(hr_red, height=0)
+        ir_peaks, _ = find_peaks(hr_ir, height=0)
+
+        # discard anomalous peaks
+        def clean_peaks(peaks, data):
+            peak_vals = data[peaks]
+            med = np.median(peak_vals)
+            diffs = np.abs(peak_vals - med)
+            mad = np.median(diffs)
+            good_idx = np.argwhere(diffs < 3.0 * mad)
+            return peaks[good_idx]
         
-        # get bpm from mean inter-peak interval
-        average_ipi = np.mean(ipis)
-        heart_bpm = 60 / average_ipi
+        red_peaks = clean_peaks(red_peaks, hr_red)
+        ir_peaks = clean_peaks(ir_peaks, hr_ir)
+        
+        peak_count = (len(red_peaks) + len(ir_peaks)) * 0.5 # analyzing same time period twice
+        heart_bpm = 60.0 * peak_count / (2.0 * self.window_seconds) # divide by 2 due to double peaks
 
         return heart_bpm
     
@@ -80,8 +89,7 @@ class Biometrics(OptionalBaseLogic):
         ppg_data = self.board.get_current_board_data(
             self.max_sample_size, BrainFlowPresets.ANCILLARY_PRESET)
         
-        # get ambient, ir, red channels, and clean the channels with ambient
-        ppg_ambient = ppg_data[self.ppg_channels[2]]
+        # get ir, red channels
         ppg_ir = ppg_data[self.ppg_channels[1]]
         ppg_red = ppg_data[self.ppg_channels[0]]
 
@@ -89,7 +97,7 @@ class Biometrics(OptionalBaseLogic):
         oxygen_level = DataFilter.get_oxygen_level(ppg_ir, ppg_red, self.ppg_sampling_rate) * 0.01
 
         # calculate heartrate
-        heart_bpm = self.estimate_heart_rate(ppg_ir, ppg_red, ppg_ambient)
+        heart_bpm = self.estimate_heart_rate(ppg_ir, ppg_red)
 
         # calculate respiration
         resp_bpm = heart_bpm / 4
