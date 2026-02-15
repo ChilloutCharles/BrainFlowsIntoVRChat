@@ -59,6 +59,8 @@ def parse_args() -> argparse.Namespace:
                         help='refresh rate for the main loop to run at', required=False, default=60)
     parser.add_argument('--ema-decay', type=float,
                         help='exponential moving average constant to smooth outputs', required=False, default=1)
+    parser.add_argument('--hr-ema-decay', type=float,
+                        help='exponential moving average constant to smooth outputs', required=False, default=0.1)
     parser.add_argument('--retry-count', type=int,
                         help='sets the amount of times to reconnect before giving up', required=False, default=3)
 
@@ -117,6 +119,7 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
     refresh_rate_hz = args.refresh_rate
     window_seconds = args.window_seconds
     ema_decay = args.ema_decay / args.refresh_rate
+    hr_ema_decay = args.hr_ema_decay / args.refresh_rate
     startup_time = window_seconds
 
     ### Parse params ###
@@ -130,8 +133,7 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
     ### Logic Modules ###
     has_muse_ppg = master_board_id in (BoardIds.MUSE_2_BOARD, BoardIds.MUSE_S_BOARD)
     
-    fft_size= 64 * 10 # TODO: Make this configurable
-    biometrics_logic = Biometrics(board, has_muse_ppg, fft_size=fft_size, ema_decay=ema_decay)
+    biometrics_logic = Biometrics(board, has_muse_ppg, ema_decay=hr_ema_decay)
 
     logics = [
         Info(board, window_seconds=window_seconds),
