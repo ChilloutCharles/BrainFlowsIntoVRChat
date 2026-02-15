@@ -43,7 +43,7 @@ class Biometrics(OptionalBaseLogic):
             highcut = 180 / 60.0
             order = 3
             self.notch_params = iirnotch(0.05, 0.005, self.ppg_sampling_rate) # baseline wander filter
-            self.bp_params = butter(order, (2 * lowcut, 2 * highcut), 'bandpass', fs=self.ppg_sampling_rate) # multiplied by 2 due to double peaks
+            self.bp_params = butter(order, (lowcut, highcut), 'bandpass', fs=self.ppg_sampling_rate)
 
     def estimate_heart_rate(self, hr_ir, hr_red):
         # do not modify data
@@ -51,8 +51,7 @@ class Biometrics(OptionalBaseLogic):
 
         def hr_preprocess(hr_arr):
             filted = filtfilt(*self.notch_params, x=hr_arr)
-            filted = filted - np.mean(filted)
-            filted = filted ** 2 # doubles peak count
+            filted -= np.mean(filted)
             filted = filtfilt(*self.bp_params, x=filted)
             return filted
         
@@ -66,20 +65,18 @@ class Biometrics(OptionalBaseLogic):
         ir_peaks, _ = find_peaks(hr_ir, height=0)
 
         # discard anomalous peaks
-        def clean_peaks(peaks, data):
-            peak_vals = data[peaks]
-            med = np.median(peak_vals)
-            diffs = np.abs(peak_vals - med)
-            mad = np.median(diffs)
-            good_idx = np.argwhere(diffs < 3.0 * mad)
-            return peaks[good_idx]
+        def clean_peaks(peaks):
+            diffs = np.diff(peaks)
+            mean_diff = np.mean(diffs)
+            good_diff_idx = np.argwhere(np.abs(diffs - mean_diff) / mean_diff < .30)
+            good_diff_idx += 1
+            return peaks[good_diff_idx]
         
-        red_peaks = clean_peaks(red_peaks, hr_red)
-        ir_peaks = clean_peaks(ir_peaks, hr_ir)
+        red_peaks = clean_peaks(red_peaks)
+        ir_peaks = clean_peaks(ir_peaks)
         
         peak_count = (len(red_peaks) + len(ir_peaks)) * 0.5 # analyzing same time period twice
-        heart_bpm = 60.0 * peak_count / (2.0 * self.window_seconds) # divide by 2 due to double peaks
-
+        heart_bpm = 60.0 * peak_count / (self.window_seconds)
         return heart_bpm
     
     def calculate_data_dict(self):
