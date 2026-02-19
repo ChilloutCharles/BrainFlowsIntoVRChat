@@ -4,9 +4,11 @@ from constants import BAND_POWERS
 import utils
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, NoiseTypes
+from brainflow.data_filter import DataFilter
 
-from meegkit import star, detrend
+from scipy.signal import butter, iirnotch, filtfilt
+from meegkit import detrend
+import pywt
 
 import re
 import numpy as np
@@ -38,24 +40,43 @@ class PwrBands(BaseLogic):
         self.ema_decay = ema_decay
 
         # window of a possible blink
-        self.smooth_window = int(.3 * .5 * self.sampling_rate)
+        self.smooth_window = int(.3 * self.sampling_rate)
+
+        # filter params
+        self.filt_params = [
+            iirnotch(50.0, 10, fs=self.sampling_rate), # line noise 50hz
+            iirnotch(60.0, 10, fs=self.sampling_rate), # line noise 60hz
+            butter(4, (2.0, 45.0), 'bandpass', fs=self.sampling_rate) # target range
+        ]
+
+        # wavelet params
+        self.wlt = 'bior1.3'
+        self.blink_level = 4
+
     
     def get_data_dict(self):
         # get current data from board
         data = self.board.get_current_board_data(self.max_sample_size)
-
-        # remove line noise
-        for eeg_chan in self.eeg_channels:
-            DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY)
+        eeg_data = data[self.eeg_channels]
+        
+        # detrend
+        eeg_data = eeg_data.T
+        eeg_data, _ , _ = detrend.detrend(eeg_data, 2)
+        eeg_data = eeg_data.T
 
         # filter data
-        x = data[self.eeg_channels].T
-        x, _, _= detrend.detrend(x, 3)
-        x, _, _ = star.star(x, 2, depth=2, n_smooth=self.smooth_window, verbose=False)
-        data[self.eeg_channels] = x.T
+        for b, a in self.filt_params:
+            eeg_data = filtfilt(b, a, eeg_data)
+
+        # blink removal by dwt level
+        coeffs = pywt.wavedec(eeg_data, self.wlt)
+        coeffs[0] *= 0
+        coeffs[self.blink_level] *= 0
+        eeg_data = pywt.waverec(coeffs, self.wlt)
 
         # calculate band features for left, right, and overall
-        use_filters = True
+        use_filters = False
+        data[self.eeg_channels] = eeg_data
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, use_filters)
         right_powers, _ = DataFilter.get_avg_band_powers(data, self.right_chans, self.sampling_rate, use_filters)
         avg_powers, _ = DataFilter.get_avg_band_powers(data, self.eeg_channels, self.sampling_rate, use_filters)

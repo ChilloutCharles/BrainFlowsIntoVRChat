@@ -18,10 +18,16 @@ class NeuroFB(PwrBands):
         # create functions for getting scores per location
         get_focus = lambda location: self.calculate_ratio(
             power_dict[location][BAND_POWERS.Beta.name], 
-            power_dict[location][BAND_POWERS.Theta.name])
+            power_dict[location][BAND_POWERS.Theta.name] 
+                + power_dict[location][BAND_POWERS.Delta.name] 
+                + power_dict[location][BAND_POWERS.Gamma.name]
+        )
         get_relax = lambda location: self.calculate_ratio(
             power_dict[location][BAND_POWERS.Alpha.name], 
-            power_dict[location][BAND_POWERS.Theta.name])
+            power_dict[location][BAND_POWERS.Theta.name] 
+                + power_dict[location][BAND_POWERS.Delta.name] 
+                + power_dict[location][BAND_POWERS.Gamma.name]
+        )
         
         # create a function dict to apply calculations with
         # and return dict to aggregate values
