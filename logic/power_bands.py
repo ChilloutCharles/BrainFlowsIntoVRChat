@@ -13,6 +13,8 @@ import pywt
 import re
 import numpy as np
 
+from sklearn.preprocessing import StandardScaler
+
 class PwrBands(BaseLogic):
     LEFT = 'Left'
     RIGHT = 'Right'
@@ -51,7 +53,10 @@ class PwrBands(BaseLogic):
 
         # wavelet params
         self.wlt = 'bior1.3'
-        self.blink_level = 4
+        self.blink_level = 1
+
+        # normalization
+        self.scaler = StandardScaler()
 
     
     def get_data_dict(self):
@@ -61,18 +66,32 @@ class PwrBands(BaseLogic):
         
         # detrend
         eeg_data = eeg_data.T
-        eeg_data, _ , _ = detrend.detrend(eeg_data, 2)
+        eeg_data, _ , _ = detrend.detrend(eeg_data, 1)
         eeg_data = eeg_data.T
 
         # filter data
         for b, a in self.filt_params:
             eeg_data = filtfilt(b, a, eeg_data)
 
+        # normalize
+        eeg_data = self.scaler.fit_transform(eeg_data.T).T
+
         # blink removal by dwt level
         coeffs = pywt.wavedec(eeg_data, self.wlt)
         coeffs[0] *= 0
-        coeffs[self.blink_level] *= 0
+        coeffs[1] *= 0
+        coeffs[2] *= 0
         eeg_data = pywt.waverec(coeffs, self.wlt)
+
+        # y = np.arange(self.max_sample_size)
+        # for i, eeg in enumerate(eeg_data):
+        #     plt.plot(y, eeg, label=i)
+        # plt.ylim((-6, 6))
+        # plt.legend()
+        # plt.grid()
+        # plt.show()
+
+
 
         # calculate band features for left, right, and overall
         use_filters = False
