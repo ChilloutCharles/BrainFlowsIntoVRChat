@@ -4,7 +4,9 @@ from constants import BAND_POWERS
 import utils
 
 from brainflow.board_shim import BoardShim
-from brainflow.data_filter import DataFilter, NoiseTypes, WaveletTypes, ThresholdTypes, FilterTypes, DetrendOperations
+from brainflow.data_filter import DataFilter
+
+from scipy.signal import butter, iirnotch, filtfilt, detrend
 
 import re
 import numpy as np
@@ -31,6 +33,13 @@ class PwrBands(BaseLogic):
         self.left_chans = [eeg_chan for eeg_chan, eeg_num in chan_num_pairs if eeg_num % 2 != 0]
         self.right_chans = [eeg_chan for eeg_chan, eeg_num in chan_num_pairs if eeg_num % 2 == 0]
 
+        # filter params
+        self.filt_params = [
+            iirnotch(50.0, 10, fs=self.sampling_rate), # line noise 50hz
+            iirnotch(60.0, 10, fs=self.sampling_rate), # line noise 60hz
+            butter(4, (2.0, 45.0), 'bandpass', fs=self.sampling_rate) # target range
+        ]
+
         # ema smoothing variables
         self.current_dict = {}
         self.ema_decay = ema_decay
@@ -38,22 +47,21 @@ class PwrBands(BaseLogic):
     def get_data_dict(self):
         # get current data from board
         data = self.board.get_current_board_data(self.max_sample_size)
+        eeg_data = data[self.eeg_channels]
 
+        # detrend data
+        eeg_data = detrend(eeg_data)
+        
         # filter data
-        for eeg_chan in self.eeg_channels:
-            DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
-            DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
-            DataFilter.perform_bandpass(data[eeg_chan], self.sampling_rate, 0.5, 40, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
-            
+        for b, a in self.filt_params:
+            eeg_data = filtfilt(b, a, eeg_data)
+        
         # check if artifact in window
-        artifact_mask = utils.get_artifact_mask(data[self.eeg_channels], self.sampling_rate)
+        artifact_mask = utils.get_artifact_mask(eeg_data, self.sampling_rate)
         has_artifact = np.any(artifact_mask)
-
-        # denoise data
-        for eeg_chan in self.eeg_channels:
-            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, threshold=ThresholdTypes.SOFT)
-
+        
         # calculate band features for left, right, and overall
+        data[self.eeg_channels] = eeg_data
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, False)
         right_powers, _ = DataFilter.get_avg_band_powers(data, self.right_chans, self.sampling_rate, False)
         avg_powers, _ = DataFilter.get_avg_band_powers(data, self.eeg_channels, self.sampling_rate, False)
