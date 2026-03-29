@@ -26,10 +26,11 @@ def compute_snr(original_signal, filtered_signal):
 ## artifact detection by openbci algorithm
 ## https://openbci.com/community/automated-eye-blink-detection-online-2/
 def get_artifact_mask(data, sampling_rate, threshold=100, is_absolute=True):
-    b, a = butter(2, 10 / (sampling_rate / 2), btype='low')  # 10 Hz lowpass filter
+    # b, a = butter(2, 10 / (sampling_rate / 2), btype='low')  # 10 Hz lowpass filter
     
     # lowpass filter to blink range
-    filtered = filtfilt(b, a, data)
+    # filtered = filtfilt(b, a, data)
+    filtered = data
 
     # calculate the mean by channel
     mean = np.mean(filtered, keepdims=True, axis=-1)

@@ -84,17 +84,15 @@ class PwrBands(BaseLogic):
         return ret_dict
     
     def location_smooth(self, loc_name, target_values, has_artifact):
-        current_values, old_target_values = self.current_dict.get(loc_name, (None, None))
-
-        # pause target update on artifact window
-        if has_artifact and isinstance(old_target_values, np.ndarray):
-            target_values = old_target_values
-
-        # ema to target
-        if isinstance(current_values, np.ndarray):
-            current_values = utils.smooth(current_values, target_values, self.ema_decay)
-        else:
-            current_values = target_values
+        current_values, current_ema = self.current_dict.get(loc_name, (target_values, self.ema_decay))
+        
+        # lower ema during artifact, ramp up once artifact gone
+        current_ema = self.ema_decay * 0.1 if has_artifact else current_ema
+        target_ema = self.ema_decay * 0.1 if has_artifact else self.ema_decay
+        
+        # smooth target values and current ema
+        current_ema = utils.smooth(current_ema, target_ema, self.ema_decay)
+        current_values = utils.smooth(current_values, target_values, current_ema)
             
-        self.current_dict[loc_name] = (current_values, target_values)
+        self.current_dict[loc_name] = (current_values, current_ema)
         return current_values
