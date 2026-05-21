@@ -8,6 +8,8 @@ from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropou
 from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
 
+from rotary_embedding_tensorflow import apply_rotary_emb, RotaryEmbedding
+
 ## Spatial Attention (Thanks Summer!)
 @keras.utils.register_keras_serializable()
 class SpatialAttention(Layer):
@@ -326,7 +328,7 @@ class MaskedAutoEncoder(Model):
         embed_dim = patch_dim * 2
         ffn_dim = embed_dim * 4
 
-        self.patch_position = SinusoidPositionalEmbedding(patch_count, embed_dim)
+        self.patch_position = RotaryEmbedding(embed_dim, freqs_for='pixel')
 
         self.patcher = Sequential([
             Input((None, None, input_shape[2])),
