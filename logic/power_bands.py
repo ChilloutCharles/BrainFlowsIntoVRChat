@@ -9,6 +9,9 @@ from brainflow.data_filter import DataFilter, NoiseTypes, WaveletTypes, Threshol
 import re
 import numpy as np
 
+# Average Blink Time
+THRESHOLD_MS = 150
+
 class PwrBands(BaseLogic):
     LEFT = 'Left'
     RIGHT = 'Right'
@@ -34,6 +37,9 @@ class PwrBands(BaseLogic):
         # ema smoothing variables
         self.current_dict = {}
         self.ema_decay = ema_decay
+
+        # artifact detection
+        self.p_artifact_threshold = THRESHOLD_MS / 1000
     
     def get_data_dict(self):
         # get current data from board
@@ -44,14 +50,12 @@ class PwrBands(BaseLogic):
             DataFilter.detrend(data[eeg_chan], DetrendOperations.LINEAR)
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
             DataFilter.perform_bandpass(data[eeg_chan], self.sampling_rate, 0.5, 40, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
-            
-        # We increase std_mult to 8 to accept much larger variations before filtering out
-        artifact_mask = utils.get_artifact_mask(data[self.eeg_channels], self.sampling_rate, std_mult=8)
+        
+        artifact_mask = utils.get_artifact_mask(data[self.eeg_channels], self.sampling_rate)
 
-        # Calculates the proportion of noisy samples in the matrix.
-        # An artifact is only considered present if more than 30% of the data window is corrupted.
-        # This can be tweaked if necessary like for a VR session with a lot of movements it can be increased to 0.40 or 0.50.
-        has_artifact = np.mean(artifact_mask) > 0.5
+        # check if any artifacts are detected.
+        # changed back to np.any() instead of np.mean() as utils.get_artifact_mask() has been updated to be exactly openbci's implementation
+        has_artifact = np.any(artifact_mask)
 
         # denoise data
         # for eeg_chan in self.eeg_channels:
