@@ -45,13 +45,17 @@ class PwrBands(BaseLogic):
             DataFilter.remove_environmental_noise(data[eeg_chan], self.sampling_rate, NoiseTypes.FIFTY_AND_SIXTY.value)
             DataFilter.perform_bandpass(data[eeg_chan], self.sampling_rate, 0.5, 40, 2, FilterTypes.BUTTERWORTH_ZERO_PHASE.value, 0)
             
-        # check if artifact in window
-        artifact_mask = utils.get_artifact_mask(data[self.eeg_channels], self.sampling_rate)
-        has_artifact = np.any(artifact_mask)
+        # We increase std_mult to 8 to accept much larger variations before filtering out
+        artifact_mask = utils.get_artifact_mask(data[self.eeg_channels], self.sampling_rate, std_mult=8)
+
+        # Calculates the proportion of noisy samples in the matrix.
+        # An artifact is only considered present if more than 30% of the data window is corrupted.
+        # This can be tweaked if necessary like for a VR session with a lot of movements it can be increased to 0.40 or 0.50.
+        has_artifact = np.mean(artifact_mask) > 0.5
 
         # denoise data
-        for eeg_chan in self.eeg_channels:
-            DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, threshold=ThresholdTypes.SOFT)
+        # for eeg_chan in self.eeg_channels:
+        #     DataFilter.perform_wavelet_denoising(data[eeg_chan], WaveletTypes.DB4, 5, threshold=ThresholdTypes.SOFT)
 
         # calculate band features for left, right, and overall
         left_powers, _ = DataFilter.get_avg_band_powers(data, self.left_chans, self.sampling_rate, False)

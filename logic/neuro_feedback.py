@@ -16,9 +16,13 @@ class NeuroFB(PwrBands):
         power_dict = super().get_data_dict()
 
         # create functions for getting scores per location
+                # create functions for getting scores per location
+
+        # In standard neurofeedback, the most reliable and clinically validated focus ratio is the ratio Beta / (Alpha + Theta) or the ratio (Beta + Gamma) / (Alpha + Theta).
         get_focus = lambda location: self.calculate_ratio(
-            power_dict[location][BAND_POWERS.Beta.name], 
-            power_dict[location][BAND_POWERS.Theta.name])
+            (power_dict[location][BAND_POWERS.Beta.name] + power_dict[location][BAND_POWERS.Gamma.name]), 
+            (power_dict[location][BAND_POWERS.Theta.name] + power_dict[location][BAND_POWERS.Alpha.name]))
+        
         get_relax = lambda location: self.calculate_ratio(
             power_dict[location][BAND_POWERS.Alpha.name], 
             power_dict[location][BAND_POWERS.Theta.name])
