@@ -18,91 +18,73 @@ from reporters.deprecated_osc_reporter import Old_OSC_Reporter
 from reporters.reporter import Reporter
 from reporters.log_reporter import Log_Reporter
 
+from configparser import ConfigParser
+from types import SimpleNamespace
+
 def enable_loggers():
     BoardShim.enable_board_logger()
     DataFilter.enable_data_logger()
 
-def parse_args() -> argparse.Namespace:
-    ### Paramater Setting ###
-    parser = argparse.ArgumentParser()
 
-    # use docs to check which parameters are required for specific board, e.g. for Cyton - set serial port
-    parser.add_argument('--timeout', type=int, help='timeout for device discovery or connection', required=False,
-                        default=0)
-    parser.add_argument('--ip-port', type=int,
-                        help='ip port', required=False, default=0)
-    parser.add_argument('--ip-protocol', type=int, help='ip protocol, check IpProtocolType enum', required=False,
-                        default=0)
-    parser.add_argument('--ip-address', type=str,
-                        help='ip address', required=False, default='')
-    parser.add_argument('--serial-port', type=str,
-                        help='serial port', required=False, default='')
-    parser.add_argument('--mac-address', type=str,
-                        help='mac address', required=False, default='')
-    parser.add_argument('--other-info', type=str,
-                        help='other info', required=False, default='')
-    parser.add_argument('--streamer-params', type=str,
-                        help='streamer params', required=False, default='')
-    parser.add_argument('--serial-number', type=str,
-                        help='serial number', required=False, default='')
-    parser.add_argument('--file', type=str, help='file',
-                        required=False, default='')
-    
-    # board id by name or id
-    parser.add_argument('--board-id', type=str, help='board id or name, check docs to get a list of supported boards',
-                        required=True)
+def load_config(path: str = "config.ini") -> SimpleNamespace:
+    config = ConfigParser()
+    config.read(path)
 
-    # custom command line arguments
-    parser.add_argument('--window-seconds', type=int,
-                        help='data window in seconds into the past to do calculations on', required=False, default=1)
-    parser.add_argument('--refresh-rate', type=int,
-                        help='refresh rate for the main loop to run at', required=False, default=60)
-    parser.add_argument('--ema-decay', type=float,
-                        help='exponential moving average constant to smooth outputs', required=False, default=1)
-    parser.add_argument('--retry-count', type=int,
-                        help='sets the amount of times to reconnect before giving up', required=False, default=3)
+    return SimpleNamespace(
+        # BrainFlow
+        timeout=config.getint("brainflow", "timeout", fallback=0),
+        ip_port=config.getint("brainflow", "ip_port", fallback=0),
+        ip_protocol=config.getint("brainflow", "ip_protocol", fallback=0),
+        ip_address=config.get("brainflow", "ip_address", fallback=""),
+        serial_port=config.get("brainflow", "serial_port", fallback=""),
+        mac_address=config.get("brainflow", "mac_address", fallback=""),
+        other_info=config.get("brainflow", "other_info", fallback=""),
+        streamer_params=config.get("brainflow", "streamer_params", fallback=""),
+        serial_number=config.get("brainflow", "serial_number", fallback=""),
+        file=config.get("brainflow", "file", fallback=""),
+        board_id=config.get("brainflow", "board_id"),
 
-    # osc command line arguments
-    parser.add_argument('--osc-ip-address', type=str,
-                        help='ip address of the osc listener', required=False, default="127.0.0.1")
-    parser.add_argument('--osc-port', type=int,
-                        help='port the osc listener', required=False, default=9000)
-    
-    # choose which reporter to use
-    parser.add_argument("--use-old-reporter", type=bool, action=argparse.BooleanOptionalAction, 
-                        help='add this argument to use the old osc reporter')
+        # Application
+        window_seconds=config.getint("application", "window_seconds", fallback=1),
+        refresh_rate=config.getint("application", "refresh_rate", fallback=60),
+        ema_decay=config.getfloat("application", "ema_decay", fallback=1.0),
+        retry_count=config.getint("application", "retry_count", fallback=3),
+        sensitivity=config.getfloat("application", "sensitivity", fallback=1.1),
 
-    # toggle debug mode
-    parser.add_argument("--debug", type=bool, action=argparse.BooleanOptionalAction, 
-                        help='add this argument to toggle debug mode on')
-    
-    # toggle value logging
-    parser.add_argument("--enable-logs", type=bool, action=argparse.BooleanOptionalAction, 
-                        help='add this argument to toggle value logging on')
+        # OSC
+        osc_ip_address=config.get("osc", "ip_address", fallback="127.0.0.1"),
+        osc_port=config.getint("osc", "port", fallback=9000),
+        use_old_reporter=config.getboolean("osc", "use_old_reporter", fallback=False),
 
-    # arguments to configure MLAction
-    parser.add_argument("--enable-action", type=bool, action=argparse.BooleanOptionalAction, 
-                        help='add this argument to enable ml action logic')
-    parser.add_argument("--action-ema-multiplier", type=float, required=False, default=5.0,
-                        help='multiplier to speed up or slow down the reactiveness of ml action logic')
-    
-    return parser.parse_args()
+        # Debug
+        debug=config.getboolean("debug", "debug", fallback=False),
+        enable_logs=config.getboolean("debug", "enable_logs", fallback=False),
 
-def configure_brainflow_params(args: argparse.Namespace) -> BrainFlowInputParams:
+        # ML Action
+        enable_action=config.getboolean("action", "enable_action", fallback=False),
+        action_ema_multiplier=config.getfloat(
+            "action",
+            "action_ema_multiplier",
+            fallback=5.0,
+        ),
+    )
+
+def configure_brainflow_params(config) -> BrainFlowInputParams:
     params = BrainFlowInputParams()
-    params.ip_port = args.ip_port
-    params.serial_port = args.serial_port
-    params.mac_address = args.mac_address
-    params.other_info = args.other_info
-    params.serial_number = args.serial_number
-    params.ip_address = args.ip_address
-    params.ip_protocol = args.ip_protocol
-    params.timeout = args.timeout
-    params.file = args.file
+    params.ip_port = config.ip_port
+    params.serial_port = config.serial_port
+    params.mac_address = config.mac_address
+    params.other_info = config.other_info
+    params.serial_number = config.serial_number
+    params.ip_address = config.ip_address
+    params.ip_protocol = config.ip_protocol
+    params.timeout = config.timeout
+    params.file = config.file
+    params.streamer_params = config.streamer_params
 
     return params
 
-def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int]:
+def BoardInit(args: SimpleNamespace) -> tuple[BoardShim, list[BaseLogic], int]:
     ### Only Import MLAction if activated ###
     if args.enable_action:
         from logic.ml_action import MLAction
@@ -136,7 +118,7 @@ def BoardInit(args: argparse.Namespace) -> tuple[BoardShim, list[BaseLogic], int
     logics = [
         Info(board, window_seconds=window_seconds),
         PwrBands(board, window_seconds=window_seconds, ema_decay=ema_decay),
-        NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay),
+        NeuroFB(board, window_seconds=window_seconds, ema_decay=ema_decay, normalize_scale=args.sensitivity),
         Addons(board, window_seconds=window_seconds, ema_decay=ema_decay),
         biometrics_logic
     ]
@@ -180,8 +162,8 @@ def main():
     enable_loggers()
 
     #region Configure
-    ### Parse input ###
-    args = parse_args()
+    ### Parse config file ###
+    args = load_config()
 
     ### Debug message toggle ###
     if args.debug:
@@ -195,7 +177,7 @@ def main():
     main_loop(args, reporter, args.retry_count)
 
 
-def main_loop(args: argparse.Namespace, reporter: Reporter, retries: int):
+def main_loop(args: SimpleNamespace, reporter: Reporter, retries: int):
     #region Init
     while True:
         try:
