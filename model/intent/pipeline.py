@@ -28,7 +28,9 @@ def extract_features(preprocessed_data):
     # resample to expected 160hz sampling rate
     features = signal.resample(preprocessed_data, 160, axis=-1)
     # do multi resolution analysis
-    features = np.array(pywt.mra(features, 'db4', level=2, transform='dwt'))
+    features = np.array(pywt.mra(features, 'db4', level=3, transform='dwt')[1:]) # discard approx coefficients
+    # Convert from microvolts to 100s millivolts
+    features = features * 0.1
     # transpose to correct axis order
     features = features.transpose((2, 1, 0))
     return features

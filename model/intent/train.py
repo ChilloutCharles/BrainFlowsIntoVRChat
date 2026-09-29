@@ -1,3 +1,21 @@
+import tensorflow as tf
+
+## Limit GPU usage
+MB_LIMIT = 12000
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Set virtual device configuration for the first GPU
+        tf.config.experimental.set_virtual_device_configuration(
+            gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=MB_LIMIT)]
+        )
+        print(f"Virtual GPU with {MB_LIMIT} MB memory limit created.")
+    except RuntimeError as e:
+        print("Error while creating virtual GPU:", e)
+else:
+    print("No GPU found.")
+
 import pickle
 import os
 import argparse
@@ -11,7 +29,6 @@ import keras
 from keras.models import Sequential
 from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
-from keras.utils import to_categorical
 from sklearn.metrics import classification_report
 
 import tensorflow as tf
@@ -97,23 +114,6 @@ def main():
     overlap = window_size - 1 # maximum overlap!
 
     ## Segment time series data and split for train test sets
-    def windows_from_datas(datas, test_size, sample_size):
-        eegs = [data[eeg_channels] for data in datas]
-        windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
-        all_windows = np.concatenate(windows_per_session)
-
-        # time based split: last windows used for validation 
-        split_idx = int(len(all_windows) * (1 - test_size))
-        windows_train = list(all_windows[:split_idx - overlap])
-        windows_test = list(all_windows[split_idx:])
-
-        # random sample windows for faster training
-        windows_train = random.sample(windows_train, k=int(len(windows_train) * sample_size))
-        windows_test = random.sample(windows_test, k=int(len(windows_test) * sample_size))
-
-        return windows_train, windows_test
-
-    action_windows = {action_label:windows_from_datas(datas, test_size=args.test_size, sample_size=args.sample_size) for action_label, datas in action_dict.items()}
 
     ## extract the features from the windows
     def process_windows(windows):
@@ -123,44 +123,87 @@ def main():
             features = extract_features(preprocessed_data)
             feature_windows.append(features)
         return feature_windows
-    
-    processed_windows = {action_label:(process_windows(windows_train),process_windows(windows_test)) for action_label, (windows_train, windows_test) in action_windows.items()}
-    
-    ## create train and test sets and labels
-    i_train = np.concatenate([[action_label] * len(windows_train) for action_label, (windows_train, _) in processed_windows.items()])
-    shuffle_indexes = list(range(len(i_train)))
-    random.shuffle(shuffle_indexes)
-    X_train = np.concatenate([windows_train for windows_train, _ in processed_windows.values()])[shuffle_indexes]
-    y_train = to_categorical(i_train, num_classes=len(processed_windows))[shuffle_indexes]
 
-    i_test = np.concatenate([[action_label] * len(windows_test) for action_label, (_, windows_test) in processed_windows.items()])
-    X_test = np.concatenate([windows_test for _ , windows_test in processed_windows.values()])
-    y_test = to_categorical(i_test, num_classes=len(processed_windows))
+    def windows_from_datas(datas):
+        eegs = [data[eeg_channels] for data in datas]
+        windows_per_session = [segment_data(eeg, window_size, overlap) for eeg in eegs]
+        all_windows = np.concatenate(windows_per_session)
+        all_windows = np.array(process_windows(all_windows))
+        return all_windows
+
+    action_dict = {action_label:windows_from_datas(datas) for action_label, datas in action_dict.items()}
+
+    def dynamic_dataset_generator(test_ratio):
+        # 1. Start with empty Python lists (fast to append to)
+        X_train_list, y_train_list = [], []
+        X_test_list, y_test_list = [], []
+
+        for action_label, windows in action_dict.items():
+            item_count = len(windows)
+            val_size = int(item_count * test_ratio)
+            
+            # Enforce safe bounds for selection
+            max_split = item_count - val_size - 2 * window_size
+            
+            # Absolute zero safety check
+            if max_split <= 0 or val_size == 0:
+                left_chunk, middle_chunk, right_chunk = windows, windows[:0], windows[:0]
+            else:
+                split_idx = random.randrange(max_split)
+                val_start = split_idx + window_size
+                val_end = val_start + val_size
+                right_start = val_end + window_size
+
+                left_chunk = windows[:split_idx]
+                middle_chunk = windows[val_start:val_end]
+                right_chunk = windows[right_start:]
+
+            X_train_list.extend([left_chunk, right_chunk])
+            X_test_list.append(middle_chunk)
+
+            # DYNAMIC LABEL GENERATION - Never mismatches or crashes!
+            actual_train_count = len(left_chunk) + len(right_chunk)
+            y_train_list.append(np.full(actual_train_count, action_label))
+            y_test_list.append(np.full(len(middle_chunk), action_label))
+
+        # 4. Concatenate ONCE at the end (highly optimized)
+        X_train = np.concatenate(X_train_list, axis=0)
+        y_train = np.concatenate(y_train_list, axis=0)
+        X_test = np.concatenate(X_test_list, axis=0)
+        y_test = np.concatenate(y_test_list, axis=0)
+
+        # 2. Shuffle X_train and y_train together using a random index permutation
+        shuffled_indices = np.random.permutation(len(X_train))
+        X_train = X_train[shuffled_indices]
+        y_train = y_train[shuffled_indices]
+
+        return X_train, y_train, X_test, y_test
+
+    ## load the dataset first to get sizes    
+    _, _, X_test, y_test = dynamic_dataset_generator(args.test_size)
+    X_full, y_full, _, _ = dynamic_dataset_generator(0)
 
     ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
 
     ## get class count and input shape from training data
-    classes = len(processed_windows)
-    input_shape = X_train.shape[1:]
+    classes = len(action_dict)
+    input_shape = X_full.shape[1:]
 
-    ## Create Model
-    model = create_classifier(pretrained_encoder, classes, input_shape)
-
-    ## Compile the model
-    model.compile(optimizer=AdamW(0.0001), loss='categorical_crossentropy')
-
-    ## Set up EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True, verbose=0)
-
-    ## Train the model
+    ## Epoch Finding Starting 
     batch_size = 256
-    epochs = 128
+    epochs = 15
+    train_speed = 0.0005
+
+    # Train on fresh model
+    model = create_classifier(pretrained_encoder, classes, input_shape)
+    model.compile(optimizer=AdamW(train_speed), loss='sparse_categorical_crossentropy')
+
+    never_stopping = EarlyStopping(monitor='loss', patience=np.inf, restore_best_weights=True, verbose=0)
     fit_history = model.fit(
-        X_train, y_train, 
-        epochs=epochs, batch_size=batch_size, 
-        validation_data=(X_test, y_test), 
-        callbacks=[early_stopping], 
+        X_full, y_full, 
+        epochs=epochs, batch_size=batch_size,
+        callbacks=[never_stopping],
         verbose=1
     )
 
@@ -171,23 +214,26 @@ def main():
     model.save('shallow.keras')
 
     ## Evaluate the model on the test set
-    predictions_prob = model.predict(X_test)
-    predictions = np.argmax(predictions_prob, axis=1)
-    y_test_idxs = np.argmax(y_test, axis=1)
+    X_eval = X_test
+    y_eval = y_test
+    
+    
     print("Model evaluation:")
-    model.evaluate(X_test, y_test)
-    print(classification_report(y_test_idxs, predictions))
+    model.evaluate(X_eval, y_eval)
+
+    predictions_prob = model.predict(X_eval)
+    predictions = np.argmax(predictions_prob, axis=1)
+    print(classification_report(y_eval, predictions))
 
     # Use the dark background style
     plt.style.use('dark_background')
 
     ## Plot history accuracy from model
     plt.plot(fit_history.history['loss'])
-    plt.plot(fit_history.history['val_loss'])
     plt.title('model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['train', 'val'], loc='upper left')
+    plt.legend(['train'], loc='upper left')
     plt.ylim(0, 1)
     plt.savefig('loss.png')
 
@@ -196,7 +242,7 @@ def main():
 
     # Assuming `latent` has shape (samples, timesteps, channels, features)
     seq_model = Sequential(model.layers[:-1])
-    latent = seq_model(X_test)
+    latent = seq_model(X_eval)
     
     # Step 1: Reshape to 2D by flattening the last three dimensions
     samples = latent.shape[0]  # Number of samples
@@ -213,7 +259,7 @@ def main():
 
     # Step 5: Plot the t-SNE result
     plt.figure(figsize=(10, 10))
-    scatter = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=i_test, cmap='viridis', alpha=0.7)
+    scatter = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_eval, cmap='viridis', alpha=0.7)
     plt.colorbar(scatter, label='Labels')
     plt.title('t-SNE Visualization of Labeled Data')
     plt.xlabel('t-SNE Component 1')

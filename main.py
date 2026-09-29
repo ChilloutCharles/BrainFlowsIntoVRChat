@@ -67,6 +67,7 @@ def load_config(path: str = "config.ini") -> SimpleNamespace:
             "action_ema_multiplier",
             fallback=5.0,
         ),
+        a0_baseline=config.getboolean("action", "a0_baseline", fallback=False),
     )
 
 def configure_brainflow_params(config) -> BrainFlowInputParams:
@@ -131,7 +132,7 @@ def BoardInit(args: SimpleNamespace) -> tuple[BoardShim, list[BaseLogic], int]:
     
     ### Add ml action to logics if enabled
     if args.enable_action:
-        logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier))
+        logics.append(MLAction(board, ema_decay = ema_decay * args.action_ema_multiplier, a0_baseline=args.a0_baseline))
 
     ### Adding one second to startup time for adaptive filters ###
     startup_time += 1
