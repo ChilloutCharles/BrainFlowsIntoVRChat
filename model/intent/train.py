@@ -180,30 +180,31 @@ def main():
         return X_train, y_train, X_test, y_test
 
     ## load the dataset first to get sizes    
-    _, _, X_test, y_test = dynamic_dataset_generator(args.test_size)
-    X_full, y_full, _, _ = dynamic_dataset_generator(0)
+    X_train, y_train, X_test, y_test = dynamic_dataset_generator(args.test_size)
 
     ## load pretrained encoder freeze it for use in perceptual loss
     pretrained_encoder = keras.models.load_model("physionet_encoder.keras")
 
     ## get class count and input shape from training data
     classes = len(action_dict)
-    input_shape = X_full.shape[1:]
+    input_shape = X_train.shape[1:]
 
-    ## Epoch Finding Starting 
+    ## Set training parameters 
     batch_size = 256
     epochs = 15
     train_speed = 0.0005
+    patience = 2**2
 
     # Train on fresh model
     model = create_classifier(pretrained_encoder, classes, input_shape)
     model.compile(optimizer=AdamW(train_speed), loss='sparse_categorical_crossentropy')
 
-    never_stopping = EarlyStopping(monitor='loss', patience=np.inf, restore_best_weights=True, verbose=0)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=patience, restore_best_weights=True, verbose=0)
     fit_history = model.fit(
-        X_full, y_full, 
+        X_train, y_train,
         epochs=epochs, batch_size=batch_size,
-        callbacks=[never_stopping],
+        callbacks=[early_stopping],
+        validation_data=(X_test, y_test),
         verbose=1
     )
 
@@ -230,10 +231,11 @@ def main():
 
     ## Plot history accuracy from model
     plt.plot(fit_history.history['loss'])
+    plt.plot(fit_history.history['val_loss'])
     plt.title('model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['train'], loc='upper left')
+    plt.legend(['train', 'val'], loc='upper left')
     plt.ylim(0, 1)
     plt.savefig('loss.png')
 
