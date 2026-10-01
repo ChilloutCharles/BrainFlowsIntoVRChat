@@ -3,9 +3,9 @@ import numpy as np
 import keras
 
 from keras.models import Sequential, Model, clone_model
-from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D, MaxPooling2D
-from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input
-from keras.layers import MultiHeadAttention, LayerNormalization, Reshape
+from keras.layers import Dense, Layer, DepthwiseConv1D, Conv1D, MaxPooling2D, SeparableConv1D, GaussianNoise 
+from keras.layers import Activation, Multiply, BatchNormalization, SpatialDropout1D, UpSampling1D, GlobalAveragePooling1D, Input, Dropout
+from keras.layers import MultiHeadAttention, LayerNormalization, Reshape, Flatten
 from keras.losses import MeanSquaredError as MSE, CategoricalCrossentropy
 
 ## Spatial Attention (Thanks Summer!)
@@ -228,23 +228,103 @@ class PatchLayer(Layer):
         super(PatchLayer, self).build(input_shape)
 
 @keras.saving.register_keras_serializable()
+class RotaryPositionalEmbedding(Layer):
+    def __init__(self, max_len=160, head_dim=12, num_registers=4, theta=10000.0, **kwargs):
+        super(RotaryPositionalEmbedding, self).__init__(**kwargs)
+        self.max_len = max_len
+        self.head_dim = head_dim
+        self.theta = theta
+        self.num_registers = num_registers
+
+        # 1. Compute inverse frequencies for half the head dimension space
+        half_dim = self.head_dim // 2
+        div_term = 1.0 / (self.theta ** (np.arange(0, half_dim, dtype=np.float32) / half_dim))
+        
+        # 2. Shift the position index generation (registers remain at 0)
+        position = np.zeros(self.max_len, dtype=np.float32)
+        if self.max_len > self.num_registers:
+            position[self.num_registers:] = np.arange(1, self.max_len - self.num_registers + 1, dtype=np.float32)
+        
+        position = position[:, np.newaxis]
+        angles = position * div_term
+
+        # 3. Duplicate angles across the full head_dim
+        full_angles = np.concatenate([angles, angles], axis=-1)
+
+        # 4. Compute cos and sin, then reshape for MHA broadcasting: (1, max_len, 1, head_dim)
+        cos_pe = np.cos(full_angles)[np.newaxis, :, np.newaxis, :]
+        sin_pe = np.sin(full_angles)[np.newaxis, :, np.newaxis, :]
+
+        # 5. Lock them into static constants to avoid graph isolation errors
+        self.cos_cached = tf.constant(cos_pe, dtype=tf.float32)
+        self.sin_cached = tf.constant(sin_pe, dtype=tf.float32)
+
+    def build(self, input_shape):
+        super(RotaryPositionalEmbedding, self).build(input_shape)
+
+    def _rotate_half(self, x):
+        half_dim = self.head_dim // 2
+        x1 = x[..., :half_dim]
+        x2 = x[..., half_dim:]
+        return tf.concat([-x2, x1], axis=-1)
+
+    def call(self, x):
+        # x shape from your trace: (batch, seq_len, num_heads, head_dim)
+        # e.g., (None, None, 6, 40)
+        seq_len = tf.shape(x)[1]
+        
+        # Slice the cached embedding to match the current dynamic sequence length
+        cos = self.cos_cached[:, :seq_len, :, :]
+        sin = self.sin_cached[:, :seq_len, :, :]
+        
+        # Apply the standard RoPE formulation: R(x) = x * cos + rotate_half(x) * sin
+        return (x * cos) + (self._rotate_half(x) * sin)
+
+    def get_config(self):
+        config = super(RotaryPositionalEmbedding, self).get_config()
+        config.update({
+            "max_len": self.max_len,
+            "head_dim": self.head_dim,
+            "theta": self.theta,
+            "num_registers": self.num_registers,
+        })
+        return config
+
+
+@keras.saving.register_keras_serializable()
+class RoPEMultiHeadAttention(MultiHeadAttention):
+    def __init__(self, num_heads, key_dim, register_count, **kwargs):
+        super().__init__(num_heads=num_heads, key_dim=key_dim, **kwargs)
+        self.rope_layer = RotaryPositionalEmbedding(160*5, key_dim, register_count)
+
+    def _compute_attention(self, query, key, value, attention_mask=None, training=None):
+        # Intercept: Keras passes these tensors to us post-projection with shape (B, S, H, D)
+        query = self.rope_layer(query)
+        key = self.rope_layer(key)
+        
+        # Hand the rotated tensors back to Keras's underlying attention math engine
+        return super()._compute_attention(
+            query, key, value, attention_mask=attention_mask, training=training
+        )
+
+@keras.saving.register_keras_serializable()
 class MultiHeadSelfAttention(Layer):
-    def __init__(self, num_heads, key_dim, **kwargs):
+    def __init__(self, num_heads, key_dim, register_count, **kwargs):
         super(MultiHeadSelfAttention, self).__init__(**kwargs)
-        self.attn = MultiHeadAttention(num_heads, key_dim)
+        self.attn = RoPEMultiHeadAttention(num_heads, key_dim, register_count)
     
     def call(self, inputs):
-        return self.attn(inputs, inputs)
+        return self.attn(query=inputs, key=inputs, value=inputs)
     
     def build(self, input_shape):
         super(MultiHeadSelfAttention, self).build(input_shape)
 
 @keras.saving.register_keras_serializable()
 class Transformer(Layer):
-    def __init__(self, num_head, ffn_dim, out_dim, **kwargs):
+    def __init__(self, num_head, ffn_dim, out_dim, register_count, **kwargs):
         super(Transformer, self).__init__(**kwargs)
         key_dim = out_dim//num_head
-        self.attn = MultiHeadSelfAttention(num_head, key_dim)
+        self.attn = MultiHeadSelfAttention(num_head, key_dim, register_count)
         self.ffn = Sequential([
             Dense(ffn_dim, activation='gelu'),
             Dense(out_dim, activation='linear')
@@ -263,54 +343,57 @@ class Transformer(Layer):
         return ffn_out
 
 @keras.utils.register_keras_serializable()
-class TrainablePositionalEmbedding(Layer):
-    def __init__(self, max_len=160, **kwargs):
-        super(TrainablePositionalEmbedding, self).__init__(**kwargs)
-        self.max_len = max_len
-        self.tanh = Activation('tanh')
+class ExtractRegisterLayer(Layer):
+    def __init__(self, register_count=5, **kwargs):
+        super(ExtractRegisterLayer, self).__init__(**kwargs)
+        self.register_count=register_count
+    def call(self, inputs):
+        return inputs[:, 0:self.register_count, :]
+    def build(self, input_shape):
+        super(ExtractRegisterLayer, self).build(input_shape)
+
+@keras.utils.register_keras_serializable()
+class RemoveRegisterLayer(Layer):
+    def __init__(self, register_count=5, **kwargs):
+        super(RemoveRegisterLayer, self).__init__(**kwargs)
+        self.register_count = register_count
+    def call(self, inputs):
+        return inputs[:, self.register_count:, :]
+    def build(self, input_shape):
+        super(RemoveRegisterLayer, self).build(input_shape)
+    def get_config(self):
+        config = super(RemoveRegisterLayer, self).get_config()
+        config.update({
+            "register_count": self.register_count
+        })
+        return config
+
+@keras.utils.register_keras_serializable()
+class PrependRegisterLayer(Layer):
+    def __init__(self, register_count=5, **kwargs):
+        super(PrependRegisterLayer, self).__init__(**kwargs)
+        self.register_count = register_count
 
     def build(self, input_shape):
-        # Define a trainable positional embedding unique to the sequence dimension
-        self.positional_embeddings = self.add_weight(
-            name='positional_embeddings',
-            shape=(self.max_len, 1),  # One unique value per time step
-            initializer='random_normal',
-            trainable=True,
-            regularizer='l2'
+        self.register_tokens = self.add_weight(
+            name="register_tokens",
+            shape=(1, self.register_count, input_shape[-1]),
+            initializer="random_normal",
+            trainable=True
         )
-        super(TrainablePositionalEmbedding, self).build(input_shape)
+        super(PrependRegisterLayer, self).build(input_shape)
 
     def call(self, inputs):
-        seq_len = tf.shape(inputs)[1]
-        pos_embeddings = tf.tile(self.positional_embeddings[:seq_len, :], [1, tf.shape(inputs)[-1]])
-        pos_embeddings = self.tanh(pos_embeddings)
-        return inputs + pos_embeddings
-    
-@keras.saving.register_keras_serializable()
-class SinusoidPositionalEmbedding(Layer):
-    def __init__(self, max_len=160, embed_dim=64, **kwargs):
-        super(SinusoidPositionalEmbedding, self).__init__(**kwargs)
-        self.max_len = max_len  
-        self.embed_dim = embed_dim  
+        batch_size = tf.shape(inputs)[0]
+        register_tokens_batched = tf.tile(self.register_tokens, [batch_size, 1, 1])
+        return tf.concat([register_tokens_batched, inputs], axis=1)
 
-        # Generate the positional encoding matrix for all positions and embedding dimensions
-        position = np.arange(self.max_len)[:, np.newaxis]
-        div_term = np.exp(np.arange(0, self.embed_dim, 2) * -(np.log(10000.0) / self.embed_dim))
-        
-        pe = np.zeros((self.max_len, self.embed_dim))
-        pe[:, 0::2] = np.sin(position * div_term)  # Apply sin to even indices
-        pe[:, 1::2] = np.cos(position * div_term)  # Apply cos to odd indices
-        
-        # Convert to TensorFlow tensor and add a batch dimension
-        self.positional_embeddings = tf.constant(pe, dtype=tf.float32)
-
-    def build(self, input_shape):
-        super(SinusoidPositionalEmbedding, self).build(input_shape)
-
-    def call(self, inputs):
-        # Add the positional encodings to the input tensor
-        seq_len = tf.shape(inputs)[1]
-        return inputs + self.positional_embeddings[:seq_len, :]
+    def get_config(self):
+        config = super(PrependRegisterLayer, self).get_config()
+        config.update({
+            "register_count": self.register_count
+        })
+        return config
 
 @keras.saving.register_keras_serializable()
 class MaskedAutoEncoder(Model):
@@ -323,10 +406,10 @@ class MaskedAutoEncoder(Model):
         patch_count_w = input_shape[1]//patch_shape[1]
         patch_count = patch_count_h * patch_count_w
 
-        embed_dim = patch_dim * 2
-        ffn_dim = embed_dim * 4
+        encoder_embed_dim = patch_dim * 2
+        ffn_dim = encoder_embed_dim * 4
+        decoder_embed_dim = encoder_embed_dim // 2
 
-        self.patch_position = SinusoidPositionalEmbedding(patch_count, embed_dim)
 
         self.patcher = Sequential([
             Input((None, None, input_shape[2])),
@@ -335,17 +418,28 @@ class MaskedAutoEncoder(Model):
 
         self.project = Sequential([
             Input((None, patch_dim)),
-            Dense(embed_dim, use_bias=False),
+            Dense(encoder_embed_dim, use_bias=False),
         ], name='project')
 
-        self.encoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(ae_size[0])], name='encoder')
-        self.decoder = Sequential([Input((None, embed_dim))] +  [Transformer(num_heads, ffn_dim, embed_dim) for _ in range(ae_size[1])], name='decoder')
+        register_count = 5
+
+        self.encoder = Sequential([Input((None, encoder_embed_dim))] +  [Transformer(num_heads, ffn_dim, encoder_embed_dim, register_count) for _ in range(ae_size[0])], name='encoder')
+
+        self.decoder_project = Dense(decoder_embed_dim, use_bias=False, name='decoder_project')
+
+        self.decoder = Sequential([Input((None, decoder_embed_dim))] +  [Transformer(num_heads, ffn_dim, decoder_embed_dim, register_count) for _ in range(ae_size[1])], name='decoder')
 
         self.unproject = Dense(patch_dim, use_bias=False)
         self.recover = Reshape(self.input_shape)
         
         self.mask_token = tf.Variable(tf.random.normal((1, patch_count, 1)), trainable=True)
         self.num_mask = int(mask_ratio * patch_count)
+
+        self.encoder_regadd = PrependRegisterLayer(register_count)
+        self.encoder_regrem = RemoveRegisterLayer(register_count)
+
+        self.decoder_regadd = PrependRegisterLayer(register_count)
+        self.decoder_regrem = RemoveRegisterLayer(register_count)
 
         # Internal Loss 
         self.loss_func = loss_func
@@ -355,7 +449,6 @@ class MaskedAutoEncoder(Model):
         # patch, linearly project, and apply static position embedding
         input_patches = self.patcher(inputs)
         embedding = self.project(input_patches)
-        embedding = self.patch_position(embedding)
         
         # get embedding shape for later use
         embed_shape = tf.shape(embedding)
@@ -366,16 +459,30 @@ class MaskedAutoEncoder(Model):
         unmask_indices = rand_indices[:, self.num_mask :]
         unmasked_embeds = tf.gather(embedding, unmask_indices, axis=1, batch_dims=1)
 
+        # prepend encoder register tokens
+        unmasked_embeds = self.encoder_regadd(unmasked_embeds)
+
         # send unmasked patches through encoder
         features = self.encoder(unmasked_embeds)
 
-        # reintroduce masked portions with the mask token and apply positional embed
+        # separate register tokens from the features
+        features = self.encoder_regrem(features)
+
+        # reintroduce masked portions with the mask token, apply positional encode, then scatter the features
         decoder_input = tf.broadcast_to(self.mask_token, embed_shape)
         decoder_input = self.hard_ass_scatter_update(decoder_input, unmask_indices, features)
-        decoder_input = self.patch_position(decoder_input)
+
+        # project into decoder embed dim
+        decoder_input = self.decoder_project(decoder_input)
+
+        # prepend decoder register tokens
+        decoder_input = self.decoder_regadd(decoder_input)
         
         # send mask tokenized full patch sequence to decoder
         reconstruct_embedding = self.decoder(decoder_input)
+
+        # slice off register tokens from reconstruction
+        reconstruct_embedding = self.decoder_regrem(reconstruct_embedding)
 
         # project back to patch dims
         reconstruct_patches = self.unproject(reconstruct_embedding)
@@ -418,8 +525,9 @@ class MaskedAutoEncoder(Model):
         feature_extractor = Sequential([
             self.patcher,
             self.project,
-            self.patch_position,
-            self.encoder
+            self.encoder_regadd,
+            self.encoder,
+            self.decoder_project
         ])
         feature_extractor.build(input_shape=(None, *self.input_shape))
         return feature_extractor
@@ -439,12 +547,14 @@ class ShuffleLayer(Layer):
     def build(self, input_shape):
         super(ShuffleLayer, self).build(input_shape)
 
+
 def create_classifier(feature_extractor, classes, input_shape):
     [
         patcher,
         project,
-        _,
-        encoder
+        encoder_regadd,
+        encoder,
+        decoder_project
     ] = feature_extractor.layers
 
     # create a pooling layer to map input channels to what the patcher can handle
@@ -459,39 +569,23 @@ def create_classifier(feature_extractor, classes, input_shape):
     patcher.trainable = False
     project.trainable = False
 
-    # freeze all layers of encoder
-    # except first transform layer norms and last half of the last transform
-    for layer in encoder.layers[1:-1]:
+    # CLS finetuning
+    encoder_regadd.trainable = False
+    for layer in encoder.layers[:-2]:
         layer.trainable = False
     
-    first_tfm = encoder.layers[0]
-    first_tfm.attn.trainable = False
-    first_tfm.ffn.trainable = False
-
-    last_tfm = encoder.layers[-1]
-    last_tfm.ln1.trainable = False
-    last_tfm.attn.trainable = False
-
-    # replace positional embedder with user custom
-    patch_position = TrainablePositionalEmbedding()
-
-    # create self attention pooling
-    embed_dim = encoder.input_shape[-1]
-    num_heads = 8
-    pool = Sequential([
-        LayerNormalization(),
-        MultiHeadSelfAttention(num_heads, embed_dim//num_heads),
-        GlobalAveragePooling1D(),
-    ], name='GlobalSelfAttentionPooling1D')
+    # Freeze Decoder Projection
+    decoder_project.trainable = False
 
     return Sequential([
         patch_matcher,
         patcher,
         project,
-        patch_position,
-        ShuffleLayer(),
+        encoder_regadd,
         encoder,
-        pool,
+        ExtractRegisterLayer(1),
+        decoder_project,
+        Flatten(),
         Dense(classes, activation='softmax')
     ], name='classifier')
 

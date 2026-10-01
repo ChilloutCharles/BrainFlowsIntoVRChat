@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--serial-number', type=str, required=False, default='', help='serial number')
     parser.add_argument('--file', type=str, required=False, default='', help='file',)
     parser.add_argument('--actions', type=int, required=True, help='number of actions to record')
-    parser.add_argument('--sessions', type=int, required=False, default=2, help='number of sessions per action to record')
+    parser.add_argument('--sessions', type=int, required=False, default=3, help='number of sessions per action to record')
     parser.add_argument('--window-length', type=int, required=False, default=10, help='length in seconds of eeg data pulled per session')
     parser.add_argument('--window-buffer', type=int, required=False, default=2, help='time in seconds before eeg data is recorded each session (delay after hitting enter)')
     parser.add_argument('--overwrite', type=int, required=False, default=0, help='1 to overwrite/remove old recordings, 0 to add results as an additional data file')

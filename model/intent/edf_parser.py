@@ -68,24 +68,15 @@ if __name__ == '__main__':
     data = list(filter(lambda d: d.shape[0] == window_count and d.shape[-1] == sample_count, data))
     data = np.array(data)
 
-    # normalize
-    print('Normalizing...')
-    scaler = Scaler()
-    entries = data.shape[0]
-    for batch in data:
-        scaler.partial_fit(batch.reshape(-1, 1))
-    for i in range(entries):
-        data[i] = scaler.transform(data[i].reshape(-1, 1)).reshape(data[i].shape)
-
     # multi-resolution analysis
     print('MRA...', data.shape)
     with Pool(16) as p:
-        level = 2
-        d_shape = (data.shape[0], level + 1, *data.shape[1:])
+        level = 3
+        d_shape = (data.shape[0], level, *data.shape[1:])
         d = np.memmap('large_arr.tmp', dtype='float32', mode='w+', shape=d_shape)
 
         def create_mra_func(level):
-            return lambda row: np.array(pywt.mra(row, 'db4', level, transform='dwt'))
+            return lambda row: np.array(pywt.mra(row, 'db4', level, transform='dwt')[1:]) # discard approx coefficients
         generator = p.imap_unordered(create_mra_func(level), data)
         
         for i, result in enumerate(generator):
@@ -103,9 +94,12 @@ if __name__ == '__main__':
     data = data.reshape(-1, *data.shape[-3:])
     print('Reshaped', data.shape)
 
+    # square data
+    print('100s of millivolts', data.shape)
+    data *= 1e5
+
     # serialize
     print('Saving...')
-    joblib.dump(scaler, 'scaler.gz')
     joblib.dump(data, 'dataset.pkl')
 
     # cleanup

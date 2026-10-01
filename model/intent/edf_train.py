@@ -1,16 +1,16 @@
 import tensorflow as tf
-import itertools
 
 ## Limit GPU usage
+MB_LIMIT = 12000
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
     try:
         # Set virtual device configuration for the first GPU
         tf.config.experimental.set_virtual_device_configuration(
             gpus[0],
-            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=12000)]  # 12GB memory limit
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=MB_LIMIT)]
         )
-        print("Virtual GPU with 12 GB memory limit created.")
+        print(f"Virtual GPU with {MB_LIMIT} MB memory limit created.")
     except RuntimeError as e:
         print("Error while creating virtual GPU:", e)
 else:
@@ -21,7 +21,6 @@ import joblib
 
 from keras.optimizers import AdamW
 from keras.callbacks import EarlyStopping
-from keras.layers import Activation
 
 from model import MaskedAutoEncoder
 
@@ -38,37 +37,41 @@ print('Shuffled. Splitting...')
 pivot = int(data.shape[0] * 0.2)
 X_val_orig = data[:pivot]
 X_train = data[pivot:]
-del data
 
 # Setup variables for batch generation and training
 print('Data Processed. Setting up...')
 batch_size = 512
 epochs = 256
-batch_count = sample_count // batch_size
-X_train = np.array_split(X_train, batch_count, axis=0)
-X_val = np.array_split(X_val_orig, batch_count, axis=0)
+train_steps = len(X_train) // batch_size
+test_steps = len(X_val_orig) // batch_size
 
-train_steps = len(X_train)
-test_steps = len(X_val)
+def data_generator(iterator):
+    def func():
+        while True:
+            for x in iterator:
+                yield x, x
+    return func
 
-# set up train and val generators
-def batch_generator(splits):
-    iterator = itertools.cycle(splits)
-    for x in iterator:
-        yield x, x
-train_generator = batch_generator(X_train)
-val_generator = batch_generator(X_val)
-
-# Build the autoencoder
-input_shape = X_train[0].shape[1:]
-autoencoder = MaskedAutoEncoder(
-    input_shape=input_shape, 
-    patch_shape=(10, 4), 
-    mask_ratio=0.75,
-    num_heads=8,
-    ae_size=(5, 1)
+# Create the datasets using the generator
+output_signature = (
+    tf.TensorSpec(shape=(160, 64, 3), dtype=tf.float32),
+    tf.TensorSpec(shape=(160, 64, 3), dtype=tf.float32)
 )
-autoencoder.compile(optimizer=AdamW(0.001), loss='mse')
+
+train_dataset = tf.data.Dataset.from_generator(data_generator(X_train), output_signature=output_signature)\
+    .shuffle(buffer_size=2048, reshuffle_each_iteration=True)\
+    .batch(batch_size).prefetch(tf.data.AUTOTUNE)
+val_dataset = tf.data.Dataset.from_generator(data_generator(X_val_orig), output_signature=output_signature).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
+autoencoder = MaskedAutoEncoder(
+    input_shape=X_train.shape[1:], 
+    patch_shape=(20, 4), 
+    mask_ratio=0.75,
+    num_heads=6,
+    ae_size=(10, 1)
+)
+
+autoencoder.compile(optimizer='adamw', loss='mse')
 
 # Define the EarlyStopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
@@ -76,9 +79,9 @@ early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weig
 # Train the autoencoder with early stopping
 print('Setup Complete. Training...')
 fit_history = autoencoder.fit(
-    x = train_generator, y = None,
+    x = train_dataset, y = None,
     epochs=epochs,
-    validation_data=val_generator, 
+    validation_data=val_dataset, 
     callbacks=[early_stopping],
     steps_per_epoch=train_steps,
     validation_steps=test_steps,
@@ -94,12 +97,15 @@ encoder.summary()
 # Evaluate the model
 print("Model evaluation:")
 autoencoder.evaluate(
-    x=val_generator, y=None,
+    x=val_dataset, y=None,
     steps=test_steps
 )
 
 # View Reconstruction
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler as Scaler
+
+scaler = Scaler(with_mean=False)
 
 # Number of random windows to select
 num_windows = 16
@@ -112,13 +118,21 @@ X_val_subset = X_val_orig[r_indices]
 reconstructed_subset = autoencoder.predict(X_val_subset)
 
 # Transpose to time last
+scaler.fit(X_val_subset.reshape(-1, 1))
 X_val_subset = X_val_subset.transpose(0, 2, 1, 3)
 reconstructed_subset = reconstructed_subset.transpose(0, 2, 1, 3)
 
-# Scale to [0, 1]
-sigmoid = Activation('sigmoid')
-X_val_rgb = np.array(sigmoid(X_val_subset))
-reconstructed_rgb = np.array(sigmoid(reconstructed_subset))
+# Normalize the data for visualization
+X_val_subset = scaler.transform(X_val_subset.reshape(-1, 1)).reshape(X_val_subset.shape)
+reconstructed_subset = scaler.transform(reconstructed_subset.reshape(-1, 1)).reshape(reconstructed_subset.shape)
+
+# take absolute values for RGB visual
+X_val_subset = np.abs(X_val_subset)
+reconstructed_subset = np.abs(reconstructed_subset)
+
+# Clip to [0, 2] / 2 range for visualization
+X_val_rgb = np.clip(X_val_subset, 0, 2) / 2
+reconstructed_rgb = np.clip(reconstructed_subset, 0, 2) / 2
 
 # Use the dark background style
 plt.style.use('dark_background')

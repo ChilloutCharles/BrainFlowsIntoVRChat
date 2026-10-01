@@ -9,7 +9,7 @@ from brainflow.board_shim import BoardShim
 import model.intent.model as model
 
 class MLAction(BaseLogic):
-    def __init__(self, board, ema_decay=1/60):
+    def __init__(self, board, ema_decay=1/60, a0_baseline=False):
         super().__init__(board)
 
         board_id = board.get_board_id()
@@ -21,6 +21,7 @@ class MLAction(BaseLogic):
         self.current_value = 0
 
         self.sample_size = int(1.0 * self.sampling_rate)
+        self.a0_baseline = a0_baseline
     
     def get_data_dict(self):
         ret_dict = super().get_data_dict()
@@ -38,12 +39,17 @@ class MLAction(BaseLogic):
         # get action index with highest score
         action_idx = np.argmax(self.current_value)
 
+        # if action zero is baseline, treat it as (0, 0) for actionH and actionV by excluding it
+        values = self.current_value
+        if self.a0_baseline:
+            values = self.current_value[1:]
+
         # generate angles from output count
-        count = len(self.current_value)
+        count = len(values)
         angles = (2.0 * np.pi) * (np.arange(0, count) / count)
 
         # treat outputs as magnitudes and create vectors
-        vectors = self.current_value * np.exp(1j * angles)
+        vectors = values * np.exp(1j * angles)
 
         # sum vectors
         summed_vector = np.sum(vectors)
